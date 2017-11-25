@@ -21,6 +21,8 @@
  * @ingroup Search
  */
 
+use Wikimedia\Rdbms\IDatabase;
+
 /**
  * Base search engine base class for database-backed searches
  * @ingroup Search
@@ -40,7 +42,7 @@ class SearchDatabase extends SearchEngine {
 		if ( $db ) {
 			$this->db = $db;
 		} else {
-			$this->db = wfGetDB( DB_SLAVE );
+			$this->db = wfGetDB( DB_REPLICA );
 		}
 	}
 
@@ -51,7 +53,10 @@ class SearchDatabase extends SearchEngine {
 	 * @return string
 	 */
 	protected function filter( $text ) {
-		$lc = $this->legalSearchChars();
+		// List of chars allowed in the search query.
+		// This must include chars used in the search syntax.
+		// Usually " (phrase) or * (wildcards) if supported by the engine
+		$lc = $this->legalSearchChars( self::CHARS_ALL );
 		return trim( preg_replace( "/[^{$lc}]/", " ", $text ) );
 	}
 }

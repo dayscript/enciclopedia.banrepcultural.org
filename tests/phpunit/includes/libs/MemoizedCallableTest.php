@@ -1,7 +1,7 @@
 <?php
 /**
  * A MemoizedCallable subclass that stores function return values
- * in an instance property rather than APC.
+ * in an instance property rather than APC or APCu.
  */
 class ArrayBackedMemoizedCallable extends MemoizedCallable {
 	private $cache = [];
@@ -31,7 +31,8 @@ class MemoizedCallableTest extends PHPUnit_Framework_TestCase {
 	 * way as the original underlying callable.
 	 */
 	public function testReturnValuePassedThrough() {
-		$mock = $this->getMock( 'stdClass', [ 'reverse' ] );
+		$mock = $this->getMockBuilder( 'stdClass' )
+			->setMethods( [ 'reverse' ] )->getMock();
 		$mock->expects( $this->any() )
 			->method( 'reverse' )
 			->will( $this->returnCallback( 'strrev' ) );
@@ -44,10 +45,11 @@ class MemoizedCallableTest extends PHPUnit_Framework_TestCase {
 	 * Consecutive calls to the memoized callable with the same arguments
 	 * should result in just one invocation of the underlying callable.
 	 *
-	 * @requires function apc_store
+	 * @requires function apc_store/apcu_store
 	 */
 	public function testCallableMemoized() {
-		$observer = $this->getMock( 'stdClass', [ 'computeSomething' ] );
+		$observer = $this->getMockBuilder( 'stdClass' )
+			->setMethods( [ 'computeSomething' ] )->getMock();
 		$observer->expects( $this->once() )
 			->method( 'computeSomething' )
 			->will( $this->returnValue( 'ok' ) );
