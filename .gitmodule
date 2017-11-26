@@ -1,7 +1,3 @@
-[submodule "extensions/ApprovedRevs"]
-    path = extensions/ApprovedRevs
-    url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/ApprovedRevs.git
-
 [submodule "extensions/CategoryTree"]
     path = extensions/CategoryTree
     url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/CategoryTree.git
