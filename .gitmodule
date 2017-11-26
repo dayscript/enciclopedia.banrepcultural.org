@@ -1,0 +1,24 @@
+[submodule "extensions/ApprovedRevs"]
+    path = extensions/ApprovedRevs
+    url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/ApprovedRevs.git
+
+[submodule "extensions/CategoryTree"]
+    path = extensions/CategoryTree
+    url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/CategoryTree.git
+
+[submodule "extensions/MobileFrontend"]
+    path = extensions/MobileFrontend
+    url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/MobileFrontend.git
+    
+[submodule "extensions/Translate"]
+    path = extensions/Translate
+    url = https://gerrit.wikimedia.org/r/p/mediawiki/extensions/Translate.git
+
+[submodule "vendor/jetbrains/phpstorm-stubs"]
+    path = vendor/jetbrains/phpstorm-stubs
+    url = https://github.com/JetBrains/phpstorm-stubs.git
+
+
+[submodule "skins/Tweeki"]
+    path = skins/Tweeki
+    url = https://github.com/thaider/Tweeki
