@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url>
+		<loc>http://enciclopedia.banrepcultural.org/index.php/MediaWiki:Common.css</loc>
+		<lastmod>2017-12-13T20:50:50Z</lastmod>
+		<priority>0.0</priority>
+	</url>
+	<url>
+		<loc>http://enciclopedia.banrepcultural.org/index.php/MediaWiki:Mainpage</loc>
+		<lastmod>2017-12-23T17:00:17Z</lastmod>
+		<priority>0.0</priority>
+	</url>
+	<url>
+		<loc>http://enciclopedia.banrepcultural.org/index.php/MediaWiki:Sidebar</loc>
+		<lastmod>2018-01-22T16:09:25Z</lastmod>
+		<priority>0.0</priority>
+	</url>
+</urlset>
