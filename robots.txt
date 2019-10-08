@@ -1,3 +1,5 @@
 User-agent: *
-Disallow: /cgi-bin/
-Disallow: /images/
+Allow: /
+
+Sitemap: http://enciclopedia.banrepcultural.org/sitemap/sitemap-index-enciclopedia.xml
+
