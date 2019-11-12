@@ -19,13 +19,21 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionStore;
+
 /**
  * @ingroup API
  * @since 1.25
  */
 class ApiTag extends ApiBase {
 
+	/** @var RevisionStore */
+	private $revisionStore;
+
 	public function execute() {
+		$this->revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
+
 		$params = $this->extractRequestParams();
 		$user = $this->getUser();
 
@@ -37,9 +45,9 @@ class ApiTag extends ApiBase {
 		}
 
 		// Check if user can add tags
-		if ( count( $params['tags'] ) ) {
+		if ( $params['tags'] ) {
 			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
-			if ( !$ableToTag->isOk() ) {
+			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );
 			}
 		}
@@ -84,7 +92,7 @@ class ApiTag extends ApiBase {
 				$valid = RecentChange::newFromId( $id );
 				break;
 			case 'revid':
-				$valid = Revision::newFromId( $id );
+				$valid = $this->revisionStore->getRevisionById( $id );
 				break;
 			case 'logid':
 				$valid = self::validateLogId( $id );

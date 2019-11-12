@@ -5,15 +5,11 @@ use MediaWiki\Auth\UsernameAuthenticationRequest;
 use Wikimedia\TestingAccessWrapper;
 
 /**
+ * @covers CaptchaPreAuthenticationProvider
  * @group Database
  */
 class CaptchaPreAuthenticationProviderTest extends MediaWikiTestCase {
 	public function setUp() {
-		global $wgDisableAuthManager;
-		if ( !class_exists( AuthManager::class ) || $wgDisableAuthManager ) {
-			$this->markTestSkipped( 'AuthManager is disabled' );
-		}
-
 		parent::setUp();
 		$this->setMwGlobals( [
 			'wgCaptchaClass' => SimpleCaptcha::class,
@@ -35,7 +31,7 @@ class CaptchaPreAuthenticationProviderTest extends MediaWikiTestCase {
 	public function tearDown() {
 		parent::tearDown();
 		// make sure $wgCaptcha resets between tests
-		TestingAccessWrapper::newFromClass( 'ConfirmEditHooks' )->instanceCreated = false;
+		TestingAccessWrapper::newFromClass( ConfirmEditHooks::class )->instanceCreated = false;
 	}
 
 	/**
@@ -118,7 +114,7 @@ class CaptchaPreAuthenticationProviderTest extends MediaWikiTestCase {
 		$captcha->expects( $this->any() )->method( 'isBadLoginPerUserTriggered' )
 			->willReturn( $isBadLoginPerUserTriggered );
 		$this->setMwGlobals( 'wgCaptcha', $captcha );
-		TestingAccessWrapper::newFromClass( 'ConfirmEditHooks' )->instanceCreated = true;
+		TestingAccessWrapper::newFromClass( ConfirmEditHooks::class )->instanceCreated = true;
 		$provider = new CaptchaPreAuthenticationProvider();
 		$provider->setManager( AuthManager::singleton() );
 

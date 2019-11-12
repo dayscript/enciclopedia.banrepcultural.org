@@ -2,12 +2,6 @@
  * Any rules which should not be flipped automatically in right-to-left situations should be
  * prepended with @noflip in a comment block.
  *
- * This stylesheet employs a few CSS trick to accomplish compatibility with a wide range of web
- * browsers. The most common trick is to use some styles in IE6 only. This is accomplished by using
- * a rule that makes things work in IE6, and then following it with a rule that begins with
- * "html > body" or use a child selector ">", which is ignored by IE6 because it does not support
- * the child selector. You can spot this by looking for the "OVERRIDDEN BY COMPLIANT BROWSERS" and
- * "IGNORED BY IE6" comments.
  */
 @import 'mediawiki.mixins';
 
@@ -15,6 +9,7 @@
 html {
 	font-size: @html-font-size;
 }
+
 html,
 body {
 	height: 100%;
@@ -22,22 +17,27 @@ body {
 	padding: 0;
 	font-family: @content-font-family;
 }
+
 body {
 	background-color: @menu-background-color;
 }
 
 /* Content */
+.mw-body,
+.parsoid-body {
+	padding: @content-padding;
+	background-color: @body-background-color;
+	color: @content-font-color;
+	direction: ltr;
+}
+
 .mw-body {
 	margin-left: 10em;
-	padding: @content-padding;
 	/* Border on top, left, and bottom side */
 	border: 1px solid @content-border-color;
 	border-right-width: 0;
 	/* Merge the border with tabs' one (in their background image) */
 	margin-top: -1px;
-	background-color: @body-background-color;
-	color: @content-font-color;
-	direction: ltr;
 
 	// h1's can exist outside of mw-body-content so some heading styles
 	// need to be defined in mw-body as well
@@ -55,6 +55,12 @@ body {
 		&:lang( he ), /* See T65843 and T65844 */
 		&:lang( ko ) { /* See T65827 */
 			font-family: @content-heading-font-family-generic;
+		}
+
+		/* Burmese (Myanmar) language headlines would be cropped with set `line-height` */
+		/* See T193270 */
+		&:lang( my ) {
+			line-height: normal;
 		}
 	}
 
@@ -80,6 +86,7 @@ body {
 	.mw-indicator {
 		display: inline-block;
 		zoom: 1;
+		// Support: IE7
 		*display: inline; // stylelint-disable declaration-block-no-duplicate-properties
 	}
 }
@@ -129,7 +136,6 @@ body {
 		font-size: 100%; /* (reset) */
 	}
 
-	#toc h2,
 	.toc h2 {
 		font-size: 100%; /* (reset) */
 		font-family: @content-font-family;
@@ -148,8 +154,7 @@ div.emptyPortlet {
 }
 
 ul {
-	list-style-type: disc;
-	.list-style-image-svg('images/bullet-icon.svg', 'images/bullet-icon.png');
+	.list-style-image( 'images/bullet-icon.svg' );
 }
 
 pre,
@@ -160,12 +165,4 @@ pre,
 /* Site Notice (includes notices from CentralNotice extension) */
 #siteNotice {
 	font-size: 0.8em;
-}
-
-.redirectText {
-	font-size: 140%;
-}
-
-.redirectMsg p {
-	margin: 0;
 }

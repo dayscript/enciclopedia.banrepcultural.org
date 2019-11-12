@@ -20,6 +20,8 @@
  */
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\SlotRecord;
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * Handles the backend logic of moving a page from one title
@@ -57,7 +59,7 @@ class MovePage {
 		// Convert into a Status object
 		if ( $errors ) {
 			foreach ( $errors as $error ) {
-				call_user_func_array( [ $status, 'fatal' ], $error );
+				$status->fatal( ...$error );
 			}
 		}
 
@@ -104,7 +106,7 @@ class MovePage {
 
 		$oldid = $this->oldTitle->getArticleID();
 
-		if ( strlen( $this->newTitle->getDBkey() ) < 1 ) {
+		if ( $this->newTitle->getDBkey() === '' ) {
 			$status->fatal( 'articleexists' );
 		}
 		if (
@@ -137,7 +139,8 @@ class MovePage {
 			$status->fatal(
 				'content-not-allowed-here',
 				ContentHandler::getLocalizedName( $this->oldTitle->getContentModel() ),
-				$this->newTitle->getPrefixedText()
+				$this->newTitle->getPrefixedText(),
+				SlotRecord::MAIN
 			);
 		}
 
@@ -240,26 +243,15 @@ class MovePage {
 	public function move( User $user, $reason, $createRedirect, array $changeTags = [] ) {
 		global $wgCategoryCollation;
 
-		Hooks::run( 'TitleMove', [ $this->oldTitle, $this->newTitle, $user ] );
-
-		// If it is a file, move it first.
-		// It is done before all other moving stuff is done because it's hard to revert.
-		$dbw = wfGetDB( DB_MASTER );
-		if ( $this->oldTitle->getNamespace() == NS_FILE ) {
-			$file = wfLocalFile( $this->oldTitle );
-			$file->load( File::READ_LATEST );
-			if ( $file->exists() ) {
-				$status = $file->move( $this->newTitle );
-				if ( !$status->isOK() ) {
-					return $status;
-				}
-			}
-			// Clear RepoGroup process cache
-			RepoGroup::singleton()->clearCache( $this->oldTitle );
-			RepoGroup::singleton()->clearCache( $this->newTitle ); # clear false negative cache
+		$status = Status::newGood();
+		Hooks::run( 'TitleMove', [ $this->oldTitle, $this->newTitle, $user, $reason, &$status ] );
+		if ( !$status->isOK() ) {
+			// Move was aborted by the hook
+			return $status;
 		}
 
-		$dbw->startAtomic( __METHOD__ );
+		$dbw = wfGetDB( DB_MASTER );
+		$dbw->startAtomic( __METHOD__, IDatabase::ATOMIC_CANCELABLE );
 
 		Hooks::run( 'TitleMoveStarting', [ $this->oldTitle, $this->newTitle, $user ] );
 
@@ -280,13 +272,7 @@ class MovePage {
 			[ 'cl_from' => $pageid ],
 			__METHOD__
 		);
-		if ( $this->newTitle->getNamespace() == NS_CATEGORY ) {
-			$type = 'subcat';
-		} elseif ( $this->newTitle->getNamespace() == NS_FILE ) {
-			$type = 'file';
-		} else {
-			$type = 'page';
-		}
+		$type = MWNamespace::getCategoryLinkType( $this->newTitle->getNamespace() );
 		foreach ( $prefixes as $prefixRow ) {
 			$prefix = $prefixRow->cl_sortkey_prefix;
 			$catTo = $prefixRow->cl_to;
@@ -310,7 +296,7 @@ class MovePage {
 			# Protect the redirect title as the title used to be...
 			$res = $dbw->select(
 				'page_restrictions',
-				'*',
+				[ 'pr_type', 'pr_level', 'pr_cascade', 'pr_user', 'pr_expiry' ],
 				[ 'pr_page' => $pageid ],
 				__METHOD__,
 				'FOR UPDATE'
@@ -393,6 +379,16 @@ class MovePage {
 			$store->duplicateAllAssociatedEntries( $this->oldTitle, $this->newTitle );
 		}
 
+		// If it is a file then move it last.
+		// This is done after all database changes so that file system errors cancel the transaction.
+		if ( $this->oldTitle->getNamespace() == NS_FILE ) {
+			$status = $this->moveFile( $this->oldTitle, $this->newTitle );
+			if ( !$status->isOK() ) {
+				$dbw->cancelAtomic( __METHOD__ );
+				return $status;
+			}
+		}
+
 		Hooks::run(
 			'TitleMoveCompleting',
 			[ $this->oldTitle, $this->newTitle,
@@ -415,13 +411,42 @@ class MovePage {
 			new AtomicSectionUpdate(
 				$dbw,
 				__METHOD__,
-				function () use ( $params ) {
+				// Hold onto $user to avoid HHVM bug where it no longer
+				// becomes a reference (T118683)
+				function () use ( $params, &$user ) {
 					Hooks::run( 'TitleMoveComplete', $params );
 				}
 			)
 		);
 
 		return Status::newGood();
+	}
+
+	/**
+	 * Move a file associated with a page to a new location.
+	 * Can also be used to revert after a DB failure.
+	 *
+	 * @private
+	 * @param Title $oldTitle Old location to move the file from.
+	 * @param Title $newTitle New location to move the file to.
+	 * @return Status
+	 */
+	private function moveFile( $oldTitle, $newTitle ) {
+		$status = Status::newFatal(
+			'cannotdelete',
+			$oldTitle->getPrefixedText()
+		);
+
+		$file = wfLocalFile( $oldTitle );
+		$file->load( File::READ_LATEST );
+		if ( $file->exists() ) {
+			$status = $file->move( $newTitle );
+		}
+
+		// Clear RepoGroup process cache
+		RepoGroup::singleton()->clearCache( $oldTitle );
+		RepoGroup::singleton()->clearCache( $newTitle ); # clear false negative cache
+		return $status;
 	}
 
 	/**
@@ -440,9 +465,8 @@ class MovePage {
 	 * @throws MWException
 	 */
 	private function moveToInternal( User $user, &$nt, $reason = '', $createRedirect = true,
-		array $changeTags = [] ) {
-
-		global $wgContLang;
+		array $changeTags = []
+	) {
 		if ( $nt->exists() ) {
 			$moveOverRedirect = true;
 			$logType = 'move_redir';
@@ -470,7 +494,8 @@ class MovePage {
 			);
 
 			if ( !$status->isGood() ) {
-				throw new MWException( 'Failed to delete page-move revision: ' . $status );
+				throw new MWException( 'Failed to delete page-move revision: '
+					. $status->getWikiText( false, false, 'en' ) );
 			}
 
 			$nt->resetArticleID( false );
@@ -511,7 +536,7 @@ class MovePage {
 		$logEntry->setComment( $reason );
 		$logEntry->setParameters( [
 			'4::target' => $nt->getPrefixedText(),
-			'5::noredir' => $redirectContent ? '0': '1',
+			'5::noredir' => $redirectContent ? '0' : '1',
 		] );
 
 		$formatter = LogFormatter::newFromEntry( $logEntry );
@@ -520,8 +545,6 @@ class MovePage {
 		if ( $reason ) {
 			$comment .= wfMessage( 'colon-separator' )->inContentLanguage()->text() . $reason;
 		}
-		# Truncate for whole multibyte characters.
-		$comment = $wgContLang->truncate( $comment, 255 );
 
 		$dbw = wfGetDB( DB_MASTER );
 
@@ -529,15 +552,6 @@ class MovePage {
 		$oldcountable = $oldpage->isCountable();
 
 		$newpage = WikiPage::factory( $nt );
-
-		# Save a null revision in the page's history notifying of the move
-		$nullRevision = Revision::newNullRevision( $dbw, $oldid, $comment, true, $user );
-		if ( !is_object( $nullRevision ) ) {
-			throw new MWException( 'No valid null revision produced in ' . __METHOD__ );
-		}
-
-		$nullRevId = $nullRevision->insertOn( $dbw );
-		$logEntry->setAssociatedRevId( $nullRevId );
 
 		# Change the name of the target page:
 		$dbw->update( 'page',
@@ -548,6 +562,23 @@ class MovePage {
 			/* WHERE */ [ 'page_id' => $oldid ],
 			__METHOD__
 		);
+
+		# Save a null revision in the page's history notifying of the move
+		$nullRevision = Revision::newNullRevision( $dbw, $oldid, $comment, true, $user );
+		if ( !is_object( $nullRevision ) ) {
+			throw new MWException( 'Failed to create null revision while moving page ID '
+				. $oldid . ' to ' . $nt->getPrefixedDBkey() );
+		}
+
+		$nullRevId = $nullRevision->insertOn( $dbw );
+		$logEntry->setAssociatedRevId( $nullRevId );
+
+		/**
+		 * T163966
+		 * Increment user_editcount during page moves
+		 * Moved from SpecialMovepage.php per T195550
+		 */
+		$user->incEditCount();
 
 		if ( !$redirectContent ) {
 			// Clean up the old title *before* reset article id - T47348
@@ -600,7 +631,12 @@ class MovePage {
 
 				$redirectArticle->doEditUpdates( $redirectRevision, $user, [ 'created' => true ] );
 
-				ChangeTags::addTags( $changeTags, null, $redirectRevId, null );
+				// make a copy because of log entry below
+				$redirectTags = $changeTags;
+				if ( in_array( 'mw-new-redirect', ChangeTags::getSoftwareTags() ) ) {
+					$redirectTags[] = 'mw-new-redirect';
+				}
+				ChangeTags::addTags( $redirectTags, null, $redirectRevId, null );
 			}
 		}
 

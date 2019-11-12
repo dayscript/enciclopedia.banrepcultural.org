@@ -1,7 +1,5 @@
 <?php
 /**
- * Created on Feb 10, 2013
- *
  * Copyright © 2013 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -89,9 +87,9 @@ STR;
 	 * Checks that the request's result matches the expected results.
 	 * Assumes no rawcontinue and a complete batch.
 	 * @param array $values Array is a two element array( request, expected_results )
-	 * @param array $session
+	 * @param array|null $session
 	 * @param bool $appendModule
-	 * @param User $user
+	 * @param User|null $user
 	 */
 	protected function check( $values, array $session = null,
 		$appendModule = false, User $user = null

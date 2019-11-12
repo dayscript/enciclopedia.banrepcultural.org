@@ -24,7 +24,8 @@
  * @author Ævar Arnfjörð Bjarmason <avarab@gmail.com>
  */
 
-use Wikimedia\Rdbms\ResultWrapper;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -50,7 +51,7 @@ class UnwatchedpagesPage extends QueryPage {
 	 * Pre-cache page existence to speed up link generation
 	 *
 	 * @param IDatabase $db
-	 * @param ResultWrapper $res
+	 * @param IResultWrapper $res
 	 */
 	public function preprocessResults( $db, $res ) {
 		if ( !$res->numRows() ) {
@@ -109,19 +110,18 @@ class UnwatchedpagesPage extends QueryPage {
 	 * @return string
 	 */
 	function formatResult( $skin, $result ) {
-		global $wgContLang;
-
 		$nt = Title::makeTitleSafe( $result->namespace, $result->title );
 		if ( !$nt ) {
 			return Html::element( 'span', [ 'class' => 'mw-invalidtitle' ],
 				Linker::getInvalidTitleDescription( $this->getContext(), $result->namespace, $result->title ) );
 		}
 
-		$text = $wgContLang->convert( $nt->getPrefixedText() );
+		$text = MediaWikiServices::getInstance()->getContentLanguage()->
+			convert( htmlspecialchars( $nt->getPrefixedText() ) );
 
 		$linkRenderer = $this->getLinkRenderer();
 
-		$plink = $linkRenderer->makeKnownLink( $nt, $text );
+		$plink = $linkRenderer->makeKnownLink( $nt, new HtmlArmor( $text ) );
 		$wlink = $linkRenderer->makeKnownLink(
 			$nt,
 			$this->msg( 'watch' )->text(),

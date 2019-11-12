@@ -31,7 +31,7 @@ require_once __DIR__ . '/Maintenance.php';
  * @ingroup Maintenance
  */
 class CreateAndPromote extends Maintenance {
-	private static $permitRoles = [ 'sysop', 'bureaucrat', 'bot' ];
+	private static $permitRoles = [ 'sysop', 'bureaucrat', 'interface-admin', 'bot' ];
 
 	public function __construct() {
 		parent::__construct();
@@ -63,15 +63,15 @@ class CreateAndPromote extends Maintenance {
 
 		$user = User::newFromName( $username );
 		if ( !is_object( $user ) ) {
-			$this->error( "invalid username.", true );
+			$this->fatalError( "invalid username." );
 		}
 
-		$exists = ( 0 !== $user->idForName() );
+		$exists = ( $user->idForName() !== 0 );
 
 		if ( $exists && !$force ) {
-			$this->error( "Account exists. Perhaps you want the --force option?", true );
+			$this->fatalError( "Account exists. Perhaps you want the --force option?" );
 		} elseif ( !$exists && !$password ) {
-			$this->error( "Argument <password> required!", false );
+			$this->error( "Argument <password> required!" );
 			$this->maybeHelp( true );
 		} elseif ( $exists ) {
 			$inGroups = $user->getGroups();
@@ -112,9 +112,16 @@ class CreateAndPromote extends Maintenance {
 		}
 
 		if ( !$exists ) {
-			# Insert the account into the database
-			$user->addToDatabase();
-			$user->saveSettings();
+			// Create the user via AuthManager as there may be various side
+			// effects that are perfomed by the configured AuthManager chain.
+			$status = MediaWiki\Auth\AuthManager::singleton()->autoCreateUser(
+				$user,
+				MediaWiki\Auth\AuthManager::AUTOCREATE_SOURCE_MAINT,
+				false
+			);
+			if ( !$status->isGood() ) {
+				$this->fatalError( $status->getWikiText( null, null, 'en' ) );
+			}
 		}
 
 		if ( $password ) {
@@ -133,7 +140,7 @@ class CreateAndPromote extends Maintenance {
 					$user->saveSettings();
 				}
 			} catch ( PasswordError $pwe ) {
-				$this->error( $pwe->getText(), true );
+				$this->fatalError( $pwe->getText() );
 			}
 		}
 
@@ -150,5 +157,5 @@ class CreateAndPromote extends Maintenance {
 	}
 }
 
-$maintClass = "CreateAndPromote";
+$maintClass = CreateAndPromote::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

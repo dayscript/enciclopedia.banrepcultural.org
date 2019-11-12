@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Language
  */
 
 /**
@@ -33,18 +32,20 @@ class GanConverter extends LanguageConverter {
 	 * @param array $flags
 	 * @param array $manualLevel
 	 */
-	function __construct( $langobj, $maincode,
+	function __construct( Language $langobj, $maincode,
 		$variants = [],
 		$variantfallbacks = [],
 		$flags = [],
-		$manualLevel = [] ) {
+		$manualLevel = []
+	) {
 		$this->mDescCodeSep = '：';
 		$this->mDescVarSep = '；';
 		parent::__construct( $langobj, $maincode,
 			$variants,
 			$variantfallbacks,
 			$flags,
-			$manualLevel );
+			$manualLevel
+		);
 		$names = [
 			'gan' => '原文',
 			'gan-hans' => '简体',
@@ -71,6 +72,8 @@ class GanConverter extends LanguageConverter {
 }
 
 /**
+ * Gan Chinese
+ *
  * class that handles both Traditional and Simplified Chinese
  * right now it only distinguish gan_hans, gan_hant.
  *
@@ -93,7 +96,8 @@ class LanguageGan extends LanguageZh {
 		$this->mConverter = new GanConverter( $this, 'gan',
 			$variants, $variantfallbacks,
 			[],
-			$ml );
+			$ml
+		);
 	}
 
 	/**

@@ -2,6 +2,7 @@
 
 /**
  * @group Http
+ * @group small
  */
 class HttpTest extends MediaWikiTestCase {
 	/**
@@ -495,8 +496,11 @@ class HttpTest extends MediaWikiTestCase {
 	 * where it did not define a cURL constant. T72570
 	 *
 	 * @dataProvider provideCurlConstants
+	 * @coversNothing
 	 */
 	public function testCurlConstants( $value ) {
+		$this->checkPHPExtension( 'curl' );
+
 		$this->assertTrue( defined( $value ), $value . ' not defined' );
 	}
 }
@@ -507,27 +511,35 @@ class HttpTest extends MediaWikiTestCase {
 class MWHttpRequestTester extends MWHttpRequest {
 	// function derived from the MWHttpRequest factory function but
 	// returns appropriate tester class here
-	public static function factory( $url, $options = null, $caller = __METHOD__ ) {
+	public static function factory( $url, array $options = null, $caller = __METHOD__ ) {
 		if ( !Http::$httpEngine ) {
-			Http::$httpEngine = function_exists( 'curl_init' ) ? 'curl' : 'php';
+			Http::$httpEngine = 'guzzle';
 		} elseif ( Http::$httpEngine == 'curl' && !function_exists( 'curl_init' ) ) {
-			throw new DomainException( __METHOD__ . ': curl (http://php.net/curl) is not installed, but' .
-				'Http::$httpEngine is set to "curl"' );
+			throw new DomainException( __METHOD__ . ': curl (https://secure.php.net/curl) is not ' .
+				'installed, but Http::$httpEngine is set to "curl"' );
 		}
 
 		switch ( Http::$httpEngine ) {
+			case 'guzzle':
+				return new GuzzleHttpRequestTester( $url, $options, $caller );
 			case 'curl':
 				return new CurlHttpRequestTester( $url, $options, $caller );
 			case 'php':
 				if ( !wfIniGetBool( 'allow_url_fopen' ) ) {
 					throw new DomainException( __METHOD__ .
 						': allow_url_fopen needs to be enabled for pure PHP HTTP requests to work. '
-							. 'If possible, curl should be used instead. See http://php.net/curl.' );
+							. 'If possible, curl should be used instead. See https://secure.php.net/curl.' );
 				}
 
 				return new PhpHttpRequestTester( $url, $options, $caller );
 			default:
 		}
+	}
+}
+
+class GuzzleHttpRequestTester extends GuzzleHttpRequest {
+	function setRespHeaders( $name, $value ) {
+		$this->respHeaders[$name] = $value;
 	}
 }
 

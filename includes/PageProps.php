@@ -55,7 +55,7 @@ class PageProps {
 		}
 		$previousValue = self::$instance;
 		self::$instance = $store;
-		return new ScopedCallback( function() use ( $previousValue ) {
+		return new ScopedCallback( function () use ( $previousValue ) {
 			self::$instance = $previousValue;
 		} );
 	}
@@ -81,7 +81,7 @@ class PageProps {
 	 * Create a PageProps object
 	 */
 	private function __construct() {
-		$this->cache = new ProcessCacheLRU( self::CACHE_SIZE );
+		$this->cache = new MapCacheLRU( self::CACHE_SIZE );
 	}
 
 	/**
@@ -89,8 +89,8 @@ class PageProps {
 	 * @param int $size
 	 */
 	public function ensureCacheSize( $size ) {
-		if ( $this->cache->getSize() < $size ) {
-			$this->cache->resize( $size );
+		if ( $this->cache->getMaxSize() < $size ) {
+			$this->cache->setMaxSize( $size );
 		}
 	}
 
@@ -129,12 +129,10 @@ class PageProps {
 				if ( $propertyValue === false ) {
 					$queryIDs[] = $pageID;
 					break;
+				} elseif ( $gotArray ) {
+					$values[$pageID][$propertyName] = $propertyValue;
 				} else {
-					if ( $gotArray ) {
-						$values[$pageID][$propertyName] = $propertyValue;
-					} else {
-						$values[$pageID] = $propertyValue;
-					}
+					$values[$pageID] = $propertyValue;
 				}
 			}
 		}
@@ -242,6 +240,8 @@ class PageProps {
 	private function getGoodIDs( $titles ) {
 		$result = [];
 		if ( is_array( $titles ) ) {
+			( new LinkBatch( $titles ) )->execute();
+
 			foreach ( $titles as $title ) {
 				$pageID = $title->getArticleID();
 				if ( $pageID > 0 ) {
@@ -265,11 +265,11 @@ class PageProps {
 	 * @return string|bool property value array or false if not found
 	 */
 	private function getCachedProperty( $pageID, $propertyName ) {
-		if ( $this->cache->has( $pageID, $propertyName, self::CACHE_TTL ) ) {
-			return $this->cache->get( $pageID, $propertyName );
+		if ( $this->cache->hasField( $pageID, $propertyName, self::CACHE_TTL ) ) {
+			return $this->cache->getField( $pageID, $propertyName );
 		}
-		if ( $this->cache->has( 0, $pageID, self::CACHE_TTL ) ) {
-			$pageProperties = $this->cache->get( 0, $pageID );
+		if ( $this->cache->hasField( 0, $pageID, self::CACHE_TTL ) ) {
+			$pageProperties = $this->cache->getField( 0, $pageID );
 			if ( isset( $pageProperties[$propertyName] ) ) {
 				return $pageProperties[$propertyName];
 			}
@@ -284,8 +284,8 @@ class PageProps {
 	 * @return string|bool property value array or false if not found
 	 */
 	private function getCachedProperties( $pageID ) {
-		if ( $this->cache->has( 0, $pageID, self::CACHE_TTL ) ) {
-			return $this->cache->get( 0, $pageID );
+		if ( $this->cache->hasField( 0, $pageID, self::CACHE_TTL ) ) {
+			return $this->cache->getField( 0, $pageID );
 		}
 		return false;
 	}
@@ -298,7 +298,7 @@ class PageProps {
 	 * @param mixed $propertyValue value of property
 	 */
 	private function cacheProperty( $pageID, $propertyName, $propertyValue ) {
-		$this->cache->set( $pageID, $propertyName, $propertyValue );
+		$this->cache->setField( $pageID, $propertyName, $propertyValue );
 	}
 
 	/**
@@ -309,6 +309,6 @@ class PageProps {
 	 */
 	private function cacheProperties( $pageID, $pageProperties ) {
 		$this->cache->clear( $pageID );
-		$this->cache->set( 0, $pageID, $pageProperties );
+		$this->cache->setField( 0, $pageID, $pageProperties );
 	}
 }

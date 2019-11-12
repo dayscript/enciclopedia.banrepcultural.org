@@ -7,10 +7,6 @@ namespace OOUI;
  */
 class CheckboxMultiselectInputWidget extends InputWidget {
 
-	/* Static Properties */
-
-	public static $supportsSimpleLabel = false;
-
 	/* Properties */
 
 	/**
@@ -34,8 +30,9 @@ class CheckboxMultiselectInputWidget extends InputWidget {
 
 	/**
 	 * @param array $config Configuration options
-	 * @param array[] $config['options'] Array of menu options in the format
-	 *   `[ 'data' => …, 'label' => …, 'disabled' => … ]`
+	 *      - array[] $config['options'] Array of menu options in the format
+	 *          `[ 'data' => …, 'label' => …, 'disabled' => … ]`
+	 * @param-taint $config escapes_html
 	 */
 	public function __construct( array $config = [] ) {
 		// Parent constructor
@@ -46,15 +43,15 @@ class CheckboxMultiselectInputWidget extends InputWidget {
 		}
 
 		// Initialization
-		$this->setOptions( isset( $config['options'] ) ? $config['options'] : [] );
+		$this->setOptions( $config['options'] ?? [] );
 		// Have to repeat this from parent, as we need options to be set up for this to make sense
-		$this->setValue( isset( $config['value'] ) ? $config['value'] : null );
+		$this->setValue( $config['value'] ?? null );
 		$this->addClasses( [ 'oo-ui-checkboxMultiselectInputWidget' ] );
 	}
 
 	protected function getInputElement( $config ) {
 		// Actually unused
-		return new Tag( 'div' );
+		return new Tag( 'unused' );
 	}
 
 	/**
@@ -113,7 +110,7 @@ class CheckboxMultiselectInputWidget extends InputWidget {
 		$name = $this->name;
 		foreach ( $options as $opt ) {
 			$optValue = parent::cleanUpValue( $opt['data'] );
-			$optDisabled = isset( $opt['disabled'] ) ? $opt['disabled'] : false;
+			$optDisabled = $opt['disabled'] ?? false;
 			$field = new FieldLayout(
 				new CheckboxInputWidget( [
 					'name' => $name,
@@ -121,7 +118,7 @@ class CheckboxMultiselectInputWidget extends InputWidget {
 					'disabled' => $this->isDisabled() || $optDisabled,
 				] ),
 				[
-					'label' => isset( $opt['label'] ) ? $opt['label'] : $optValue,
+					'label' => $opt['label'] ?? $optValue,
 					'align' => 'inline',
 				]
 			);

@@ -18,11 +18,9 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
+ * @license GPL-2.0-or-later
  * @since 1.25
  */
-
-use MediaWiki\MediaWikiServices;
 
 /**
  * This class formats block log entries.
@@ -59,17 +57,55 @@ class BlockLogFormatter extends LogFormatter {
 			// The lrm is needed to make sure that the number
 			// is shown on the correct side of the tooltip text.
 			$durationTooltip = '&lrm;' . htmlspecialchars( $params[4] );
-			$params[4] = Message::rawParam(
-				"<span class='blockExpiry' title='$durationTooltip'>" .
-				$this->context->getLanguage()->translateBlockExpiry(
-					$params[4],
-					$this->context->getUser(),
-					wfTimestamp( TS_UNIX, $this->entry->getTimestamp() )
-				) .
-				'</span>'
+			$blockExpiry = $this->context->getLanguage()->translateBlockExpiry(
+				$params[4],
+				$this->context->getUser(),
+				wfTimestamp( TS_UNIX, $this->entry->getTimestamp() )
 			);
+			if ( $this->plaintext ) {
+				$params[4] = Message::rawParam( $blockExpiry );
+			} else {
+				$params[4] = Message::rawParam(
+					"<span class=\"blockExpiry\" title=\"$durationTooltip\">" .
+					$blockExpiry .
+					'</span>'
+				);
+			}
 			$params[5] = isset( $params[5] ) ?
 				self::formatBlockFlags( $params[5], $this->context->getLanguage() ) : '';
+
+			// block restrictions
+			if ( isset( $params[6] ) ) {
+				$pages = $params[6]['pages'] ?? [];
+				$pages = array_map( function ( $page ) {
+					return $this->makePageLink( Title::newFromText( $page ) );
+				}, $pages );
+
+				$namespaces = $params[6]['namespaces'] ?? [];
+				$namespaces = array_map( function ( $ns ) {
+					$text = (int)$ns === NS_MAIN
+						? $this->msg( 'blanknamespace' )->text()
+						: $this->context->getLanguage()->getFormattedNsText( $ns );
+					$params = [ 'namespace' => $ns ];
+
+					return $this->makePageLink( SpecialPage::getTitleFor( 'Allpages' ), $params, $text );
+				}, $namespaces );
+
+				$restrictions = [];
+				if ( $pages ) {
+					$restrictions[] = $this->msg( 'logentry-partialblock-block-page' )
+						->numParams( count( $pages ) )
+						->rawParams( $this->context->getLanguage()->listToText( $pages ) )->text();
+				}
+
+				if ( $namespaces ) {
+					$restrictions[] = $this->msg( 'logentry-partialblock-block-ns' )
+						->numParams( count( $namespaces ) )
+						->rawParams( $this->context->getLanguage()->listToText( $namespaces ) )->text();
+				}
+
+				$params[6] = Message::rawParam( $this->context->getLanguage()->listToText( $restrictions ) );
+			}
 		}
 
 		return $params;
@@ -99,7 +135,7 @@ class BlockLogFormatter extends LogFormatter {
 
 	public function getActionLinks() {
 		$subtype = $this->entry->getSubtype();
-		$linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
+		$linkRenderer = $this->getLinkRenderer();
 		if ( $this->entry->isDeleted( LogPage::DELETED_ACTION ) // Action is hidden
 			|| !( $subtype === 'block' || $subtype === 'reblock' )
 			|| !$this->context->getUser()->isAllowed( 'block' )
@@ -132,7 +168,7 @@ class BlockLogFormatter extends LogFormatter {
 	 * @param Language $lang
 	 * @return string
 	 */
-	public static function formatBlockFlags( $flags, $lang ) {
+	public static function formatBlockFlags( $flags, Language $lang ) {
 		$flags = trim( $flags );
 		if ( $flags === '' ) {
 			return ''; // nothing to do
@@ -155,7 +191,7 @@ class BlockLogFormatter extends LogFormatter {
 	 * @param Language $lang Language object to use
 	 * @return string
 	 */
-	public static function formatBlockFlag( $flag, $lang ) {
+	public static function formatBlockFlag( $flag, Language $lang ) {
 		static $messages = [];
 
 		if ( !isset( $messages[$flag] ) ) {
@@ -190,12 +226,15 @@ class BlockLogFormatter extends LogFormatter {
 			'6:array:flags',
 			'6::flags' => '6:array:flags',
 		];
+
 		foreach ( $map as $index => $key ) {
 			if ( isset( $params[$index] ) ) {
 				$params[$key] = $params[$index];
 				unset( $params[$index] );
 			}
 		}
+
+		ksort( $params );
 
 		$subtype = $entry->getSubtype();
 		if ( $subtype === 'block' || $subtype === 'reblock' ) {
@@ -228,7 +267,41 @@ class BlockLogFormatter extends LogFormatter {
 		if ( isset( $ret['flags'] ) ) {
 			ApiResult::setIndexedTagName( $ret['flags'], 'f' );
 		}
+
+		if ( isset( $ret['restrictions']['pages'] ) ) {
+			$ret['restrictions']['pages'] = array_map( function ( $title ) {
+				return $this->formatParameterValueForApi( 'page', 'title-link', $title );
+			}, $ret['restrictions']['pages'] );
+			ApiResult::setIndexedTagName( $ret['restrictions']['pages'], 'p' );
+		}
+
+		if ( isset( $ret['restrictions']['namespaces'] ) ) {
+			ApiResult::setIndexedTagName( $ret['restrictions']['namespaces'], 'ns' );
+		}
+
 		return $ret;
 	}
 
+	protected function getMessageKey() {
+		$type = $this->entry->getType();
+		$subtype = $this->entry->getSubtype();
+		$sitewide = $this->entry->getParameters()['sitewide'] ?? true;
+
+		$key = "logentry-$type-$subtype";
+		if ( ( $subtype === 'block' || $subtype === 'reblock' ) && !$sitewide ) {
+			// $this->getMessageParameters is doing too much. We just need
+			// to check the presence of restrictions ($param[6]) and calling
+			// on parent gives us that
+			$params = parent::getMessageParameters();
+
+			// message changes depending on whether there are editing restrictions or not
+			if ( isset( $params[6] ) ) {
+				$key = "logentry-partial$type-$subtype";
+			} else {
+				$key = "logentry-non-editing-$type-$subtype";
+			}
+		}
+
+		return $key;
+	}
 }

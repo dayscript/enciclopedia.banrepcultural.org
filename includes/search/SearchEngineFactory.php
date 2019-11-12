@@ -19,7 +19,7 @@ class SearchEngineFactory {
 
 	/**
 	 * Create SearchEngine of the given type.
-	 * @param string $type
+	 * @param string|null $type
 	 * @return SearchEngine
 	 */
 	public function create( $type = null ) {
@@ -49,17 +49,17 @@ class SearchEngineFactory {
 	public static function getSearchEngineClass( IDatabase $db ) {
 		switch ( $db->getType() ) {
 			case 'sqlite':
-				return 'SearchSqlite';
+				return SearchSqlite::class;
 			case 'mysql':
-				return 'SearchMySQL';
+				return SearchMySQL::class;
 			case 'postgres':
-				return 'SearchPostgres';
+				return SearchPostgres::class;
 			case 'mssql':
-				return 'SearchMssql';
+				return SearchMssql::class;
 			case 'oracle':
-				return 'SearchOracle';
+				return SearchOracle::class;
 			default:
-				return 'SearchEngineDummy';
+				return SearchEngineDummy::class;
 		}
 	}
 }

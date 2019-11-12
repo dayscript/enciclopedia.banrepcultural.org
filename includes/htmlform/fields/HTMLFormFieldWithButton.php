@@ -6,7 +6,7 @@ class HTMLFormFieldWithButton extends HTMLFormField {
 	/** @var string $mButtonClass CSS class for the button in this field */
 	protected $mButtonClass = '';
 
-	/** @var string|integer $mButtonId Element ID for the button in this field */
+	/** @var string|int $mButtonId Element ID for the button in this field */
 	protected $mButtonId = '';
 
 	/** @var string $mButtonName Name the button in this field */
@@ -66,10 +66,10 @@ class HTMLFormFieldWithButton extends HTMLFormField {
 
 	/**
 	 * Combines the passed element with a button.
-	 * @param String $element Element to combine the button with.
-	 * @return String
+	 * @param string $element Element to combine the button with.
+	 * @return string
 	 */
 	public function getElement( $element ) {
-		return $element . '&#160;' . $this->getInputHTML( '' );
+		return $element . "\u{00A0}" . $this->getInputHTML( '' );
 	}
 }

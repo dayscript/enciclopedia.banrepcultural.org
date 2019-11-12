@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileBackend
- * @author Aaron Schulz
  */
 use Wikimedia\Timestamp\ConvertibleTimestamp;
 
@@ -90,8 +89,8 @@ class FSFileBackend extends FileBackendStore {
 			}
 		}
 
-		$this->fileMode = isset( $config['fileMode'] ) ? $config['fileMode'] : 0644;
-		$this->dirMode = isset( $config['directoryMode'] ) ? $config['directoryMode'] : 0777;
+		$this->fileMode = $config['fileMode'] ?? 0644;
+		$this->dirMode = $config['directoryMode'] ?? 0777;
 		if ( isset( $config['fileOwner'] ) && function_exists( 'posix_getuid' ) ) {
 			$this->fileOwner = $config['fileOwner'];
 			// cache this, assuming it doesn't change
@@ -100,7 +99,13 @@ class FSFileBackend extends FileBackendStore {
 	}
 
 	public function getFeatures() {
-		return !$this->isWindows ? FileBackend::ATTR_UNICODE_PATHS : 0;
+		if ( $this->isWindows && version_compare( PHP_VERSION, '7.1', 'lt' ) ) {
+			// PHP before 7.1 used 8-bit code page for filesystem paths on Windows;
+			// See https://secure.php.net/manual/en/migration71.windows-support.php
+			return 0;
+		} else {
+			return FileBackend::ATTR_UNICODE_PATHS;
+		}
 	}
 
 	protected function resolveContainerPath( $container, $relStoragePath ) {
@@ -788,7 +793,7 @@ class FSFileBackend extends FileBackendStore {
 	 * @param int $errno
 	 * @param string $errstr
 	 * @return bool
-	 * @access private
+	 * @private
 	 */
 	public function handleWarning( $errno, $errstr ) {
 		$this->logger->error( $errstr ); // more detailed error logging

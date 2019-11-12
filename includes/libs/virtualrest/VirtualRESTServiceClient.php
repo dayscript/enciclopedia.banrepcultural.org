@@ -40,7 +40,6 @@
  *   - stream   : resource to stream the HTTP response body to
  * Request maps can use integer index 0 instead of 'method' and 1 instead of 'url'.
  *
- * @author Aaron Schulz
  * @since 1.23
  */
 class VirtualRESTServiceClient {
@@ -103,13 +102,10 @@ class VirtualRESTServiceClient {
 	 * @return array (prefix,VirtualRESTService) or (null,null) if none found
 	 */
 	public function getMountAndService( $path ) {
-		$cmpFunc = function( $a, $b ) {
+		$cmpFunc = function ( $a, $b ) {
 			$al = substr_count( $a, '/' );
 			$bl = substr_count( $b, '/' );
-			if ( $al === $bl ) {
-				return 0; // should not actually happen
-			}
-			return ( $al < $bl ) ? 1 : -1; // largest prefix first
+			return $bl <=> $al; // largest prefix first
 		};
 
 		$matches = []; // matching prefixes (mount points)
@@ -207,7 +203,7 @@ class VirtualRESTServiceClient {
 		}
 
 		// Function to get IDs that won't collide with keys in $armoredIndexMap
-		$idFunc = function() use ( &$curUniqueId ) {
+		$idFunc = function () use ( &$curUniqueId ) {
 			return $curUniqueId++;
 		};
 

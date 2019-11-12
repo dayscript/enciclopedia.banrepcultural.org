@@ -23,6 +23,8 @@
  * @ingroup Content
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Content handler for wiki text pages.
  *
@@ -60,7 +62,7 @@ class WikitextContentHandler extends TextContentHandler {
 			}
 		}
 
-		$mwRedir = MagicWord::get( 'redirect' );
+		$mwRedir = MediaWikiServices::getInstance()->getMagicWordFactory()->get( 'redirect' );
 		$redirectText = $mwRedir->getSynonym( 0 ) .
 			' [[' . $optionalColon . $destination->getFullText() . ']]';
 
@@ -158,6 +160,26 @@ class WikitextContentHandler extends TextContentHandler {
 					$this->getFileHandler()->getDataForSearchIndex( $page, $parserOutput, $engine ) );
 		}
 		return $fields;
+	}
+
+	/**
+	 * Returns the content's text as-is.
+	 *
+	 * @param Content $content
+	 * @param string|null $format The serialization format to check
+	 *
+	 * @return mixed
+	 */
+	public function serializeContent( Content $content, $format = null ) {
+		$this->checkFormat( $format );
+
+		// NOTE: MessageContent also uses CONTENT_MODEL_WIKITEXT, but it's not a TextContent!
+		// Perhaps MessageContent should use a separate ContentHandler instead.
+		if ( $content instanceof MessageContent ) {
+			return $content->getMessage()->plain();
+		}
+
+		return parent::serializeContent( $content, $format );
 	}
 
 }

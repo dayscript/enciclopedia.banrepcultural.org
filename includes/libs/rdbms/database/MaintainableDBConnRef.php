@@ -30,6 +30,8 @@ class MaintainableDBConnRef extends DBConnRef implements IMaintainableDatabase {
 		$fname = false,
 		callable $inputCallback = null
 	) {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
@@ -40,14 +42,20 @@ class MaintainableDBConnRef extends DBConnRef implements IMaintainableDatabase {
 		$fname = __METHOD__,
 		callable $inputCallback = null
 	) {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
 	public function dropTable( $tableName, $fName = __METHOD__ ) {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
 	public function deadlockLoop() {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
@@ -66,6 +74,8 @@ class MaintainableDBConnRef extends DBConnRef implements IMaintainableDatabase {
 	public function duplicateTableStructure(
 		$oldName, $newName, $temporary = false, $fname = __METHOD__
 	) {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
@@ -74,12 +84,31 @@ class MaintainableDBConnRef extends DBConnRef implements IMaintainableDatabase {
 	}
 
 	public function lockTables( array $read, array $write, $method ) {
+		$this->assertRoleAllowsWrites();
+
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 
 	public function unlockTables( $method ) {
+		$this->assertRoleAllowsWrites();
+
+		return $this->__call( __FUNCTION__, func_get_args() );
+	}
+
+	public function indexUnique( $table, $index ) {
+		return $this->__call( __FUNCTION__, func_get_args() );
+	}
+
+	public function listTables( $prefix = null, $fname = __METHOD__ ) {
+		return $this->__call( __FUNCTION__, func_get_args() );
+	}
+
+	public function fieldInfo( $table, $field ) {
 		return $this->__call( __FUNCTION__, func_get_args() );
 	}
 }
 
+/**
+ * @deprecated since 1.33
+ */
 class_alias( MaintainableDBConnRef::class, 'MaintainableDBConnRef' );

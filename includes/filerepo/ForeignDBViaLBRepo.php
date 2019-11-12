@@ -21,6 +21,10 @@
  * @ingroup FileRepo
  */
 
+use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Rdbms\ILoadBalancer;
+
 /**
  * A foreign repository with a MediaWiki database accessible via the configured LBFactory
  *
@@ -30,17 +34,11 @@ class ForeignDBViaLBRepo extends LocalRepo {
 	/** @var string */
 	protected $wiki;
 
-	/** @var string */
-	protected $dbName;
-
-	/** @var string */
-	protected $tablePrefix;
+	/** @var array */
+	protected $fileFactory = [ ForeignDBFile::class, 'newFromTitle' ];
 
 	/** @var array */
-	protected $fileFactory = [ 'ForeignDBFile', 'newFromTitle' ];
-
-	/** @var array */
-	protected $fileFromRowFactory = [ 'ForeignDBFile', 'newFromRow' ];
+	protected $fileFromRowFactory = [ ForeignDBFile::class, 'newFromRow' ];
 
 	/** @var bool */
 	protected $hasSharedCache;
@@ -51,7 +49,6 @@ class ForeignDBViaLBRepo extends LocalRepo {
 	function __construct( $info ) {
 		parent::__construct( $info );
 		$this->wiki = $info['wiki'];
-		list( $this->dbName, $this->tablePrefix ) = wfSplitWikiID( $this->wiki );
 		$this->hasSharedCache = $info['hasSharedCache'];
 	}
 
@@ -59,23 +56,32 @@ class ForeignDBViaLBRepo extends LocalRepo {
 	 * @return IDatabase
 	 */
 	function getMasterDB() {
-		return wfGetLB( $this->wiki )->getConnectionRef( DB_MASTER, [], $this->wiki );
+		return $this->getDBLoadBalancer()->getConnectionRef( DB_MASTER, [], $this->wiki );
 	}
 
 	/**
 	 * @return IDatabase
 	 */
 	function getReplicaDB() {
-		return wfGetLB( $this->wiki )->getConnectionRef( DB_REPLICA, [], $this->wiki );
+		return $this->getDBLoadBalancer()->getConnectionRef( DB_REPLICA, [], $this->wiki );
 	}
 
 	/**
 	 * @return Closure
 	 */
 	protected function getDBFactory() {
-		return function( $index ) {
-			return wfGetLB( $this->wiki )->getConnectionRef( $index, [], $this->wiki );
+		return function ( $index ) {
+			return $this->getDBLoadBalancer()->getConnectionRef( $index, [], $this->wiki );
 		};
+	}
+
+	/**
+	 * @return ILoadBalancer
+	 */
+	protected function getDBLoadBalancer() {
+		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
+
+		return $lbFactory->getMainLB( $this->wiki );
 	}
 
 	function hasSharedCache() {

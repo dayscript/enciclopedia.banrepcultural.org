@@ -2,11 +2,23 @@
 
 /**
  * @group large
+ * @covers Pbkdf2Password
+ * @covers Password
+ * @covers ParameterizedPassword
  */
 class Pbkdf2PasswordTest extends PasswordTestCase {
+	public function setUp() {
+		parent::setUp();
+		// Can't be done with annotations due to
+		// https://github.com/sebastianbergmann/phpunit/issues/3459
+		if ( !function_exists( 'hash_pbkdf2' ) ) {
+			$this->markTestSkipped( 'function hash_pbkdf2 is required' );
+		}
+	}
+
 	protected function getTypeConfigs() {
 		return [ 'pbkdf2' => [
-			'class' => 'Pbkdf2Password',
+			'class' => Pbkdf2Password::class,
 			'algo' => 'sha256',
 			'cost' => '10000',
 			'length' => '128',

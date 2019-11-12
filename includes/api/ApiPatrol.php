@@ -2,8 +2,6 @@
 /**
  * API for MediaWiki 1.14+
  *
- * Created on Sep 2, 2008
- *
  * Copyright © 2008 Soxred93 soxred93@gmail.com,
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +22,8 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Allows user to patrol pages
  * @ingroup API
@@ -43,11 +43,12 @@ class ApiPatrol extends ApiBase {
 				$this->dieWithError( [ 'apierror-nosuchrcid', $params['rcid'] ] );
 			}
 		} else {
-			$rev = Revision::newFromId( $params['revid'] );
+			$store = MediaWikiServices::getInstance()->getRevisionStore();
+			$rev = $store->getRevisionById( $params['revid'] );
 			if ( !$rev ) {
 				$this->dieWithError( [ 'apierror-nosuchrevid', $params['revid'] ] );
 			}
-			$rc = $rev->getRecentChange();
+			$rc = $store->getRecentChange( $rev );
 			if ( !$rc ) {
 				$this->dieWithError( [ 'apierror-notpatrollable', $params['revid'] ] );
 			}
@@ -70,7 +71,7 @@ class ApiPatrol extends ApiBase {
 			$this->dieStatus( $this->errorArrayToStatus( $retval, $user ) );
 		}
 
-		$result = [ 'rcid' => intval( $rc->getAttribute( 'rc_id' ) ) ];
+		$result = [ 'rcid' => (int)$rc->getAttribute( 'rc_id' ) ];
 		ApiQueryBase::addTitleInfo( $result, $rc->getTitle() );
 		$this->getResult()->addValue( null, $this->getModuleName(), $result );
 	}

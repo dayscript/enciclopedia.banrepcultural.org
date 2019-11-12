@@ -8,7 +8,7 @@
 		"skin"
 	],
 	"homepage": "https://www.mediawiki.org/wiki/Skin:Vector",
-	"license": "GPL-2.0+",
+	"license": "GPL-2.0-or-later",
 	"authors": [
 		{
 			"name": "Trevor Parscal"
@@ -31,17 +31,25 @@
 		"branch-alias": {
 			"dev-master": "1.x-dev"
 		},
-		"installer-name": "Vector"
+		"installer-name": "Vector",
+		"phan-taint-check-plugin": "1.5.0"
 	},
 	"require-dev": {
-		"jakub-onderka/php-parallel-lint": "0.9.*",
-		"mediawiki/mediawiki-codesniffer": "0.7.2"
+		"jakub-onderka/php-parallel-lint": "1.0.0",
+		"mediawiki/mediawiki-codesniffer": "24.0.0",
+		"jakub-onderka/php-console-highlighter": "0.3.2",
+		"mediawiki/minus-x": "0.3.1",
+		"mediawiki/mediawiki-phan-config": "0.5.0"
 	},
 	"scripts": {
-		"fix": "phpcbf",
+		"fix": [
+			"phpcbf",
+			"minus-x fix ."
+		],
 		"test": [
-			"parallel-lint . --exclude vendor",
-			"phpcs -p -s"
+			"parallel-lint . --exclude node_modules --exclude vendor",
+			"phpcs -p -s",
+			"minus-x check ."
 		]
 	}
 }

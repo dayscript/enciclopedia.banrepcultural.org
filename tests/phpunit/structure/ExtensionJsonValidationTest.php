@@ -19,8 +19,12 @@
 /**
  * Validates all loaded extensions and skins using the ExtensionRegistry
  * against the extension.json schema in the docs/ folder.
+ *
+ * @coversNothing
  */
-class ExtensionJsonValidationTest extends PHPUnit_Framework_TestCase {
+class ExtensionJsonValidationTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
 
 	/**
 	 * @var ExtensionJsonValidator

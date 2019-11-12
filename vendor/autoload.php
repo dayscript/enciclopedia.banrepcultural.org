@@ -4,4 +4,4 @@
 
 require_once __DIR__ . '/composer/autoload_real.php';
 
-return ComposerAutoloaderInitff5d74326ea8526944b4f8af8a67b962::getLoader();
+return ComposerAutoloaderInit_mediawiki_vendor::getLoader();

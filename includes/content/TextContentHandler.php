@@ -30,24 +30,22 @@
  */
 class TextContentHandler extends ContentHandler {
 
-	// @codingStandardsIgnoreStart T59585
 	public function __construct( $modelId = CONTENT_MODEL_TEXT, $formats = [ CONTENT_FORMAT_TEXT ] ) {
 		parent::__construct( $modelId, $formats );
 	}
-	// @codingStandardsIgnoreEnd
 
 	/**
 	 * Returns the content's text as-is.
 	 *
 	 * @param Content $content
-	 * @param string  $format The serialization format to check
+	 * @param string|null $format The serialization format to check
 	 *
 	 * @return mixed
 	 */
 	public function serializeContent( Content $content, $format = null ) {
 		$this->checkFormat( $format );
 
-		return $content->getNativeData();
+		return $content->getText();
 	}
 
 	/**
@@ -110,7 +108,7 @@ class TextContentHandler extends ContentHandler {
 	 * @since 1.21
 	 *
 	 * @param string $text Serialized form of the content
-	 * @param string $format The format used for serialization
+	 * @param string|null $format The format used for serialization
 	 *
 	 * @return Content The TextContent object wrapping $text
 	 */

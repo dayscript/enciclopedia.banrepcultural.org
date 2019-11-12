@@ -21,6 +21,8 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Special page outputs information on sourcing a book with a particular ISBN
  * The parser creates links to this page when dealing with ISBNs in wikitext
@@ -34,9 +36,7 @@ class SpecialBookSources extends SpecialPage {
 	}
 
 	/**
-	 * Show the special page
-	 *
-	 * @param string $isbn ISBN passed as a subpage parameter
+	 * @param string|null $isbn ISBN passed as a subpage parameter
 	 */
 	public function execute( $isbn ) {
 		$out = $this->getOutput();
@@ -154,8 +154,6 @@ class SpecialBookSources extends SpecialPage {
 	private function showList( $isbn ) {
 		$out = $this->getOutput();
 
-		global $wgContLang;
-
 		$isbn = self::cleanIsbn( $isbn );
 		# Hook to allow extensions to insert additional HTML,
 		# e.g. for API-interacting plugins and so on
@@ -171,8 +169,8 @@ class SpecialBookSources extends SpecialPage {
 			if ( $content instanceof TextContent ) {
 				// XXX: in the future, this could be stored as structured data, defining a list of book sources
 
-				$text = $content->getNativeData();
-				$out->addWikiText( str_replace( 'MAGICNUMBER', $isbn, $text ) );
+				$text = $content->getText();
+				$out->addWikiTextAsInterface( str_replace( 'MAGICNUMBER', $isbn, $text ) );
 
 				return true;
 			} else {
@@ -183,7 +181,7 @@ class SpecialBookSources extends SpecialPage {
 		# Fall back to the defaults given in the language file
 		$out->addWikiMsg( 'booksources-text' );
 		$out->addHTML( '<ul>' );
-		$items = $wgContLang->getBookstoreList();
+		$items = MediaWikiServices::getInstance()->getContentLanguage()->getBookstoreList();
 		foreach ( $items as $label => $url ) {
 			$out->addHTML( $this->makeListItem( $isbn, $label, $url ) );
 		}

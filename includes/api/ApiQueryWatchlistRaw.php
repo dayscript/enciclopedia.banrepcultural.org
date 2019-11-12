@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Oct 4, 2008
- *
  * Copyright © 2008 Roan Kattouw "<Firstname>.<Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -77,7 +73,7 @@ class ApiQueryWatchlistRaw extends ApiQueryGeneratorBase {
 		if ( isset( $params['continue'] ) ) {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 2 );
-			$ns = intval( $cont[0] );
+			$ns = (int)$cont[0];
 			$this->dieContinueUsageIf( strval( $ns ) !== $cont[0] );
 			$title = $cont[1];
 			$options['startFrom'] = new TitleValue( $ns, $title );

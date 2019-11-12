@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on December 12, 2007
- *
  * Copyright © 2007 Roan Kattouw "<Firstname>.<Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -130,10 +126,10 @@ class ApiQueryAllCategories extends ApiQueryGeneratorBase {
 				$item = [];
 				ApiResult::setContentValue( $item, 'category', $titleObj->getText() );
 				if ( isset( $prop['size'] ) ) {
-					$item['size'] = intval( $row->cat_pages );
+					$item['size'] = (int)$row->cat_pages;
 					$item['pages'] = $row->cat_pages - $row->cat_subcats - $row->cat_files;
-					$item['files'] = intval( $row->cat_files );
-					$item['subcats'] = intval( $row->cat_subcats );
+					$item['files'] = (int)$row->cat_files;
+					$item['subcats'] = (int)$row->cat_subcats;
 				}
 				if ( isset( $prop['hidden'] ) ) {
 					$item['hidden'] = (bool)$row->cat_hidden;

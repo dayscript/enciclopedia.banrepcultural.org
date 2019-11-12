@@ -1,5 +1,7 @@
 <?php
 
+use Psr\Log\LoggerInterface;
+
 /**
  * Interface to key-value storage behind an HTTP server.
  *
@@ -27,6 +29,17 @@
  * @endcode
  */
 class RESTBagOStuff extends BagOStuff {
+	/**
+	 * Default connection timeout in seconds. The kernel retransmits the SYN
+	 * packet after 1 second, so 1.2 seconds allows for 1 retransmit without
+	 * permanent failure.
+	 */
+	const DEFAULT_CONN_TIMEOUT = 1.2;
+
+	/**
+	 * Default request timeout
+	 */
+	const DEFAULT_REQ_TIMEOUT = 3.0;
 
 	/**
 	 * @var MultiHttpClient
@@ -43,24 +56,37 @@ class RESTBagOStuff extends BagOStuff {
 		if ( empty( $params['url'] ) ) {
 			throw new InvalidArgumentException( 'URL parameter is required' );
 		}
-		parent::__construct( $params );
 		if ( empty( $params['client'] ) ) {
-			$this->client = new MultiHttpClient( [] );
+			// Pass through some params to the HTTP client.
+			$clientParams = [
+				'connTimeout' => $params['connTimeout'] ?? self::DEFAULT_CONN_TIMEOUT,
+				'reqTimeout' => $params['reqTimeout'] ?? self::DEFAULT_REQ_TIMEOUT,
+			];
+			foreach ( [ 'caBundlePath', 'proxy' ] as $key ) {
+				if ( isset( $params[$key] ) ) {
+					$clientParams[$key] = $params[$key];
+				}
+			}
+			$this->client = new MultiHttpClient( $clientParams );
 		} else {
 			$this->client = $params['client'];
 		}
+		// The parent constructor calls setLogger() which sets the logger in $this->client
+		parent::__construct( $params );
 		// Make sure URL ends with /
 		$this->url = rtrim( $params['url'], '/' ) . '/';
 		// Default config, R+W > N; no locks on reads though; writes go straight to state-machine
 		$this->attrMap[self::ATTR_SYNCWRITES] = self::QOS_SYNCWRITES_QC;
 	}
 
-	/**
-	 * @param string  $key
-	 * @param integer $flags Bitfield of BagOStuff::READ_* constants [optional]
-	 * @return mixed Returns false on failure and if the item does not exist
-	 */
-	protected function doGet( $key, $flags = 0 ) {
+	public function setLogger( LoggerInterface $logger ) {
+		parent::setLogger( $logger );
+		$this->client->setLogger( $logger );
+	}
+
+	protected function doGet( $key, $flags = 0, &$casToken = null ) {
+		$casToken = null;
+
 		$req = [
 			'method' => 'GET',
 			'url' => $this->url . rawurlencode( $key ),
@@ -69,7 +95,11 @@ class RESTBagOStuff extends BagOStuff {
 		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->client->run( $req );
 		if ( $rcode === 200 ) {
 			if ( is_string( $rbody ) ) {
-				return unserialize( $rbody );
+				$value = unserialize( $rbody );
+				/// @FIXME: use some kind of hash or UUID header as CAS token
+				$casToken = ( $value !== false ) ? $rbody : null;
+
+				return $value;
 			}
 			return false;
 		}
@@ -79,10 +109,59 @@ class RESTBagOStuff extends BagOStuff {
 		return false;
 	}
 
+	public function set( $key, $value, $exptime = 0, $flags = 0 ) {
+		// @TODO: respect WRITE_SYNC (e.g. EACH_QUORUM)
+		// @TODO: respect $exptime
+		$req = [
+			'method' => 'PUT',
+			'url' => $this->url . rawurlencode( $key ),
+			'body' => serialize( $value )
+		];
+		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->client->run( $req );
+		if ( $rcode === 200 || $rcode === 201 || $rcode === 204 ) {
+			return true;
+		}
+		return $this->handleError( "Failed to store $key", $rcode, $rerr );
+	}
+
+	public function add( $key, $value, $exptime = 0, $flags = 0 ) {
+		// @TODO: make this atomic
+		if ( $this->get( $key ) === false ) {
+			return $this->set( $key, $value, $exptime, $flags );
+		}
+
+		return false; // key already set
+	}
+
+	public function delete( $key, $flags = 0 ) {
+		// @TODO: respect WRITE_SYNC (e.g. EACH_QUORUM)
+		$req = [
+			'method' => 'DELETE',
+			'url' => $this->url . rawurlencode( $key ),
+		];
+		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->client->run( $req );
+		if ( in_array( $rcode, [ 200, 204, 205, 404, 410 ] ) ) {
+			return true;
+		}
+		return $this->handleError( "Failed to delete $key", $rcode, $rerr );
+	}
+
+	public function incr( $key, $value = 1 ) {
+		// @TODO: make this atomic
+		$n = $this->get( $key, self::READ_LATEST );
+		if ( $this->isInteger( $n ) ) { // key exists?
+			$n = max( $n + intval( $value ), 0 );
+			// @TODO: respect $exptime
+			return $this->set( $key, $n ) ? $n : false;
+		}
+
+		return false;
+	}
+
 	/**
 	 * Handle storage error
 	 * @param string $msg Error message
-	 * @param int    $rcode Error code from client
+	 * @param int $rcode Error code from client
 	 * @param string $rerr Error message from client
 	 * @return false
 	 */
@@ -93,45 +172,5 @@ class RESTBagOStuff extends BagOStuff {
 		] );
 		$this->setLastError( $rcode === 0 ? self::ERR_UNREACHABLE : self::ERR_UNEXPECTED );
 		return false;
-	}
-
-	/**
-	 * Set an item
-	 *
-	 * @param string $key
-	 * @param mixed  $value
-	 * @param int    $exptime Either an interval in seconds or a unix timestamp for expiry
-	 * @param int    $flags Bitfield of BagOStuff::WRITE_* constants
-	 * @return bool Success
-	 */
-	public function set( $key, $value, $exptime = 0, $flags = 0 ) {
-		$req = [
-			'method' => 'PUT',
-			'url' => $this->url . rawurlencode( $key ),
-			'body' => serialize( $value )
-		];
-		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->client->run( $req );
-		if ( $rcode === 200 || $rcode === 201 ) {
-			return true;
-		}
-		return $this->handleError( "Failed to store $key", $rcode, $rerr );
-	}
-
-	/**
-	 * Delete an item.
-	 *
-	 * @param string $key
-	 * @return bool True if the item was deleted or not found, false on failure
-	 */
-	public function delete( $key ) {
-		$req = [
-			'method' => 'DELETE',
-			'url' => $this->url . rawurlencode( $key ),
-		];
-		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->client->run( $req );
-		if ( $rcode === 200 || $rcode === 204 || $rcode === 205 ) {
-			return true;
-		}
-		return $this->handleError( "Failed to delete $key", $rcode, $rerr );
 	}
 }

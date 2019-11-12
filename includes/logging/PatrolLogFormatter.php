@@ -19,7 +19,7 @@
  *
  * @file
  * @author Niklas Laxström
- * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
+ * @license GPL-2.0-or-later
  * @since 1.22
  */
 
@@ -54,7 +54,7 @@ class PatrolLogFormatter extends LogFormatter {
 				'oldid' => $oldid,
 				'diff' => 'prev'
 			];
-			$revlink = Linker::link( $target, htmlspecialchars( $revision ), [], $query );
+			$revlink = $this->getLinkRenderer()->makeLink( $target, $revision, [], $query );
 		} else {
 			$revlink = htmlspecialchars( $revision );
 		}

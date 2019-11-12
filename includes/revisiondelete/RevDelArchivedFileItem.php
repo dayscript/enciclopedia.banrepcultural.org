@@ -23,15 +23,18 @@
  * Item class for a filearchive table row
  */
 class RevDelArchivedFileItem extends RevDelFileItem {
-	/** @var $list RevDelArchivedFileList */
-	/** @var $file ArchivedFile */
+	/** @var RevDelArchivedFileList $list */
+	/** @var ArchivedFile $file */
 	/** @var LocalFile */
 	protected $lockFile;
 
 	public function __construct( $list, $row ) {
-		RevDelItem::__construct( $list, $row );
-		$this->file = ArchivedFile::newFromRow( $row );
+		parent::__construct( $list, $row );
 		$this->lockFile = RepoGroup::singleton()->getLocalRepo()->newFile( $row->fa_name );
+	}
+
+	protected static function initFile( $list, $row ) {
+		return ArchivedFile::newFromRow( $row );
 	}
 
 	public function getIdField() {
@@ -48,6 +51,10 @@ class RevDelArchivedFileItem extends RevDelFileItem {
 
 	public function getAuthorNameField() {
 		return 'fa_user_text';
+	}
+
+	public function getAuthorActorField() {
+		return 'fa_actor';
 	}
 
 	public function getId() {

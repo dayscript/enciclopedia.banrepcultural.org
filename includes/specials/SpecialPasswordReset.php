@@ -37,11 +37,6 @@ class SpecialPasswordReset extends FormSpecialPage {
 	private $passwordReset = null;
 
 	/**
-	 * @var string[] Temporary storage for the passwords which have been sent out, keyed by username.
-	 */
-	private $passwords = [];
-
-	/**
 	 * @var Status
 	 */
 	private $result;
@@ -85,6 +80,7 @@ class SpecialPasswordReset extends FormSpecialPage {
 		if ( isset( $resetRoutes['username'] ) && $resetRoutes['username'] ) {
 			$a['Username'] = [
 				'type' => 'text',
+				'default' => $this->getRequest()->getSession()->suggestLoginUsername(),
 				'label-message' => 'passwordreset-username',
 			];
 
@@ -109,6 +105,8 @@ class SpecialPasswordReset extends FormSpecialPage {
 
 	public function alterForm( HTMLForm $form ) {
 		$resetRoutes = $this->getConfig()->get( 'PasswordResetRoutes' );
+
+		$form->setSubmitDestructive();
 
 		$form->addHiddenFields( $this->getRequest()->getValues( 'returnto', 'returntoquery' ) );
 
@@ -136,8 +134,8 @@ class SpecialPasswordReset extends FormSpecialPage {
 	 * @return Status
 	 */
 	public function onSubmit( array $data ) {
-		$username = isset( $data['Username'] ) ? $data['Username'] : null;
-		$email = isset( $data['Email'] ) ? $data['Email'] : null;
+		$username = $data['Username'] ?? null;
+		$email = $data['Email'] ?? null;
 
 		$this->method = $username ? 'username' : 'email';
 		$this->result = Status::wrap(

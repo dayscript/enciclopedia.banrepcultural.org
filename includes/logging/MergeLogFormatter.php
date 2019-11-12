@@ -18,7 +18,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
+ * @license GPL-2.0-or-later
  * @since 1.25
  */
 
@@ -54,9 +54,9 @@ class MergeLogFormatter extends LogFormatter {
 
 		// Show unmerge link
 		$params = $this->extractParameters();
-		$revert = Linker::linkKnown(
+		$revert = $this->getLinkRenderer()->makeKnownLink(
 			SpecialPage::getTitleFor( 'MergeHistory' ),
-			$this->msg( 'revertmerge' )->escaped(),
+			$this->msg( 'revertmerge' )->text(),
 			[],
 			[
 				'target' => $params[3],

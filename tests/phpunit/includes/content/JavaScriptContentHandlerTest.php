@@ -13,7 +13,7 @@ class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 		] );
 		$ch = new JavaScriptContentHandler();
 		$content = $ch->makeRedirectContent( Title::newFromText( $title ) );
-		$this->assertInstanceOf( 'JavaScriptContent', $content );
+		$this->assertInstanceOf( JavaScriptContent::class, $content );
 		$this->assertEquals( $expected, $content->serialize( CONTENT_FORMAT_JAVASCRIPT ) );
 	}
 
@@ -21,7 +21,7 @@ class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 	 * Keep this in sync with JavaScriptContentTest::provideGetRedirectTarget()
 	 */
 	public static function provideMakeRedirectContent() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'MediaWiki:MonoBook.js',
@@ -35,7 +35,11 @@ class JavaScriptContentHandlerTest extends MediaWikiLangTestCase {
 				'Gadget:FooBaz.js',
 				'/* #REDIRECT */mw.loader.load("//example.org/w/index.php?title=Gadget:FooBaz.js\u0026action=raw\u0026ctype=text/javascript");'
 			],
+			[
+				'User:😂/unicode.js',
+				'/* #REDIRECT */mw.loader.load("//example.org/w/index.php?title=User:%F0%9F%98%82/unicode.js\u0026action=raw\u0026ctype=text/javascript");'
+			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 }

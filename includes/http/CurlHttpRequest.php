@@ -52,12 +52,7 @@ class CurlHttpRequest extends MWHttpRequest {
 
 		$this->curlOptions[CURLOPT_PROXY] = $this->proxy;
 		$this->curlOptions[CURLOPT_TIMEOUT] = $this->timeout;
-
-		// Only supported in curl >= 7.16.2
-		if ( defined( 'CURLOPT_CONNECTTIMEOUT_MS' ) ) {
-			$this->curlOptions[CURLOPT_CONNECTTIMEOUT_MS] = $this->connectTimeout * 1000;
-		}
-
+		$this->curlOptions[CURLOPT_CONNECTTIMEOUT_MS] = $this->connectTimeout * 1000;
 		$this->curlOptions[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_0;
 		$this->curlOptions[CURLOPT_WRITEFUNCTION] = $this->callback;
 		$this->curlOptions[CURLOPT_HEADERFUNCTION] = [ $this, "readHeader" ];
@@ -82,16 +77,7 @@ class CurlHttpRequest extends MWHttpRequest {
 			// Don't interpret POST parameters starting with '@' as file uploads, because this
 			// makes it impossible to POST plain values starting with '@' (and causes security
 			// issues potentially exposing the contents of local files).
-			// The PHP manual says this option was introduced in PHP 5.5 defaults to true in PHP 5.6,
-			// but we support lower versions, and the option doesn't exist in HHVM 5.6.99.
-			if ( defined( 'CURLOPT_SAFE_UPLOAD' ) ) {
-				$this->curlOptions[CURLOPT_SAFE_UPLOAD] = true;
-			} elseif ( is_array( $postData ) ) {
-				// In PHP 5.2 and later, '@' is interpreted as a file upload if POSTFIELDS
-				// is an array, but not if it's a string. So convert $req['body'] to a string
-				// for safety.
-				$postData = wfArrayToCgi( $postData );
-			}
+			$this->curlOptions[CURLOPT_SAFE_UPLOAD] = true;
 			$this->curlOptions[CURLOPT_POSTFIELDS] = $postData;
 
 			// Suppress 'Expect: 100-continue' header, as some servers
@@ -107,18 +93,19 @@ class CurlHttpRequest extends MWHttpRequest {
 		$curlHandle = curl_init( $this->url );
 
 		if ( !curl_setopt_array( $curlHandle, $this->curlOptions ) ) {
+			$this->status->fatal( 'http-internal-error' );
 			throw new InvalidArgumentException( "Error setting curl options." );
 		}
 
 		if ( $this->followRedirects && $this->canFollowRedirects() ) {
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			if ( !curl_setopt( $curlHandle, CURLOPT_FOLLOWLOCATION, true ) ) {
 				$this->logger->debug( __METHOD__ . ": Couldn't set CURLOPT_FOLLOWLOCATION. " .
 					"Probably open_basedir is set.\n" );
 				// Continue the processing. If it were in curl_setopt_array,
 				// processing would have halted on its entry
 			}
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 		}
 
 		if ( $this->profiler ) {
@@ -156,13 +143,6 @@ class CurlHttpRequest extends MWHttpRequest {
 		if ( $curlVersionInfo['version_number'] < 0x071304 ) {
 			$this->logger->debug( "Cannot follow redirects with libcurl < 7.19.4 due to CVE-2009-0037\n" );
 			return false;
-		}
-
-		if ( version_compare( PHP_VERSION, '5.6.0', '<' ) ) {
-			if ( strval( ini_get( 'open_basedir' ) ) !== '' ) {
-				$this->logger->debug( "Cannot follow redirects when open_basedir is set\n" );
-				return false;
-			}
 		}
 
 		return true;

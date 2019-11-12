@@ -40,17 +40,22 @@
  * @since 1.25
  */
 class StatusValue {
+
 	/** @var bool */
 	protected $ok = true;
-	/** @var array */
+
+	/** @var array[] */
 	protected $errors = [];
 
 	/** @var mixed */
 	public $value;
-	/** @var array Map of (key => bool) to indicate success of each part of batch operations */
+
+	/** @var bool[] Map of (key => bool) to indicate success of each part of batch operations */
 	public $success = [];
+
 	/** @var int Counter for batch operations */
 	public $successCount = 0;
+
 	/** @var int Counter for batch operations */
 	public $failCount = 0;
 
@@ -63,14 +68,14 @@ class StatusValue {
 	public static function newFatal( $message /*, parameters...*/ ) {
 		$params = func_get_args();
 		$result = new static();
-		call_user_func_array( [ &$result, 'fatal' ], $params );
+		$result->fatal( ...$params );
 		return $result;
 	}
 
 	/**
 	 * Factory function for good results
 	 *
-	 * @param mixed $value
+	 * @param mixed|null $value
 	 * @return static
 	 */
 	public static function newGood( $value = null ) {
@@ -138,7 +143,7 @@ class StatusValue {
 	 *
 	 * Each error is a (message:string or MessageSpecifier,params:array) map
 	 *
-	 * @return array
+	 * @return array[]
 	 */
 	public function getErrors() {
 		return $this->errors;
@@ -157,7 +162,7 @@ class StatusValue {
 	 * Change operation result
 	 *
 	 * @param bool $ok Whether the operation completed
-	 * @param mixed $value
+	 * @param mixed|null $value
 	 */
 	public function setResult( $ok, $value = null ) {
 		$this->ok = (bool)$ok;
@@ -209,7 +214,7 @@ class StatusValue {
 	/**
 	 * Merge another status object into this one
 	 *
-	 * @param StatusValue $other Other StatusValue object
+	 * @param StatusValue $other
 	 * @param bool $overwriteValue Whether to override the "value" member
 	 */
 	public function merge( $other, $overwriteValue = false ) {
@@ -230,7 +235,7 @@ class StatusValue {
 	 *   - params: array list of parameters
 	 *
 	 * @param string $type
-	 * @return array
+	 * @return array[]
 	 */
 	public function getErrorsByType( $type ) {
 		$result = [];

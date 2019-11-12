@@ -21,6 +21,8 @@
  * @file
  */
 
+use Wikimedia\ObjectFactory;
+
 /**
  * Object handling generic submission, CSRF protection, layout and
  * other logic for UI forms. in a reusable manner.
@@ -48,14 +50,19 @@
  *                             if 'class' is not specified, this is used as a map
  *                             through HTMLForm::$typeMappings to get the class name.
  *    'default'             -- default value when the form is displayed
+ *    'nodata'              -- if set (to any value, which casts to true), the data
+ *                             for this field will not be loaded from the actual request. Instead,
+ *                             always the default data is set as the value of this field.
  *    'id'                  -- HTML id attribute
  *    'cssclass'            -- CSS class
  *    'csshelpclass'        -- CSS class used to style help text
  *    'dir'                 -- Direction of the element.
- *    'options'             -- associative array mapping labels to values.
+ *    'options'             -- associative array mapping raw text labels to values.
  *                             Some field types support multi-level arrays.
+ *                             Overwrites 'options-message'.
  *    'options-messages'    -- associative array mapping message keys to values.
  *                             Some field types support multi-level arrays.
+ *                             Overwrites 'options' and 'options-message'.
  *    'options-message'     -- message key or object to be parsed to extract the list of
  *                             options (like 'ipbreason-dropdown').
  *    'label-message'       -- message key or object for a message to use as the label.
@@ -71,11 +78,9 @@
  *    'help-messages'       -- array of message keys/objects. As above, each item can
  *                             be an array of msg key and then parameters.
  *                             Overwrites 'help'.
- *    'notice'              -- message text for a message to use as a notice in the field.
- *                             Currently used by OOUI form fields only.
- *    'notice-messages'     -- array of message keys/objects to use for notice.
- *                             Overrides 'notice'.
- *    'notice-message'      -- message key or object to use as a notice.
+ *    'help-inline'         -- Whether help text (defined using options above) will be shown
+ *                             inline after the input field, rather than in a popup.
+ *                             Defaults to true. Only used by OOUI form fields.
  *    'required'            -- passed through to the object, indicating that it
  *                             is a required field.
  *    'size'                -- the length of text fields
@@ -128,44 +133,48 @@
 class HTMLForm extends ContextSource {
 	// A mapping of 'type' inputs onto standard HTMLFormField subclasses
 	public static $typeMappings = [
-		'api' => 'HTMLApiField',
-		'text' => 'HTMLTextField',
-		'textwithbutton' => 'HTMLTextFieldWithButton',
-		'textarea' => 'HTMLTextAreaField',
-		'select' => 'HTMLSelectField',
-		'combobox' => 'HTMLComboboxField',
-		'radio' => 'HTMLRadioField',
-		'multiselect' => 'HTMLMultiSelectField',
-		'limitselect' => 'HTMLSelectLimitField',
-		'check' => 'HTMLCheckField',
-		'toggle' => 'HTMLCheckField',
-		'int' => 'HTMLIntField',
-		'float' => 'HTMLFloatField',
-		'info' => 'HTMLInfoField',
-		'selectorother' => 'HTMLSelectOrOtherField',
-		'selectandother' => 'HTMLSelectAndOtherField',
-		'namespaceselect' => 'HTMLSelectNamespace',
-		'namespaceselectwithbutton' => 'HTMLSelectNamespaceWithButton',
-		'tagfilter' => 'HTMLTagFilter',
-		'sizefilter' => 'HTMLSizeFilterField',
-		'submit' => 'HTMLSubmitField',
-		'hidden' => 'HTMLHiddenField',
-		'edittools' => 'HTMLEditTools',
-		'checkmatrix' => 'HTMLCheckMatrix',
-		'cloner' => 'HTMLFormFieldCloner',
-		'autocompleteselect' => 'HTMLAutoCompleteSelectField',
-		'date' => 'HTMLDateTimeField',
-		'time' => 'HTMLDateTimeField',
-		'datetime' => 'HTMLDateTimeField',
+		'api' => HTMLApiField::class,
+		'text' => HTMLTextField::class,
+		'textwithbutton' => HTMLTextFieldWithButton::class,
+		'textarea' => HTMLTextAreaField::class,
+		'select' => HTMLSelectField::class,
+		'combobox' => HTMLComboboxField::class,
+		'radio' => HTMLRadioField::class,
+		'multiselect' => HTMLMultiSelectField::class,
+		'limitselect' => HTMLSelectLimitField::class,
+		'check' => HTMLCheckField::class,
+		'toggle' => HTMLCheckField::class,
+		'int' => HTMLIntField::class,
+		'float' => HTMLFloatField::class,
+		'info' => HTMLInfoField::class,
+		'selectorother' => HTMLSelectOrOtherField::class,
+		'selectandother' => HTMLSelectAndOtherField::class,
+		'namespaceselect' => HTMLSelectNamespace::class,
+		'namespaceselectwithbutton' => HTMLSelectNamespaceWithButton::class,
+		'tagfilter' => HTMLTagFilter::class,
+		'sizefilter' => HTMLSizeFilterField::class,
+		'submit' => HTMLSubmitField::class,
+		'hidden' => HTMLHiddenField::class,
+		'edittools' => HTMLEditTools::class,
+		'checkmatrix' => HTMLCheckMatrix::class,
+		'cloner' => HTMLFormFieldCloner::class,
+		'autocompleteselect' => HTMLAutoCompleteSelectField::class,
+		'language' => HTMLSelectLanguageField::class,
+		'date' => HTMLDateTimeField::class,
+		'time' => HTMLDateTimeField::class,
+		'datetime' => HTMLDateTimeField::class,
+		'expiry' => HTMLExpiryField::class,
 		// HTMLTextField will output the correct type="" attribute automagically.
 		// There are about four zillion other HTML5 input types, like range, but
 		// we don't use those at the moment, so no point in adding all of them.
-		'email' => 'HTMLTextField',
-		'password' => 'HTMLTextField',
-		'url' => 'HTMLTextField',
-		'title' => 'HTMLTitleTextField',
-		'user' => 'HTMLUserTextField',
-		'usersmultiselect' => 'HTMLUsersMultiselectField',
+		'email' => HTMLTextField::class,
+		'password' => HTMLTextField::class,
+		'url' => HTMLTextField::class,
+		'title' => HTMLTitleTextField::class,
+		'user' => HTMLUserTextField::class,
+		'usersmultiselect' => HTMLUsersMultiselectField::class,
+		'titlesmultiselect' => HTMLTitlesMultiselectField::class,
+		'namespacesmultiselect' => HTMLNamespacesMultiselectField::class,
 	];
 
 	public $mFieldData;
@@ -213,11 +222,11 @@ class HTMLForm extends ContextSource {
 	protected $mAction = false;
 
 	/**
-	 * Form attribute autocomplete. false does not set the attribute
+	 * Form attribute autocomplete. A typical value is "off". null does not set the attribute
 	 * @since 1.27
-	 * @var bool|string
+	 * @var string|null
 	 */
-	protected $mAutocomplete = false;
+	protected $mAutocomplete = null;
 
 	protected $mUseMultipart = false;
 	protected $mHiddenFields = [];
@@ -271,7 +280,7 @@ class HTMLForm extends ContextSource {
 	 * Construct a HTMLForm object for given display type. May return a HTMLForm subclass.
 	 *
 	 * @param string $displayFormat
-	 * @param mixed $arguments... Additional arguments to pass to the constructor.
+	 * @param mixed $arguments,... Additional arguments to pass to the constructor.
 	 * @return HTMLForm
 	 */
 	public static function factory( $displayFormat/*, $arguments...*/ ) {
@@ -285,7 +294,7 @@ class HTMLForm extends ContextSource {
 				return ObjectFactory::constructClassInstance( OOUIHTMLForm::class, $arguments );
 			default:
 				/** @var HTMLForm $form */
-				$form = ObjectFactory::constructClassInstance( HTMLForm::class, $arguments );
+				$form = ObjectFactory::constructClassInstance( self::class, $arguments );
 				$form->setDisplayFormat( $displayFormat );
 				return $form;
 		}
@@ -295,7 +304,7 @@ class HTMLForm extends ContextSource {
 	 * Build a new HTMLForm from an array of field attributes
 	 *
 	 * @param array $descriptor Array of Field constructs, as described above
-	 * @param IContextSource $context Available since 1.18, will become compulsory in 1.18.
+	 * @param IContextSource|null $context Available since 1.18, will become compulsory in 1.18.
 	 *     Obviates the need to call $form->setTitle()
 	 * @param string $messagePrefix A prefix to go in front of default messages
 	 */
@@ -327,9 +336,7 @@ class HTMLForm extends ContextSource {
 		$this->mFlatFields = [];
 
 		foreach ( $descriptor as $fieldname => $info ) {
-			$section = isset( $info['section'] )
-				? $info['section']
-				: '';
+			$section = $info['section'] ?? '';
 
 			if ( isset( $info['type'] ) && $info['type'] === 'file' ) {
 				$this->mUseMultipart = true;
@@ -339,11 +346,7 @@ class HTMLForm extends ContextSource {
 
 			$setSection =& $loadedDescriptor;
 			if ( $section ) {
-				$sectionParts = explode( '/', $section );
-
-				while ( count( $sectionParts ) ) {
-					$newName = array_shift( $sectionParts );
-
+				foreach ( explode( '/', $section ) as $newName ) {
 					if ( !isset( $setSection[$newName] ) ) {
 						$setSection[$newName] = [];
 					}
@@ -400,7 +403,13 @@ class HTMLForm extends ContextSource {
 
 		if ( !in_array( $format, $this->availableDisplayFormats, true ) ) {
 			throw new MWException( 'Display format must be one of ' .
-				print_r( $this->availableDisplayFormats, true ) );
+				print_r(
+					array_merge(
+						$this->availableDisplayFormats,
+						$this->availableSubclassDisplayFormats
+					),
+					true
+				) );
 		}
 
 		// Evil hack for mobile :(
@@ -423,17 +432,6 @@ class HTMLForm extends ContextSource {
 	}
 
 	/**
-	 * Test if displayFormat is 'vform'
-	 * @since 1.22
-	 * @deprecated since 1.25
-	 * @return bool
-	 */
-	public function isVForm() {
-		wfDeprecated( __METHOD__, '1.25' );
-		return false;
-	}
-
-	/**
 	 * Get the HTMLFormField subclass for this descriptor.
 	 *
 	 * The descriptor can be passed either 'class' which is the name of
@@ -444,7 +442,7 @@ class HTMLForm extends ContextSource {
 	 * @since 1.23
 	 *
 	 * @param string $fieldname Name of the field
-	 * @param array $descriptor Input Descriptor, as described above
+	 * @param array &$descriptor Input Descriptor, as described above
 	 *
 	 * @throws MWException
 	 * @return string Name of a HTMLFormField subclass
@@ -496,7 +494,7 @@ class HTMLForm extends ContextSource {
 	/**
 	 * Prepare form for submission.
 	 *
-	 * @attention When doing method chaining, that should be the very last
+	 * @warning When doing method chaining, that should be the very last
 	 * method call before displayForm().
 	 *
 	 * @throws MWException
@@ -528,7 +526,6 @@ class HTMLForm extends ContextSource {
 	public function tryAuthorizedSubmit() {
 		$result = false;
 
-		$identOkay = false;
 		if ( $this->mFormIdentifier === null ) {
 			$identOkay = true;
 		} else {
@@ -607,8 +604,8 @@ class HTMLForm extends ContextSource {
 		$valid = true;
 		$hoistedErrors = Status::newGood();
 		if ( $this->mValidationErrorMessage ) {
-			foreach ( (array)$this->mValidationErrorMessage as $error ) {
-				call_user_func_array( [ $hoistedErrors, 'fatal' ], $error );
+			foreach ( $this->mValidationErrorMessage as $error ) {
+				$hoistedErrors->fatal( ...$error );
 			}
 		} else {
 			$hoistedErrors->fatal( 'htmlform-invalid-input' );
@@ -702,8 +699,8 @@ class HTMLForm extends ContextSource {
 	/**
 	 * Set a message to display on a validation error.
 	 *
-	 * @param string|array $msg String or Array of valid inputs to wfMessage()
-	 *     (so each entry can be either a String or Array)
+	 * @param array $msg Array of valid inputs to wfMessage()
+	 *     (so each entry must itself be an array of arguments)
 	 *
 	 * @return HTMLForm $this for chaining calls (since 1.20)
 	 */
@@ -751,6 +748,17 @@ class HTMLForm extends ContextSource {
 		$this->mPre .= $msg;
 
 		return $this;
+	}
+
+	/**
+	 * Get the introductory message HTML.
+	 *
+	 * @since 1.32
+	 *
+	 * @return string
+	 */
+	public function getPreText() {
+		return $this->mPre;
 	}
 
 	/**
@@ -804,7 +812,7 @@ class HTMLForm extends ContextSource {
 		if ( $section === null ) {
 			return $this->mHeader;
 		} else {
-			return isset( $this->mSectionHeaders[$section] ) ? $this->mSectionHeaders[$section] : '';
+			return $this->mSectionHeaders[$section] ?? '';
 		}
 	}
 
@@ -859,7 +867,7 @@ class HTMLForm extends ContextSource {
 		if ( $section === null ) {
 			return $this->mFooter;
 		} else {
-			return isset( $this->mSectionFooters[$section] ) ? $this->mSectionFooters[$section] : '';
+			return $this->mSectionFooters[$section] ?? '';
 		}
 	}
 
@@ -958,8 +966,8 @@ class HTMLForm extends ContextSource {
 			$data = [
 				'name' => $args[0],
 				'value' => $args[1],
-				'id' => isset( $args[2] ) ? $args[2] : null,
-				'attribs' => isset( $args[3] ) ? $args[3] : null,
+				'id' => $args[2] ?? null,
+				'attribs' => $args[3] ?? null,
 			];
 		} else {
 			if ( !isset( $data['name'] ) ) {
@@ -998,7 +1006,7 @@ class HTMLForm extends ContextSource {
 	 * Display the form (sending to the context's OutputPage object), with an
 	 * appropriate error message or stack of messages, and any validation errors, etc.
 	 *
-	 * @attention You should call prepareForm() before calling this function.
+	 * @warning You should call prepareForm() before calling this function.
 	 * Moreover, when doing method chaining this should be the very last method
 	 * call just after prepareForm().
 	 *
@@ -1016,6 +1024,7 @@ class HTMLForm extends ContextSource {
 	 * @param bool|string|array|Status $submitResult Output from HTMLForm::trySubmit()
 	 *
 	 * @return string HTML
+	 * @return-taint escaped
 	 */
 	public function getHTML( $submitResult ) {
 		# For good measure (it is the default)
@@ -1056,7 +1065,7 @@ class HTMLForm extends ContextSource {
 		if ( $this->mId ) {
 			$attribs['id'] = $this->mId;
 		}
-		if ( $this->mAutocomplete ) {
+		if ( is_string( $this->mAutocomplete ) ) {
 			$attribs['autocomplete'] = $this->mAutocomplete;
 		}
 		if ( $this->mName ) {
@@ -1273,7 +1282,7 @@ class HTMLForm extends ContextSource {
 			if ( $status->isGood() ) {
 				$elementstr = '';
 			} else {
-				$elementstr = $this->getOutput()->parse(
+				$elementstr = $this->getOutput()->parseAsInterface(
 					$status->getWikiText()
 				);
 			}
@@ -1339,10 +1348,13 @@ class HTMLForm extends ContextSource {
 	/**
 	 * Identify that the submit button in the form has a progressive action
 	 * @since 1.25
+	 * @deprecated since 1.32, No need to call. Submit button already
+	 * has a progressive action form.
 	 *
 	 * @return HTMLForm $this for chaining calls (since 1.28)
 	 */
 	public function setSubmitProgressive() {
+		wfDeprecated( __METHOD__, '1.32' );
 		$this->mSubmitFlags = [ 'progressive', 'primary' ];
 
 		return $this;
@@ -1603,9 +1615,10 @@ class HTMLForm extends ContextSource {
 	 * @param string $legend Legend text for the fieldset
 	 * @param string $section The section content in plain Html
 	 * @param array $attributes Additional attributes for the fieldset
+	 * @param bool $isRoot Section is at the root of the tree
 	 * @return string The fieldset's Html
 	 */
-	protected function wrapFieldSetSection( $legend, $section, $attributes ) {
+	protected function wrapFieldSetSection( $legend, $section, $attributes, $isRoot ) {
 		return Xml::fieldset( $legend, $section, $attributes ) . "\n";
 	}
 
@@ -1659,7 +1672,7 @@ class HTMLForm extends ContextSource {
 					$html[] = $retval;
 
 					$labelValue = trim( $value->getLabel() );
-					if ( $labelValue !== '&#160;' && $labelValue !== '' ) {
+					if ( $labelValue !== "\u{00A0}" && $labelValue !== '&#160;' && $labelValue !== '' ) {
 						$hasLabel = true;
 					}
 
@@ -1686,9 +1699,11 @@ class HTMLForm extends ContextSource {
 
 					$attributes = [];
 					if ( $fieldsetIDPrefix ) {
-						$attributes['id'] = Sanitizer::escapeId( "$fieldsetIDPrefix$key" );
+						$attributes['id'] = Sanitizer::escapeIdForAttribute( "$fieldsetIDPrefix$key" );
 					}
-					$subsectionHtml .= $this->wrapFieldSetSection( $legend, $section, $attributes );
+					$subsectionHtml .= $this->wrapFieldSetSection(
+						$legend, $section, $attributes, $fields === $this->mFieldTree
+					);
 				} else {
 					// Just return the inputs, nothing fancy.
 					$subsectionHtml .= $section;
@@ -1717,6 +1732,12 @@ class HTMLForm extends ContextSource {
 	 * @return string HTML
 	 */
 	protected function formatSection( array $fieldsHtml, $sectionName, $anyFieldHasLabel ) {
+		if ( !$fieldsHtml ) {
+			// Do not generate any wrappers for empty sections. Sections may be empty if they only have
+			// subsections, but no fields. A legend will still be added in wrapFieldSetSection().
+			return '';
+		}
+
 		$displayFormat = $this->getDisplayFormat();
 		$html = implode( '', $fieldsHtml );
 
@@ -1735,7 +1756,7 @@ class HTMLForm extends ContextSource {
 		];
 
 		if ( $sectionName ) {
-			$attribs['id'] = Sanitizer::escapeId( $sectionName );
+			$attribs['id'] = Sanitizer::escapeIdForAttribute( $sectionName );
 		}
 
 		if ( $displayFormat === 'table' ) {
@@ -1807,7 +1828,7 @@ class HTMLForm extends ContextSource {
 	 *
 	 * @param string $key
 	 *
-	 * @return string
+	 * @return string Plain text (not HTML-escaped)
 	 */
 	public function getLegend( $key ) {
 		return $this->msg( "{$this->mMessagePrefix}-$key" )->text();
@@ -1856,12 +1877,12 @@ class HTMLForm extends ContextSource {
 	}
 
 	/**
-	 * Set the value for the autocomplete attribute of the form.
-	 * When set to false (which is the default state), the attribute get not set.
+	 * Set the value for the autocomplete attribute of the form. A typical value is "off".
+	 * When set to null (which is the default state), the attribute get not set.
 	 *
 	 * @since 1.27
 	 *
-	 * @param string|bool $autocomplete
+	 * @param string|null $autocomplete
 	 *
 	 * @return HTMLForm $this for chaining calls
 	 */
@@ -1887,7 +1908,7 @@ class HTMLForm extends ContextSource {
 	 * 'novalidate' attribute will be added on the `<form>` element. It will be removed if the user
 	 * agent has JavaScript support, in htmlform.js.
 	 *
-	 * @return boolean
+	 * @return bool
 	 * @since 1.29
 	 */
 	public function needsJSForHtml5FormValidation() {

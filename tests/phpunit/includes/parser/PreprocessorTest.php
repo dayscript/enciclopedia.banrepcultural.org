@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @covers Preprocessor
  *
@@ -37,14 +39,14 @@ class PreprocessorTest extends MediaWikiTestCase {
 	protected $mPreprocessors;
 
 	protected static $classNames = [
-		'Preprocessor_DOM',
-		'Preprocessor_Hash'
+		Preprocessor_DOM::class,
+		Preprocessor_Hash::class
 	];
 
 	protected function setUp() {
-		global $wgContLang;
 		parent::setUp();
-		$this->mOptions = ParserOptions::newFromUserAndLang( new User, $wgContLang );
+		$this->mOptions = ParserOptions::newFromUserAndLang( new User,
+			MediaWikiServices::getInstance()->getContentLanguage() );
 
 		$this->mPreprocessors = [];
 		foreach ( self::$classNames as $className ) {
@@ -68,7 +70,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 	}
 
 	public static function provideCases() {
-		// @codingStandardsIgnoreStart Ignore Generic.Files.LineLength.TooLong
+		// phpcs:disable Generic.Files.LineLength
 		return self::addClassArg( [
 			[ "Foo", "<root>Foo</root>" ],
 			[ "<!-- Foo -->", "<root><comment>&lt;!-- Foo --&gt;</comment></root>" ],
@@ -156,7 +158,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 			[ "{{Foo|} Bar=}}", "<root><template><title>Foo</title><part><name>} Bar</name>=<value></value></part></template></root>" ],
 			/* [ file_get_contents( __DIR__ . '/QuoteQuran.txt' ], file_get_contents( __DIR__ . '/QuoteQuranExpanded.txt' ) ], */
 		] );
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
@@ -208,7 +210,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 	 * These are more complex test cases taken out of wiki articles.
 	 */
 	public static function provideFiles() {
-		// @codingStandardsIgnoreStart Ignore Generic.Files.LineLength.TooLong
+		// phpcs:disable Generic.Files.LineLength
 		return self::addClassArg( [
 			[ "QuoteQuran" ], # https://en.wikipedia.org/w/index.php?title=Template:QuoteQuran/sandbox&oldid=237348988 GFDL + CC BY-SA by Striver
 			[ "Factorial" ], # https://en.wikipedia.org/w/index.php?title=Template:Factorial&oldid=98548758 GFDL + CC BY-SA by Polonium
@@ -216,7 +218,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 			[ "Fundraising" ], # https://tl.wiktionary.org/w/index.php?title=MediaWiki:Sitenotice&oldid=5716 GFDL + CC BY-SA, copied there by Sky Harbor.
 			[ "NestedTemplates" ], # T29936
 		] );
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
@@ -242,7 +244,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 	 * Tests from T30642 · https://phabricator.wikimedia.org/T30642
 	 */
 	public static function provideHeadings() {
-		// @codingStandardsIgnoreStart Ignore Generic.Files.LineLength.TooLong
+		// phpcs:disable Generic.Files.LineLength
 		return self::addClassArg( [
 			/* These should become headings: */
 			[ "== h ==<!--c1-->", "<root><h level=\"2\" i=\"1\">== h ==<comment>&lt;!--c1--&gt;</comment></h></root>" ],
@@ -281,7 +283,7 @@ class PreprocessorTest extends MediaWikiTestCase {
 			[ "== h ==<!--c1--> x <!--c2--><!--c3-->  ", "<root>== h ==<comment>&lt;!--c1--&gt;</comment> x <comment>&lt;!--c2--&gt;</comment><comment>&lt;!--c3--&gt;</comment>  </root>" ],
 			[ "== h ==<!--c1--><!--c2--><!--c3--> x ", "<root>== h ==<comment>&lt;!--c1--&gt;</comment><comment>&lt;!--c2--&gt;</comment><comment>&lt;!--c3--&gt;</comment> x </root>" ],
 		] );
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**

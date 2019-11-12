@@ -40,8 +40,10 @@ class SpecialTrackingCategories extends SpecialPage {
 		$this->setHeaders();
 		$this->outputHeader();
 		$this->getOutput()->allowClickjacking();
+		$this->getOutput()->addModuleStyles( 'jquery.tablesorter.styles' );
+		$this->getOutput()->addModules( 'jquery.tablesorter' );
 		$this->getOutput()->addHTML(
-			Html::openElement( 'table', [ 'class' => 'mw-datatable',
+			Html::openElement( 'table', [ 'class' => 'mw-datatable sortable',
 				'id' => 'mw-trackingcategories-table' ] ) . "\n" .
 			"<thead><tr>
 			<th>" .
@@ -94,7 +96,7 @@ class SpecialTrackingCategories extends SpecialPage {
 			}
 
 			# Extra message, when no category was found
-			if ( !count( $allMsgs ) ) {
+			if ( $allMsgs === [] ) {
 				$allMsgs[] = $this->msg( 'trackingcategories-disabled' )->parse();
 			}
 

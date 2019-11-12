@@ -108,7 +108,6 @@ class CategoryViewer extends ContextSource {
 	 * @return string HTML output
 	 */
 	public function getHTML() {
-
 		$this->showGallery = $this->getConfig()->get( 'CategoryMagicGallery' )
 			&& !$this->getOutput()->mNoGallery;
 
@@ -126,7 +125,7 @@ class CategoryViewer extends ContextSource {
 			// @todo FIXME: Cannot be completely suppressed because it
 			//        is unknown if 'until' or 'from' makes this
 			//        give 0 results.
-			$r = $r . $this->getCategoryTop();
+			$r = $this->getCategoryTop();
 		} else {
 			$r = $this->getCategoryTop() .
 				$r .
@@ -222,8 +221,6 @@ class CategoryViewer extends ContextSource {
 	 * @return string
 	 */
 	function getSubcategorySortChar( $title, $sortkey ) {
-		global $wgContLang;
-
 		if ( $title->getPrefixedText() == $sortkey ) {
 			$word = $title->getDBkey();
 		} else {
@@ -232,7 +229,7 @@ class CategoryViewer extends ContextSource {
 
 		$firstChar = $this->collation->getFirstLetter( $word );
 
-		return $wgContLang->convert( $firstChar );
+		return MediaWikiServices::getInstance()->getContentLanguage()->convert( $firstChar );
 	}
 
 	/**
@@ -243,7 +240,6 @@ class CategoryViewer extends ContextSource {
 	 * @param bool $isRedirect
 	 */
 	function addImage( Title $title, $sortkey, $pageLength, $isRedirect = false ) {
-		global $wgContLang;
 		if ( $this->showGallery ) {
 			$flip = $this->flip['file'];
 			if ( $flip ) {
@@ -254,8 +250,8 @@ class CategoryViewer extends ContextSource {
 		} else {
 			$this->imgsNoGallery[] = $this->generateLink( 'image', $title, $isRedirect );
 
-			$this->imgsNoGallery_start_char[] = $wgContLang->convert(
-				$this->collation->getFirstLetter( $sortkey ) );
+			$this->imgsNoGallery_start_char[] = MediaWikiServices::getInstance()->
+				getContentLanguage()->convert( $this->collation->getFirstLetter( $sortkey ) );
 		}
 	}
 
@@ -267,12 +263,10 @@ class CategoryViewer extends ContextSource {
 	 * @param bool $isRedirect
 	 */
 	function addPage( $title, $sortkey, $pageLength, $isRedirect = false ) {
-		global $wgContLang;
-
 		$this->articles[] = $this->generateLink( 'page', $title, $isRedirect );
 
-		$this->articles_start_char[] = $wgContLang->convert(
-			$this->collation->getFirstLetter( $sortkey ) );
+		$this->articles_start_char[] = MediaWikiServices::getInstance()->
+			getContentLanguage()->convert( $this->collation->getFirstLetter( $sortkey ) );
 	}
 
 	function finaliseCategoryState() {
@@ -345,7 +339,7 @@ class CategoryViewer extends ContextSource {
 					'ORDER BY' => $this->flip[$type] ? 'cl_sortkey DESC' : 'cl_sortkey',
 				],
 				[
-					'categorylinks' => [ 'INNER JOIN', 'cl_from = page_id' ],
+					'categorylinks' => [ 'JOIN', 'cl_from = page_id' ],
 					'category' => [ 'LEFT JOIN', [
 						'cat_title = page_title',
 						'page_namespace' => NS_CATEGORY
@@ -430,7 +424,7 @@ class CategoryViewer extends ContextSource {
 	 * @return string
 	 */
 	function getPagesSection() {
-		$ti = wfEscapeWikiText( $this->title->getText() );
+		$name = $this->getOutput()->getUnprefixedDisplayTitle();
 		# Don't show articles section if there are none.
 		$r = '';
 
@@ -446,7 +440,7 @@ class CategoryViewer extends ContextSource {
 
 		if ( $rescnt > 0 ) {
 			$r = "<div id=\"mw-pages\">\n";
-			$r .= '<h2>' . $this->msg( 'category_header', $ti )->parse() . "</h2>\n";
+			$r .= '<h2>' . $this->msg( 'category_header' )->rawParams( $name )->parse() . "</h2>\n";
 			$r .= $countmsg;
 			$r .= $this->getSectionPagingLinks( 'page' );
 			$r .= $this->formatList( $this->articles, $this->articles_start_char );
@@ -460,6 +454,7 @@ class CategoryViewer extends ContextSource {
 	 * @return string
 	 */
 	function getImageSection() {
+		$name = $this->getOutput()->getUnprefixedDisplayTitle();
 		$r = '';
 		$rescnt = $this->showGallery ? $this->gallery->count() : count( $this->imgsNoGallery );
 		$dbcnt = $this->cat->getFileCount();
@@ -469,10 +464,7 @@ class CategoryViewer extends ContextSource {
 		if ( $rescnt > 0 ) {
 			$r .= "<div id=\"mw-category-media\">\n";
 			$r .= '<h2>' .
-				$this->msg(
-					'category-media-header',
-					wfEscapeWikiText( $this->title->getText() )
-				)->text() .
+				$this->msg( 'category-media-header' )->rawParams( $name )->parse() .
 				"</h2>\n";
 			$r .= $countmsg;
 			$r .= $this->getSectionPagingLinks( 'file' );
@@ -582,7 +574,7 @@ class CategoryViewer extends ContextSource {
 
 		foreach ( $colContents as $char => $articles ) {
 			# Change space to non-breaking space to keep headers aligned
-			$h3char = $char === ' ' ? '&#160;' : htmlspecialchars( $char );
+			$h3char = $char === ' ' ? "\u{00A0}" : htmlspecialchars( $char );
 
 			$ret .= '<div class="mw-category-group"><h3>' . $h3char;
 			$ret .= "</h3>\n";
@@ -630,7 +622,7 @@ class CategoryViewer extends ContextSource {
 	 * @return string HTML
 	 */
 	private function pagingLinks( $first, $last, $type = '' ) {
-		$prevLink = $this->msg( 'prev-page' )->text();
+		$prevLink = $this->msg( 'prev-page' )->escaped();
 
 		$linkRenderer = MediaWikiServices::getInstance()->getLinkRenderer();
 		if ( $first != '' ) {
@@ -639,13 +631,13 @@ class CategoryViewer extends ContextSource {
 			unset( $prevQuery["{$type}from"] );
 			$prevLink = $linkRenderer->makeKnownLink(
 				$this->addFragmentToTitle( $this->title, $type ),
-				$prevLink,
+				new HtmlArmor( $prevLink ),
 				[],
 				$prevQuery
 			);
 		}
 
-		$nextLink = $this->msg( 'next-page' )->text();
+		$nextLink = $this->msg( 'next-page' )->escaped();
 
 		if ( $last != '' ) {
 			$lastQuery = $this->query;
@@ -653,7 +645,7 @@ class CategoryViewer extends ContextSource {
 			unset( $lastQuery["{$type}until"] );
 			$nextLink = $linkRenderer->makeKnownLink(
 				$this->addFragmentToTitle( $this->title, $type ),
-				$nextLink,
+				new HtmlArmor( $nextLink ),
 				[],
 				$lastQuery
 			);
@@ -736,11 +728,7 @@ class CategoryViewer extends ContextSource {
 			$totalcnt = $dbcnt;
 		} elseif ( $rescnt < $this->limit && !$fromOrUntil ) {
 			// Case 2: not sane, but salvageable.  Use the number of results.
-			// Since there are fewer than 200, we can also take this opportunity
-			// to refresh the incorrect category table entry -- which should be
-			// quick due to the small number of entries.
 			$totalcnt = $rescnt;
-			DeferredUpdates::addCallableUpdate( [ $this->cat, 'refreshCounts' ] );
 		} else {
 			// Case 3: hopeless.  Don't give a total count at all.
 			// Messages: category-subcat-count-limited, category-article-count-limited,

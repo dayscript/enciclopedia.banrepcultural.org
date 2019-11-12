@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on January 1, 2017
- *
  * Copyright © 2017 Justin Du "<justin.d128@gmail.com>"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -33,11 +29,11 @@
  */
 class ApiSetPageLanguage extends ApiBase {
 	// Check if change language feature is enabled
-	protected function getDescriptionMessage() {
+	protected function getExtendedDescription() {
 		if ( !$this->getConfig()->get( 'PageLanguageUseDB' ) ) {
-			return 'apihelp-setpagelanguage-description-disabled';
+			return 'apihelp-setpagelanguage-extended-description-disabled';
 		}
-		return parent::getDescriptionMessage();
+		return parent::getExtendedDescription();
 	}
 
 	/**
@@ -73,7 +69,7 @@ class ApiSetPageLanguage extends ApiBase {
 
 		// If change tagging was requested, check that the user is allowed to tag,
 		// and the tags are valid
-		if ( count( $params['tags'] ) ) {
+		if ( $params['tags'] ) {
 			$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
 			if ( !$tagStatus->isOK() ) {
 				$this->dieStatus( $tagStatus );
@@ -84,7 +80,7 @@ class ApiSetPageLanguage extends ApiBase {
 			$this,
 			$titleObj,
 			$params['lang'],
-			$params['reason'] === null ? '' : $params['reason'],
+			$params['reason'] ?? '',
 			$params['tags'] ?: []
 		);
 

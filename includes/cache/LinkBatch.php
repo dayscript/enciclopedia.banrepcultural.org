@@ -43,8 +43,7 @@ class LinkBatch {
 	protected $caller;
 
 	/**
-	 * LinkBatch constructor.
-	 * @param LinkTarget[] $arr Initial items to be added to the batch
+	 * @param Traversable|LinkTarget[] $arr Initial items to be added to the batch
 	 */
 	public function __construct( $arr = [] ) {
 		foreach ( $arr as $item ) {
@@ -58,9 +57,12 @@ class LinkBatch {
 	 * @since 1.17
 	 *
 	 * @param string $caller
+	 * @return self (since 1.32)
 	 */
 	public function setCaller( $caller ) {
 		$this->caller = $caller;
+
+		return $this;
 	}
 
 	/**
@@ -132,7 +134,7 @@ class LinkBatch {
 	 * Do the query and add the results to a given LinkCache object
 	 * Return an array mapping PDBK to ID
 	 *
-	 * @param LinkCache $cache
+	 * @param LinkCache &$cache
 	 * @return array Remaining IDs
 	 */
 	protected function executeInto( &$cache ) {
@@ -222,13 +224,13 @@ class LinkBatch {
 		if ( $this->isEmpty() ) {
 			return false;
 		}
+		$services = MediaWikiServices::getInstance();
 
-		global $wgContLang;
-		if ( !$wgContLang->needsGenderDistinction() ) {
+		if ( !$services->getContentLanguage()->needsGenderDistinction() ) {
 			return false;
 		}
 
-		$genderCache = MediaWikiServices::getInstance()->getGenderCache();
+		$genderCache = $services->getGenderCache();
 		$genderCache->doLinkBatch( $this->data, $this->caller );
 
 		return true;

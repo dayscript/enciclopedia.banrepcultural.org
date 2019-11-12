@@ -4,7 +4,7 @@
  * @copyright 2011-2016 VisualEditor Team and others; see AUTHORS.txt
  * @license The MIT License (MIT); see LICENSE.txt
  */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Creates an mw.widgets.MediaResultWidget object.
@@ -52,10 +52,6 @@
 			.addClass( 'mw-widget-mediaResultWidget-overlay' );
 
 		this.calculateSizing( this.data );
-
-		// Get wiki default thumbnail size
-		this.defaultThumbSize = mw.config.get( 'wgVisualEditorConfig' )
-			.defaultUserOptions.defaultthumbsize;
 
 		// Initialization
 		this.setLabel( new mw.Title( this.data.title ).getNameText() );
@@ -271,4 +267,4 @@
 	mw.widgets.MediaResultWidget.prototype.hasSrc = function () {
 		return !!this.src;
 	};
-}( jQuery, mediaWiki ) );
+}() );

@@ -37,14 +37,13 @@ use MWExceptionHandler;
  * will be used to redact the trace information.
  *
  * @since 1.26
- * @author Bryan Davis <bd808@wikimedia.org>
- * @copyright © 2015 Bryan Davis and Wikimedia Foundation.
+ * @copyright © 2015 Wikimedia Foundation and contributors
  */
 class LineFormatter extends MonologLineFormatter {
 
 	/**
-	 * @param string $format The format of the message
-	 * @param string $dateFormat The format of the timestamp: one supported by DateTime::format
+	 * @param string|null $format The format of the message
+	 * @param string|null $dateFormat The format of the timestamp: one supported by DateTime::format
 	 * @param bool $allowInlineLineBreaks Whether to allow inline line breaks in log entries
 	 * @param bool $ignoreEmptyContextAndExtra
 	 * @param bool $includeStacktraces
@@ -61,7 +60,7 @@ class LineFormatter extends MonologLineFormatter {
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 */
 	public function format( array $record ) {
 		// Drop the 'private' flag from the context
@@ -165,7 +164,7 @@ class LineFormatter extends MonologLineFormatter {
 						);
 				}
 
-				$prev = isset( $prev['previous'] ) ? $prev['previous'] : null;
+				$prev = $prev['previous'] ?? null;
 			}
 		}
 		return $str;

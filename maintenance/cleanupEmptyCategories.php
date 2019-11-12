@@ -109,14 +109,13 @@ TEXT
 					__METHOD__,
 					[
 						'ORDER BY' => 'page_title',
-						'LIMIT' => $this->mBatchSize,
+						'LIMIT' => $this->getBatchSize(),
 					],
 					[
 						'category' => [ 'LEFT JOIN', 'page_title = cat_title' ],
 					]
 				);
 				if ( !$rows || $rows->numRows() <= 0 ) {
-					# Done, hopefully.
 					break;
 				}
 
@@ -161,7 +160,7 @@ TEXT
 					__METHOD__,
 					[
 						'ORDER BY' => 'cat_title',
-						'LIMIT' => $this->mBatchSize,
+						'LIMIT' => $this->getBatchSize(),
 					],
 					[
 						'page' => [ 'LEFT JOIN', [
@@ -170,7 +169,6 @@ TEXT
 					]
 				);
 				if ( !$rows || $rows->numRows() <= 0 ) {
-					# Done, hopefully.
 					break;
 				}
 				foreach ( $rows as $row ) {
@@ -199,5 +197,5 @@ TEXT
 	}
 }
 
-$maintClass = 'CleanupEmptyCategories';
+$maintClass = CleanupEmptyCategories::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

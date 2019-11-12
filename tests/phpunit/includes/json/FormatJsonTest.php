@@ -109,6 +109,15 @@ class FormatJsonTest extends MediaWikiTestCase {
 		);
 	}
 
+	public function testEncodeFail() {
+		// Set up a recursive object that can't be encoded.
+		$a = new stdClass;
+		$b = new stdClass;
+		$a->b = $b;
+		$b->a = $a;
+		$this->assertFalse( FormatJson::encode( $a ) );
+	}
+
 	public function testDecodeReturnType() {
 		$this->assertInternalType(
 			'object',
@@ -159,12 +168,12 @@ class FormatJsonTest extends MediaWikiTestCase {
 		$this->assertJson( $json );
 
 		$st = FormatJson::parse( $json );
-		$this->assertInstanceOf( 'Status', $st );
+		$this->assertInstanceOf( Status::class, $st );
 		$this->assertTrue( $st->isGood() );
 		$this->assertEquals( $expected, $st->getValue() );
 
 		$st = FormatJson::parse( $json, FormatJson::FORCE_ASSOC );
-		$this->assertInstanceOf( 'Status', $st );
+		$this->assertInstanceOf( Status::class, $st );
 		$this->assertTrue( $st->isGood() );
 		$this->assertEquals( $value, $st->getValue() );
 	}
@@ -172,7 +181,7 @@ class FormatJsonTest extends MediaWikiTestCase {
 	/**
 	 * Test data for testParseTryFixing.
 	 *
-	 * Some PHP interpreters use json-c rather than the JSON.org cannonical
+	 * Some PHP interpreters use json-c rather than the JSON.org canonical
 	 * parser to avoid being encumbered by the "shall be used for Good, not
 	 * Evil" clause of the JSON.org parser's license. By default, json-c
 	 * parses in a non-strict mode which allows trailing commas for array and
@@ -230,7 +239,7 @@ class FormatJsonTest extends MediaWikiTestCase {
 		}
 
 		$st = FormatJson::parse( $value, FormatJson::TRY_FIXING );
-		$this->assertInstanceOf( 'Status', $st );
+		$this->assertInstanceOf( Status::class, $st );
 		if ( $expected === false ) {
 			$this->assertFalse( $st->isOK(), 'Expected isOK() == false' );
 		} else {
@@ -256,7 +265,7 @@ class FormatJsonTest extends MediaWikiTestCase {
 	 */
 	public function testParseErrors( $value ) {
 		$st = FormatJson::parse( $value );
-		$this->assertInstanceOf( 'Status', $st );
+		$this->assertInstanceOf( Status::class, $st );
 		$this->assertFalse( $st->isOK() );
 	}
 
@@ -313,7 +322,7 @@ class FormatJsonTest extends MediaWikiTestCase {
 	 */
 	public function testParseStripComments( $json, $expect ) {
 		$st = FormatJson::parse( $json, FormatJson::STRIP_COMMENTS );
-		$this->assertInstanceOf( 'Status', $st );
+		$this->assertInstanceOf( Status::class, $st );
 		$this->assertTrue( $st->isGood() );
 		$this->assertEquals( $expect, $st->getValue() );
 	}
@@ -371,5 +380,57 @@ class FormatJsonTest extends MediaWikiTestCase {
 		}
 
 		return $cases;
+	}
+
+	public function provideEmptyJsonKeyStrings() {
+		return [
+			[
+				'{"":"foo"}',
+				'{"":"foo"}',
+				''
+			],
+			[
+				'{"_empty_":"foo"}',
+				'{"_empty_":"foo"}',
+				'_empty_' ],
+			[
+				'{"\u005F\u0065\u006D\u0070\u0074\u0079\u005F":"foo"}',
+				'{"_empty_":"foo"}',
+				'_empty_'
+			],
+			[
+				'{"_empty_":"bar","":"foo"}',
+				'{"_empty_":"bar","":"foo"}',
+				''
+			],
+			[
+				'{"":"bar","_empty_":"foo"}',
+				'{"":"bar","_empty_":"foo"}',
+				'_empty_'
+			]
+		];
+	}
+
+	/**
+	 * @covers FormatJson::encode
+	 * @covers FormatJson::decode
+	 * @dataProvider provideEmptyJsonKeyStrings
+	 * @param string $json
+	 *
+	 * Decoding behavior with empty keys can be surprising.
+	 * See https://phabricator.wikimedia.org/T206411
+	 */
+	public function testEmptyJsonKeyArray( $json, $expect, $php71Name ) {
+		// Decoding to array is consistent across supported PHP versions
+		$this->assertSame( $expect, FormatJson::encode(
+			FormatJson::decode( $json, true ) ) );
+
+		// Decoding to object differs between supported PHP versions
+		$obj = FormatJson::decode( $json );
+		if ( version_compare( PHP_VERSION, '7.1', '<' ) ) {
+			$this->assertEquals( 'foo', $obj->_empty_ );
+		} else {
+			$this->assertEquals( 'foo', $obj->{$php71Name} );
+		}
 	}
 }

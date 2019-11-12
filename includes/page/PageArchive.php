@@ -19,7 +19,11 @@
  */
 
 use MediaWiki\MediaWikiServices;
-use Wikimedia\Rdbms\ResultWrapper;
+use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\Revision\RevisionStore;
+use MediaWiki\Storage\SqlBlobStore;
+use Wikimedia\Assert\Assert;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -50,6 +54,17 @@ class PageArchive {
 		$this->config = $config;
 	}
 
+	/**
+	 * @return RevisionStore
+	 */
+	private function getRevisionStore() {
+		// TODO: Refactor: delete()/undelete() should live in a PageStore service;
+		//       Methods in PageArchive and RevisionStore that deal with archive revisions
+		//       should move into an ArchiveStore service (but could still be implemented
+		//       together with RevisionStore).
+		return MediaWikiServices::getInstance()->getRevisionStore();
+	}
+
 	public function doesWrites() {
 		return true;
 	}
@@ -59,9 +74,13 @@ class PageArchive {
 	 * wrapper with (ar_namespace, ar_title, count) fields, ordered by page
 	 * namespace/title.
 	 *
-	 * @return ResultWrapper
+	 * @deprecated since 1.32.
+	 *
+	 * @return IResultWrapper
 	 */
 	public static function listAllPages() {
+		wfDeprecated( __METHOD__, '1.32' );
+
 		$dbr = wfGetDB( DB_REPLICA );
 
 		return self::listPages( $dbr, '' );
@@ -73,7 +92,7 @@ class PageArchive {
 	 * Returns result wrapper with (ar_namespace, ar_title, count) fields.
 	 *
 	 * @param string $term Search term
-	 * @return ResultWrapper
+	 * @return IResultWrapper
 	 */
 	public static function listPagesBySearch( $term ) {
 		$title = Title::newFromText( $term );
@@ -123,7 +142,7 @@ class PageArchive {
 	 * Returns result wrapper with (ar_namespace, ar_title, count) fields.
 	 *
 	 * @param string $prefix Title prefix
-	 * @return ResultWrapper
+	 * @return IResultWrapper
 	 */
 	public static function listPagesByPrefix( $prefix ) {
 		$dbr = wfGetDB( DB_REPLICA );
@@ -149,7 +168,7 @@ class PageArchive {
 	/**
 	 * @param IDatabase $dbr
 	 * @param string|array $condition
-	 * @return bool|ResultWrapper
+	 * @return bool|IResultWrapper
 	 */
 	protected static function listPages( $dbr, $condition ) {
 		return $dbr->select(
@@ -171,48 +190,41 @@ class PageArchive {
 
 	/**
 	 * List the revisions of the given page. Returns result wrapper with
-	 * (ar_minor_edit, ar_timestamp, ar_user, ar_user_text, ar_comment) fields.
+	 * various archive table fields.
 	 *
-	 * @return ResultWrapper
+	 * @return IResultWrapper
 	 */
 	public function listRevisions() {
-		$dbr = wfGetDB( DB_REPLICA );
+		$revisionStore = $this->getRevisionStore();
+		$queryInfo = $revisionStore->getArchiveQueryInfo();
 
-		$tables = [ 'archive' ];
-
-		$fields = [
-			'ar_minor_edit', 'ar_timestamp', 'ar_user', 'ar_user_text',
-			'ar_comment', 'ar_len', 'ar_deleted', 'ar_rev_id', 'ar_sha1',
-			'ar_page_id'
+		$conds = [
+			'ar_namespace' => $this->title->getNamespace(),
+			'ar_title' => $this->title->getDBkey(),
 		];
 
-		if ( $this->config->get( 'ContentHandlerUseDB' ) ) {
-			$fields[] = 'ar_content_format';
-			$fields[] = 'ar_content_model';
-		}
-
-		$conds = [ 'ar_namespace' => $this->title->getNamespace(),
-			'ar_title' => $this->title->getDBkey() ];
-
-		$options = [ 'ORDER BY' => 'ar_timestamp DESC' ];
-
-		$join_conds = [];
+		// NOTE: ordering by ar_timestamp and ar_id, to remove ambiguity.
+		// XXX: Ideally, we would be ordering by ar_timestamp and ar_rev_id, but since we
+		// don't have an index on ar_rev_id, that causes a file sort.
+		$options = [ 'ORDER BY' => 'ar_timestamp DESC, ar_id DESC' ];
 
 		ChangeTags::modifyDisplayQuery(
-			$tables,
-			$fields,
+			$queryInfo['tables'],
+			$queryInfo['fields'],
 			$conds,
-			$join_conds,
+			$queryInfo['joins'],
 			$options,
 			''
 		);
 
-		return $dbr->select( $tables,
-			$fields,
+		$dbr = wfGetDB( DB_REPLICA );
+		return $dbr->select(
+			$queryInfo['tables'],
+			$queryInfo['fields'],
 			$conds,
 			__METHOD__,
 			$options,
-			$join_conds
+			$queryInfo['joins']
 		);
 	}
 
@@ -221,7 +233,7 @@ class PageArchive {
 	 * Returns a result wrapper with various filearchive fields, or null
 	 * if not a file page.
 	 *
-	 * @return ResultWrapper
+	 * @return IResultWrapper
 	 * @todo Does this belong in Image for fuller encapsulation?
 	 */
 	public function listFiles() {
@@ -230,54 +242,73 @@ class PageArchive {
 		}
 
 		$dbr = wfGetDB( DB_REPLICA );
+		$fileQuery = ArchivedFile::getQueryInfo();
 		return $dbr->select(
-			'filearchive',
-			ArchivedFile::selectFields(),
+			$fileQuery['tables'],
+			$fileQuery['fields'],
 			[ 'fa_name' => $this->title->getDBkey() ],
 			__METHOD__,
-			[ 'ORDER BY' => 'fa_timestamp DESC' ]
+			[ 'ORDER BY' => 'fa_timestamp DESC' ],
+			$fileQuery['joins']
 		);
 	}
 
 	/**
 	 * Return a Revision object containing data for the deleted revision.
-	 * Note that the result *may* or *may not* have a null page ID.
+	 *
+	 * @deprecated since 1.32, use getArchivedRevision() instead.
 	 *
 	 * @param string $timestamp
 	 * @return Revision|null
 	 */
 	public function getRevision( $timestamp ) {
 		$dbr = wfGetDB( DB_REPLICA );
+		$rec = $this->getRevisionByConditions(
+			[ 'ar_timestamp' => $dbr->timestamp( $timestamp ) ]
+		);
+		return $rec ? new Revision( $rec ) : null;
+	}
 
-		$fields = [
-			'ar_rev_id',
-			'ar_text',
-			'ar_comment',
-			'ar_user',
-			'ar_user_text',
-			'ar_timestamp',
-			'ar_minor_edit',
-			'ar_flags',
-			'ar_text_id',
-			'ar_deleted',
-			'ar_len',
-			'ar_sha1',
+	/**
+	 * Return the archived revision with the given ID.
+	 *
+	 * @param int $revId
+	 * @return Revision|null
+	 */
+	public function getArchivedRevision( $revId ) {
+		// Protect against code switching from getRevision() passing in a timestamp.
+		Assert::parameterType( 'integer', $revId, '$revId' );
+
+		$rec = $this->getRevisionByConditions( [ 'ar_rev_id' => $revId ] );
+		return $rec ? new Revision( $rec ) : null;
+	}
+
+	/**
+	 * @param array $conditions
+	 * @param array $options
+	 *
+	 * @return RevisionRecord|null
+	 */
+	private function getRevisionByConditions( array $conditions, array $options = [] ) {
+		$dbr = wfGetDB( DB_REPLICA );
+		$arQuery = $this->getRevisionStore()->getArchiveQueryInfo();
+
+		$conditions = $conditions + [
+			'ar_namespace' => $this->title->getNamespace(),
+			'ar_title' => $this->title->getDBkey(),
 		];
 
-		if ( $this->config->get( 'ContentHandlerUseDB' ) ) {
-			$fields[] = 'ar_content_format';
-			$fields[] = 'ar_content_model';
-		}
-
-		$row = $dbr->selectRow( 'archive',
-			$fields,
-			[ 'ar_namespace' => $this->title->getNamespace(),
-				'ar_title' => $this->title->getDBkey(),
-				'ar_timestamp' => $dbr->timestamp( $timestamp ) ],
-			__METHOD__ );
+		$row = $dbr->selectRow(
+			$arQuery['tables'],
+			$arQuery['fields'],
+			$conditions,
+			__METHOD__,
+			$options,
+			$arQuery['joins']
+		);
 
 		if ( $row ) {
-			return Revision::newFromArchiveRow( $row, [ 'title' => $this->title ] );
+			return $this->getRevisionStore()->newRevisionFromArchiveRow( $row, 0, $this->title );
 		}
 
 		return null;
@@ -298,7 +329,7 @@ class PageArchive {
 
 		// Check the previous deleted revision...
 		$row = $dbr->selectRow( 'archive',
-			'ar_timestamp',
+			[ 'ar_rev_id', 'ar_timestamp' ],
 			[ 'ar_namespace' => $this->title->getNamespace(),
 				'ar_title' => $this->title->getDBkey(),
 				'ar_timestamp < ' .
@@ -308,6 +339,7 @@ class PageArchive {
 				'ORDER BY' => 'ar_timestamp DESC',
 				'LIMIT' => 1 ] );
 		$prevDeleted = $row ? wfTimestamp( TS_MW, $row->ar_timestamp ) : false;
+		$prevDeletedId = $row ? intval( $row->ar_rev_id ) : null;
 
 		$row = $dbr->selectRow( [ 'page', 'revision' ],
 			[ 'rev_id', 'rev_timestamp' ],
@@ -326,37 +358,40 @@ class PageArchive {
 
 		if ( $prevLive && $prevLive > $prevDeleted ) {
 			// Most prior revision was live
-			return Revision::newFromId( $prevLiveId );
+			$rec = $this->getRevisionStore()->getRevisionById( $prevLiveId );
+			$rec = $rec ? new Revision( $rec ) : null;
 		} elseif ( $prevDeleted ) {
 			// Most prior revision was deleted
-			return $this->getRevision( $prevDeleted );
+			$rec = $this->getArchivedRevision( $prevDeletedId );
+		} else {
+			$rec = null;
 		}
 
-		// No prior revision on this page.
-		return null;
+		return $rec;
 	}
 
 	/**
-	 * Get the text from an archive row containing ar_text, ar_flags and ar_text_id
+	 * Get the text from an archive row containing ar_text_id.
+	 *
+	 * @deprecated since 1.32. In the MCR schema, ar_text_id no longer exists.
+	 * Calling code should switch to getArchiveRevision().
+	 *
+	 * @todo remove in 1.33
 	 *
 	 * @param object $row Database row
 	 * @return string
 	 */
 	public function getTextFromRow( $row ) {
-		if ( is_null( $row->ar_text_id ) ) {
-			// An old row from MediaWiki 1.4 or previous.
-			// Text is embedded in this row in classic compression format.
-			return Revision::getRevisionText( $row, 'ar_' );
+		wfDeprecated( __METHOD__, '1.32' );
+
+		if ( empty( $row->ar_text_id ) ) {
+			throw new InvalidArgumentException( '$row->ar_text_id must be set and not empty!' );
 		}
 
-		// New-style: keyed to the text storage backend.
-		$dbr = wfGetDB( DB_REPLICA );
-		$text = $dbr->selectRow( 'text',
-			[ 'old_text', 'old_flags' ],
-			[ 'old_id' => $row->ar_text_id ],
-			__METHOD__ );
+		$address = SqlBlobStore::makeAddressFromTextId( $row->ar_text_id );
+		$blobStore = MediaWikiServices::getInstance()->getBlobStore();
 
-		return Revision::getRevisionText( $text );
+		return $blobStore->getBlob( $address );
 	}
 
 	/**
@@ -365,38 +400,65 @@ class PageArchive {
 	 *
 	 * If there are no archived revisions for the page, returns NULL.
 	 *
+	 * @note this bypasses any audience checks.
+	 *
+	 * @deprecated since 1.32. For compatibility with the MCR schema,
+	 * calling code should switch to getLastRevisionId() and getArchiveRevision().
+	 *
+	 * @todo remove in 1.33
+	 *
 	 * @return string|null
 	 */
 	public function getLastRevisionText() {
-		$dbr = wfGetDB( DB_REPLICA );
-		$row = $dbr->selectRow( 'archive',
-			[ 'ar_text', 'ar_flags', 'ar_text_id' ],
-			[ 'ar_namespace' => $this->title->getNamespace(),
-				'ar_title' => $this->title->getDBkey() ],
-			__METHOD__,
-			[ 'ORDER BY' => 'ar_timestamp DESC' ] );
+		wfDeprecated( __METHOD__, '1.32' );
 
-		if ( $row ) {
-			return $this->getTextFromRow( $row );
+		$revId = $this->getLastRevisionId();
+
+		if ( $revId ) {
+			$rev = $this->getArchivedRevision( $revId );
+			$content = $rev->getContent( RevisionRecord::RAW );
+			return $content->serialize();
 		}
 
 		return null;
 	}
 
 	/**
+	 * Returns the ID of the latest deleted revision.
+	 *
+	 * @return int|false The revision's ID, or false if there is no deleted revision.
+	 */
+	public function getLastRevisionId() {
+		$dbr = wfGetDB( DB_REPLICA );
+		$revId = $dbr->selectField(
+			'archive',
+			'ar_rev_id',
+			[ 'ar_namespace' => $this->title->getNamespace(),
+				'ar_title' => $this->title->getDBkey() ],
+			__METHOD__,
+			[ 'ORDER BY' => 'ar_timestamp DESC, ar_id DESC' ]
+		);
+
+		return $revId ? intval( $revId ) : false;
+	}
+
+	/**
 	 * Quick check if any archived revisions are present for the page.
+	 * This says nothing about whether the page currently exists in the page table or not.
 	 *
 	 * @return bool
 	 */
 	public function isDeleted() {
 		$dbr = wfGetDB( DB_REPLICA );
-		$n = $dbr->selectField( 'archive', 'COUNT(ar_title)',
+		$row = $dbr->selectRow(
+			[ 'archive' ],
+			'1', // We don't care about the value. Allow the database to optimize.
 			[ 'ar_namespace' => $this->title->getNamespace(),
 				'ar_title' => $this->title->getDBkey() ],
 			__METHOD__
 		);
 
-		return ( $n > 0 );
+		return (bool)$row;
 	}
 
 	/**
@@ -412,8 +474,8 @@ class PageArchive {
 	 * @param string $comment
 	 * @param array $fileVersions
 	 * @param bool $unsuppress
-	 * @param User $user User performing the action, or null to use $wgUser
-	 * @param string|string[] $tags Change tags to add to log entry
+	 * @param User|null $user User performing the action, or null to use $wgUser
+	 * @param string|string[]|null $tags Change tags to add to log entry
 	 *   ($user should be able to add the specified tags before this is called)
 	 * @return array|bool array(number of file revisions restored, number of image revisions
 	 *   restored, log message) on success, false on failure.
@@ -552,40 +614,23 @@ class PageArchive {
 			$oldWhere['ar_timestamp'] = array_map( [ &$dbw, 'timestamp' ], $timestamps );
 		}
 
-		$fields = [
-			'ar_id',
-			'ar_rev_id',
-			'rev_id',
-			'ar_text',
-			'ar_comment',
-			'ar_user',
-			'ar_user_text',
-			'ar_timestamp',
-			'ar_minor_edit',
-			'ar_flags',
-			'ar_text_id',
-			'ar_deleted',
-			'ar_page_id',
-			'ar_len',
-			'ar_sha1'
-		];
-
-		if ( $this->config->get( 'ContentHandlerUseDB' ) ) {
-			$fields[] = 'ar_content_format';
-			$fields[] = 'ar_content_model';
-		}
+		$revisionStore = $this->getRevisionStore();
+		$queryInfo = $revisionStore->getArchiveQueryInfo();
+		$queryInfo['tables'][] = 'revision';
+		$queryInfo['fields'][] = 'rev_id';
+		$queryInfo['joins']['revision'] = [ 'LEFT JOIN', 'ar_rev_id=rev_id' ];
 
 		/**
 		 * Select each archived revision...
 		 */
 		$result = $dbw->select(
-			[ 'archive', 'revision' ],
-			$fields,
+			$queryInfo['tables'],
+			$queryInfo['fields'],
 			$oldWhere,
 			__METHOD__,
 			/* options */
 			[ 'ORDER BY' => 'ar_timestamp' ],
-			[ 'revision' => [ 'LEFT JOIN', 'ar_rev_id=rev_id' ] ]
+			$queryInfo['joins']
 		);
 
 		$rev_count = $result->numRows();
@@ -642,27 +687,35 @@ class PageArchive {
 		if ( $latestRestorableRow !== null ) {
 			$oldPageId = (int)$latestRestorableRow->ar_page_id; // pass this to ArticleUndelete hook
 
-			// grab the content to check consistency with global state before restoring the page.
-			$revision = Revision::newFromArchiveRow( $latestRestorableRow,
-				[
-					'title' => $article->getTitle(), // used to derive default content model
-				]
+			// Grab the content to check consistency with global state before restoring the page.
+			// XXX: The only current use case is Wikibase, which tries to enforce uniqueness of
+			// certain things across all pages. There may be a better way to do that.
+			$revision = $revisionStore->newRevisionFromArchiveRow(
+				$latestRestorableRow,
+				0,
+				$this->title
 			);
-			$user = User::newFromName( $revision->getUserText( Revision::RAW ), false );
-			$content = $revision->getContent( Revision::RAW );
 
-			// NOTE: article ID may not be known yet. prepareSave() should not modify the database.
-			$status = $content->prepareSave( $article, 0, -1, $user );
-			if ( !$status->isOK() ) {
-				$dbw->endAtomic( __METHOD__ );
+			// TODO: use User::newFromUserIdentity from If610c68f4912e
+			// TODO: The User isn't used for anything in prepareSave()! We should drop it.
+			$user = User::newFromName( $revision->getUser( RevisionRecord::RAW )->getName(), false );
 
-				return $status;
+			foreach ( $revision->getSlotRoles() as $role ) {
+				$content = $revision->getContent( $role, RevisionRecord::RAW );
+
+				// NOTE: article ID may not be known yet. prepareSave() should not modify the database.
+				$status = $content->prepareSave( $article, 0, -1, $user );
+				if ( !$status->isOK() ) {
+					$dbw->endAtomic( __METHOD__ );
+
+					return $status;
+				}
 			}
 		}
 
 		$newid = false; // newly created page ID
 		$restored = 0; // number of revisions restored
-		/** @var Revision $revision */
+		/** @var RevisionRecord|null $revision */
 		$revision = null;
 		$restoredPages = [];
 		// If there are no restorable revisions, we can skip most of the steps.
@@ -672,7 +725,7 @@ class PageArchive {
 			if ( $makepage ) {
 				// Check the state of the newest to-be version...
 				if ( !$unsuppress
-					&& ( $latestRestorableRow->ar_deleted & Revision::DELETED_TEXT )
+					&& ( $latestRestorableRow->ar_deleted & RevisionRecord::DELETED_TEXT )
 				) {
 					$dbw->endAtomic( __METHOD__ );
 
@@ -690,7 +743,7 @@ class PageArchive {
 				if ( $latestRestorableRow->ar_timestamp > $previousTimestamp ) {
 					// Check the state of the newest to-be version...
 					if ( !$unsuppress
-						&& ( $latestRestorableRow->ar_deleted & Revision::DELETED_TEXT )
+						&& ( $latestRestorableRow->ar_deleted & RevisionRecord::DELETED_TEXT )
 					) {
 						$dbw->endAtomic( __METHOD__ );
 
@@ -709,18 +762,24 @@ class PageArchive {
 				}
 				// Insert one revision at a time...maintaining deletion status
 				// unless we are specifically removing all restrictions...
-				$revision = Revision::newFromArchiveRow( $row,
+				$revision = $revisionStore->newRevisionFromArchiveRow(
+					$row,
+					0,
+					$this->title,
 					[
-						'page' => $pageId,
-						'title' => $this->title,
+						'page_id' => $pageId,
 						'deleted' => $unsuppress ? 0 : $row->ar_deleted
-					] );
+					]
+				);
 
-				$revision->insertOn( $dbw );
+				// This will also copy the revision to ip_changes if it was an IP edit.
+				$revisionStore->insertRevisionOn( $revision, $dbw );
+
 				$restored++;
 
+				$legacyRevision = new Revision( $revision );
 				Hooks::run( 'ArticleRevisionUndeleted',
-					[ &$this->title, $revision, $row->ar_page_id ] );
+					[ &$this->title, $legacyRevision, $row->ar_page_id ] );
 				$restoredPages[$row->ar_page_id] = true;
 			}
 
@@ -748,12 +807,14 @@ class PageArchive {
 		if ( $restored ) {
 			$created = (bool)$newid;
 			// Attach the latest revision to the page...
-			$wasnew = $article->updateIfNewerOn( $dbw, $revision );
+			// XXX: updateRevisionOn should probably move into a PageStore service.
+			$wasnew = $article->updateIfNewerOn( $dbw, $legacyRevision );
 			if ( $created || $wasnew ) {
 				// Update site stats, link tables, etc
+				// TODO: use DerivedPageDataUpdater from If610c68f4912e!
 				$article->doEditUpdates(
-					$revision,
-					User::newFromName( $revision->getUserText( Revision::RAW ), false ),
+					$legacyRevision,
+					User::newFromName( $revision->getUser( RevisionRecord::RAW )->getName(), false ),
 					[
 						'created' => $created,
 						'oldcountable' => $oldcountable,
@@ -765,7 +826,9 @@ class PageArchive {
 			Hooks::run( 'ArticleUndelete',
 				[ &$this->title, $created, $comment, $oldPageId, $restoredPages ] );
 			if ( $this->title->getNamespace() == NS_FILE ) {
-				DeferredUpdates::addUpdate( new HTMLCacheUpdate( $this->title, 'imagelinks' ) );
+				DeferredUpdates::addUpdate(
+					new HTMLCacheUpdate( $this->title, 'imagelinks', 'file-restore' )
+				);
 			}
 		}
 

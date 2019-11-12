@@ -54,17 +54,13 @@ class UploadFromChunks extends UploadFromFile {
 		if ( $stash ) {
 			$this->stash = $stash;
 		} else {
-			if ( $user ) {
-				wfDebug( __METHOD__ . " creating new UploadFromChunks instance for " . $user->getId() . "\n" );
-			} else {
-				wfDebug( __METHOD__ . " creating new UploadFromChunks instance with no user\n" );
-			}
+			wfDebug( __METHOD__ . " creating new UploadFromChunks instance for " . $user->getId() . "\n" );
 			$this->stash = new UploadStash( $this->repo, $this->user );
 		}
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 */
 	public function tryStashFile( User $user, $isPartial = false ) {
 		try {
@@ -77,7 +73,7 @@ class UploadFromChunks extends UploadFromFile {
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 * @throws UploadChunkVerificationException
 	 * @deprecated since 1.28 Use tryStashFile() instead
 	 */
@@ -88,7 +84,7 @@ class UploadFromChunks extends UploadFromFile {
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 * @throws UploadChunkVerificationException
 	 * @deprecated since 1.28
 	 */
@@ -99,7 +95,7 @@ class UploadFromChunks extends UploadFromFile {
 	}
 
 	/**
-	 * {@inheritdoc}
+	 * @inheritDoc
 	 * @throws UploadChunkVerificationException
 	 * @deprecated since 1.28
 	 */
@@ -210,7 +206,7 @@ class UploadFromChunks extends UploadFromFile {
 		// override doStashFile() with completely different functionality in this class...
 		$error = $this->runUploadStashFileHook( $this->user );
 		if ( $error ) {
-			call_user_func_array( [ $status, 'fatal' ], $error );
+			$status->fatal( ...$error );
 			return $status;
 		}
 		try {
@@ -411,20 +407,5 @@ class UploadFromChunks extends UploadFromFile {
 		if ( is_array( $res ) ) {
 			throw new UploadChunkVerificationException( $res );
 		}
-	}
-}
-
-class UploadChunkZeroLengthFileException extends MWException {
-}
-
-class UploadChunkFileException extends MWException {
-}
-
-class UploadChunkVerificationException extends MWException {
-	public $msg;
-	public function __construct( $res ) {
-		$this->msg = call_user_func_array( 'wfMessage', $res );
-		parent::__construct( call_user_func_array( 'wfMessage', $res )
-			->inLanguage( 'en' )->useDatabase( false )->text() );
 	}
 }

@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Oct 16, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -138,7 +134,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 
 		if ( count( $this->cont ) >= 2 ) {
 			$op = $this->params['dir'] == 'descending' ? '<' : '>';
-			if ( count( $this->params['namespace'] ) > 1 ) {
+			if ( $this->params['namespace'] !== null && count( $this->params['namespace'] ) > 1 ) {
 				$this->addWhere(
 					"{$this->bl_from_ns} $op {$this->cont[0]} OR " .
 					"({$this->bl_from_ns} = {$this->cont[0]} AND " .
@@ -160,7 +156,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 		$this->addOption( 'LIMIT', $this->params['limit'] + 1 );
 		$sort = ( $this->params['dir'] == 'descending' ? ' DESC' : '' );
 		$orderBy = [];
-		if ( count( $this->params['namespace'] ) > 1 ) {
+		if ( $this->params['namespace'] !== null && count( $this->params['namespace'] ) > 1 ) {
 			$orderBy[] = $this->bl_from_ns . $sort;
 		}
 		$orderBy[] = $this->bl_from . $sort;
@@ -191,7 +187,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 			}
 
 			if ( is_null( $resultPageSet ) ) {
-				$a = [ 'pageid' => intval( $row->page_id ) ];
+				$a = [ 'pageid' => (int)$row->page_id ];
 				ApiQueryBase::addTitleInfo( $a, $t );
 				if ( $row->page_is_redirect ) {
 					$a['redirect'] = true;
@@ -228,7 +224,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 		$titleWhere = [];
 		$allRedirNs = [];
 		$allRedirDBkey = [];
-		/** @var $t Title */
+		/** @var Title $t */
 		foreach ( $this->redirTitles as $t ) {
 			$redirNs = $t->getNamespace();
 			$redirDBkey = $t->getDBkey();
@@ -246,7 +242,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 			$where = "{$this->bl_from} $op= {$this->cont[5]}";
 			// Don't bother with namespace, title, or from_namespace if it's
 			// otherwise constant in the where clause.
-			if ( count( $this->params['namespace'] ) > 1 ) {
+			if ( $this->params['namespace'] !== null && count( $this->params['namespace'] ) > 1 ) {
 				$where = "{$this->bl_from_ns} $op {$this->cont[4]} OR " .
 					"({$this->bl_from_ns} = {$this->cont[4]} AND ($where))";
 			}
@@ -278,7 +274,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 		if ( count( $allRedirDBkey ) > 1 ) {
 			$orderBy[] = $this->bl_title . $sort;
 		}
-		if ( count( $this->params['namespace'] ) > 1 ) {
+		if ( $this->params['namespace'] !== null && count( $this->params['namespace'] ) > 1 ) {
 			$orderBy[] = $this->bl_from_ns . $sort;
 		}
 		$orderBy[] = $this->bl_from . $sort;
@@ -310,7 +306,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 			}
 
 			if ( is_null( $resultPageSet ) ) {
-				$a['pageid'] = intval( $row->page_id );
+				$a['pageid'] = (int)$row->page_id;
 				ApiQueryBase::addTitleInfo( $a, Title::makeTitle( $row->page_namespace, $row->page_title ) );
 				if ( $row->page_is_redirect ) {
 					$a['redirect'] = true;
@@ -340,7 +336,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 			$this->params['limit'] = $this->getMain()->canApiHighLimits() ? $botMax : $userMax;
 			$result->addParsedLimit( $this->getModuleName(), $this->params['limit'] );
 		} else {
-			$this->params['limit'] = intval( $this->params['limit'] );
+			$this->params['limit'] = (int)$this->params['limit'];
 			$this->validateLimit( 'limit', $this->params['limit'], 1, $userMax, $botMax );
 		}
 
@@ -422,7 +418,7 @@ class ApiQueryBacklinks extends ApiQueryGeneratorBase {
 		if ( is_null( $resultPageSet ) ) {
 			// Try to add the result data in one go and pray that it fits
 			$code = $this->bl_code;
-			$data = array_map( function ( $arr ) use ( $result, $code ) {
+			$data = array_map( function ( $arr ) use ( $code ) {
 				if ( isset( $arr['redirlinks'] ) ) {
 					$arr['redirlinks'] = array_values( $arr['redirlinks'] );
 					ApiResult::setIndexedTagName( $arr['redirlinks'], $code );

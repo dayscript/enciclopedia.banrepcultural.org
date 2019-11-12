@@ -25,9 +25,9 @@ trait GroupElement {
 	 */
 	public function initializeGroupElement( array $config = [] ) {
 		// Properties
-		$this->group = isset( $config['group'] ) ? $config['group'] : new Tag( 'div' );
+		$this->group = $config['group'] ?? new Tag( 'div' );
 
-		$this->registerConfigCallback( function( &$config ) {
+		$this->registerConfigCallback( function ( &$config ) {
 			$config['items'] = $this->items;
 		} );
 	}
@@ -35,7 +35,7 @@ trait GroupElement {
 	/**
 	 * Check if there are no items.
 	 *
-	 * @return boolean Group is empty
+	 * @return bool Group is empty
 	 */
 	public function isEmpty() {
 		return !count( $this->items );
@@ -56,7 +56,7 @@ trait GroupElement {
 	 * Adding an existing item will move it.
 	 *
 	 * @param Element[] $items Items
-	 * @param number $index Index to insert items at
+	 * @param int|null $index Index to insert items at
 	 * @return $this
 	 */
 	public function addItems( array $items, $index = null ) {

@@ -22,7 +22,6 @@
  * @author Trevor Parscal
  */
 
-use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 
 // This endpoint is supposed to be independent of request cookies and other
@@ -36,17 +35,11 @@ if ( !$wgRequest->checkUrlExtension() ) {
 	return;
 }
 
-// Don't initialise ChronologyProtector from object cache, and
-// don't wait for unrelated MediaWiki writes when querying ResourceLoader.
-MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->setRequestInfo( [
-	'ChronologyProtection' => 'false',
-] );
+// Disable ChronologyProtector so that we don't wait for unrelated MediaWiki
+// writes when getting database connections for ResourceLoader. (T192611)
+MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->disableChronologyProtection();
 
-// Set up ResourceLoader
-$resourceLoader = new ResourceLoader(
-	ConfigFactory::getDefaultInstance()->makeConfig( 'main' ),
-	LoggerFactory::getInstance( 'resourceloader' )
-);
+$resourceLoader = MediaWikiServices::getInstance()->getResourceLoader();
 $context = new ResourceLoaderContext( $resourceLoader, $wgRequest );
 
 // Respond to ResourceLoader request

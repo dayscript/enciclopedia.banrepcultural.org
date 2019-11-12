@@ -127,7 +127,6 @@ class ZipDirectoryReader {
 	const GENERAL_CD_ENCRYPTED = 13;
 
 	/**
-	 * Private constructor
 	 * @param string $fileName
 	 * @param callable $callback
 	 * @param array $options
@@ -229,7 +228,9 @@ class ZipDirectoryReader {
 		$this->eocdr['EOCDR size'] = $structSize + $this->eocdr['file comment length'];
 
 		if ( $structSize + $this->eocdr['file comment length'] != strlen( $block ) - $sigPos ) {
-			$this->error( 'zip-bad', 'trailing bytes after the end of the file comment' );
+			// T40432: MS binary documents frequently embed ZIP files
+			$this->error( 'zip-wrong-format', 'there is a ZIP signature but it is not at ' .
+				'the end of the file. It could be an OLE file with a ZIP file embedded.' );
 		}
 		if ( $this->eocdr['disk'] !== 0
 			|| $this->eocdr['CD start disk'] !== 0
@@ -511,7 +512,7 @@ class ZipDirectoryReader {
 	 * in the file to satisfy the request, an exception will be thrown.
 	 *
 	 * @param int $start The byte offset of the start of the block.
-	 * @param int $length The number of bytes to return. If omitted, the remainder
+	 * @param int|null $length The number of bytes to return. If omitted, the remainder
 	 *    of the file will be returned.
 	 *
 	 * @return string
@@ -656,7 +657,7 @@ class ZipDirectoryReader {
 				}
 
 				// Throw an exception if there was loss of precision
-				if ( $value > pow( 2, 52 ) ) {
+				if ( $value > 2 ** 52 ) {
 					$this->error( 'zip-unsupported', 'number too large to be stored in a double. ' .
 						'This could happen if we tried to unpack a 64-bit structure ' .
 						'at an invalid location.' );
@@ -713,24 +714,5 @@ class ZipDirectoryReader {
 			}
 			print "|\n";
 		}
-	}
-}
-
-/**
- * Internal exception class. Will be caught by private code.
- */
-class ZipDirectoryReaderError extends Exception {
-	protected $errorCode;
-
-	function __construct( $code ) {
-		$this->errorCode = $code;
-		parent::__construct( "ZipDirectoryReader error: $code" );
-	}
-
-	/**
-	 * @return mixed
-	 */
-	function getErrorCode() {
-		return $this->errorCode;
 	}
 }

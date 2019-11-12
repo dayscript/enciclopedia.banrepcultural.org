@@ -8,13 +8,15 @@
  * @todo Test methods in this call should be split into a method and a
  * dataprovider.
  */
+class IPTest extends PHPUnit\Framework\TestCase {
 
-class IPTest extends PHPUnit_Framework_TestCase {
+	use MediaWikiCoversValidator;
+
 	/**
 	 * @covers IP::isIPAddress
 	 * @dataProvider provideInvalidIPs
 	 */
-	public function isNotIPAddress( $val, $desc ) {
+	public function testIsNotIPAddress( $val, $desc ) {
 		$this->assertFalse( IP::isIPAddress( $val ), $desc );
 	}
 
@@ -237,7 +239,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 		];
 		foreach ( $ipCIDRs as $i ) {
 			$this->assertFalse( IP::isValid( $i ),
-				"$i is an invalid IP address because it is a block" );
+				"$i is an invalid IP address because it is a range" );
 		}
 		// Incomplete/garbage
 		$invalid = [
@@ -254,9 +256,9 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * Provide some valid IP blocks
+	 * Provide some valid IP ranges
 	 */
-	public function provideValidBlocks() {
+	public function provideValidRanges() {
 		return [
 			[ '116.17.184.5/32' ],
 			[ '0.17.184.5/30' ],
@@ -274,22 +276,22 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * @covers IP::isValidBlock
-	 * @dataProvider provideValidBlocks
+	 * @covers IP::isValidRange
+	 * @dataProvider provideValidRanges
 	 */
-	public function testValidBlocks( $block ) {
-		$this->assertTrue( IP::isValidBlock( $block ), "$block is a valid IP block" );
+	public function testValidRanges( $range ) {
+		$this->assertTrue( IP::isValidRange( $range ), "$range is a valid IP range" );
 	}
 
 	/**
-	 * @covers IP::isValidBlock
-	 * @dataProvider provideInvalidBlocks
+	 * @covers IP::isValidRange
+	 * @dataProvider provideInvalidRanges
 	 */
-	public function testInvalidBlocks( $invalid ) {
-		$this->assertFalse( IP::isValidBlock( $invalid ), "$invalid is not a valid IP block" );
+	public function testInvalidRanges( $invalid ) {
+		$this->assertFalse( IP::isValidRange( $invalid ), "$invalid is not a valid IP range" );
 	}
 
-	public function provideInvalidBlocks() {
+	public function provideInvalidRanges() {
 		return [
 			[ '116.17.184.5/33' ],
 			[ '0.17.184.5/130' ],
@@ -323,6 +325,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 			[ '0.0.0.0', '0.0.0.0' ],
 			[ '0.0.0.0', '00.00.00.00' ],
 			[ '0.0.0.0', '000.000.000.000' ],
+			[ '0.0.0.0/24', '000.000.000.000/24' ],
 			[ '141.0.11.253', '141.000.011.253' ],
 			[ '1.2.4.5', '1.2.4.5' ],
 			[ '1.2.4.5', '01.02.04.05' ],
@@ -561,7 +564,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * Test for IP::splitHostAndPort().
+	 * @covers IP::splitHostAndPort()
 	 * @dataProvider provideSplitHostAndPort
 	 */
 	public function testSplitHostAndPort( $expected, $input, $description ) {
@@ -588,7 +591,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * Test for IP::combineHostAndPort()
+	 * @covers IP::combineHostAndPort()
 	 * @dataProvider provideCombineHostAndPort
 	 */
 	public function testCombineHostAndPort( $expected, $input, $description ) {
@@ -612,7 +615,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * Test for IP::sanitizeRange()
+	 * @covers IP::sanitizeRange()
 	 * @dataProvider provideIPCIDRs
 	 */
 	public function testSanitizeRange( $input, $expected, $description ) {
@@ -636,7 +639,7 @@ class IPTest extends PHPUnit_Framework_TestCase {
 	}
 
 	/**
-	 * Test for IP::prettifyIP()
+	 * @covers IP::prettifyIP()
 	 * @dataProvider provideIPsToPrettify
 	 */
 	public function testPrettifyIP( $ip, $prettified ) {

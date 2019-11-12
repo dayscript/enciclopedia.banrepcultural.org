@@ -30,7 +30,7 @@ class MergeHistoryPager extends ReverseChronologicalPager {
 	/** @var array */
 	public $mConds;
 
-	function __construct( SpecialMergeHistory $form, $conds, Title $source, Title $dest ) {
+	public function __construct( SpecialMergeHistory $form, $conds, Title $source, Title $dest ) {
 		$this->mForm = $form;
 		$this->mConds = $conds;
 		$this->title = $source;
@@ -48,7 +48,7 @@ class MergeHistoryPager extends ReverseChronologicalPager {
 		parent::__construct( $form->getContext() );
 	}
 
-	function getStartBody() {
+	protected function getStartBody() {
 		# Do a link batch query
 		$this->mResult->seek( 0 );
 		$batch = new LinkBatch();
@@ -85,13 +85,12 @@ class MergeHistoryPager extends ReverseChronologicalPager {
 		$conds['rev_page'] = $this->articleID;
 		$conds[] = "rev_timestamp < " . $this->mDb->addQuotes( $this->maxTimestamp );
 
+		$revQuery = Revision::getQueryInfo( [ 'page', 'user' ] );
 		return [
-			'tables' => [ 'revision', 'page', 'user' ],
-			'fields' => array_merge( Revision::selectFields(), Revision::selectUserFields() ),
+			'tables' => $revQuery['tables'],
+			'fields' => $revQuery['fields'],
 			'conds' => $conds,
-			'join_conds' => [
-				'page' => Revision::pageJoinCond(),
-				'user' => Revision::userJoinCond() ]
+			'join_conds' => $revQuery['joins']
 		];
 	}
 

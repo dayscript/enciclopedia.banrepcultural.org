@@ -39,16 +39,37 @@ class TemplateParser {
 	protected $forceRecompile = false;
 
 	/**
-	 * @param string $templateDir
+	 * @var int Compilation flags passed to LightnCandy
+	 */
+	protected $compileFlags;
+
+	/**
+	 * @param string|null $templateDir
 	 * @param bool $forceRecompile
 	 */
 	public function __construct( $templateDir = null, $forceRecompile = false ) {
 		$this->templateDir = $templateDir ?: __DIR__ . '/templates';
 		$this->forceRecompile = $forceRecompile;
+
+		// Do not add more flags here without discussion.
+		// If you do add more flags, be sure to update unit tests as well.
+		$this->compileFlags = LightnCandy::FLAG_ERROR_EXCEPTION | LightnCandy::FLAG_MUSTACHELOOKUP;
 	}
 
 	/**
-	 * Constructs the location of the the source Mustache template
+	 * Enable/disable the use of recursive partials.
+	 * @param bool $enable
+	 */
+	public function enableRecursivePartials( $enable ) {
+		if ( $enable ) {
+			$this->compileFlags = $this->compileFlags | LightnCandy::FLAG_RUNTIMEPARTIAL;
+		} else {
+			$this->compileFlags = $this->compileFlags & ~LightnCandy::FLAG_RUNTIMEPARTIAL;
+		}
+	}
+
+	/**
+	 * Constructs the location of the source Mustache template
 	 * @param string $templateName The name of the template
 	 * @return string
 	 * @throws UnexpectedValueException If $templateName attempts upwards directory traversal
@@ -73,11 +94,13 @@ class TemplateParser {
 	 * @throws RuntimeException
 	 */
 	protected function getTemplate( $templateName ) {
+		$templateKey = $templateName . '|' . $this->compileFlags;
+
 		// If a renderer has already been defined for this template, reuse it
-		if ( isset( $this->renderers[$templateName] ) &&
-			is_callable( $this->renderers[$templateName] )
+		if ( isset( $this->renderers[$templateKey] ) &&
+			is_callable( $this->renderers[$templateKey] )
 		) {
-			return $this->renderers[$templateName];
+			return $this->renderers[$templateKey];
 		}
 
 		$filename = $this->getTemplateFilename( $templateName );
@@ -90,7 +113,7 @@ class TemplateParser {
 		$fileContents = file_get_contents( $filename );
 
 		// Generate a quick hash for cache invalidation
-		$fastHash = md5( $fileContents );
+		$fastHash = md5( $this->compileFlags . '|' . $fileContents );
 
 		// Fetch a secret key for building a keyed hash of the PHP code
 		$config = MediaWikiServices::getInstance()->getMainConfig();
@@ -127,7 +150,7 @@ class TemplateParser {
 		if ( !is_callable( $renderer ) ) {
 			throw new RuntimeException( "Requested template, {$templateName}, is not callable" );
 		}
-		$this->renderers[$templateName] = $renderer;
+		$this->renderers[$templateKey] = $renderer;
 		return $renderer;
 	}
 
@@ -168,9 +191,7 @@ class TemplateParser {
 		return LightnCandy::compile(
 			$code,
 			[
-				// Do not add more flags here without discussion.
-				// If you do add more flags, be sure to update unit tests as well.
-				'flags' => LightnCandy::FLAG_ERROR_EXCEPTION,
+				'flags' => $this->compileFlags,
 				'basedir' => $this->templateDir,
 				'fileext' => '.mustache',
 			]
@@ -190,12 +211,15 @@ class TemplateParser {
 	 *     );
 	 * @endcode
 	 * @param string $templateName The name of the template
+	 * @param-taint $templateName exec_misc
 	 * @param mixed $args
+	 * @param-taint $args none
 	 * @param array $scopes
+	 * @param-taint $scopes none
 	 * @return string
 	 */
 	public function processTemplate( $templateName, $args, array $scopes = [] ) {
 		$template = $this->getTemplate( $templateName );
-		return call_user_func( $template, $args, $scopes );
+		return $template( $args, $scopes );
 	}
 }

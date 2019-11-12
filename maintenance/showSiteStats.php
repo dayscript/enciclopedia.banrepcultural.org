@@ -26,7 +26,7 @@
  * @author Brion Vibber
  * @author Rob Church <robchur@gmail.com>
  *
- * @license GNU General Public License 2.0 or later
+ * @license GPL-2.0-or-later
  */
 
 require_once __DIR__ . '/Maintenance.php';
@@ -74,5 +74,5 @@ class ShowSiteStats extends Maintenance {
 	}
 }
 
-$maintClass = "ShowSiteStats";
+$maintClass = ShowSiteStats::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

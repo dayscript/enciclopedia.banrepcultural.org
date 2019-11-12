@@ -22,7 +22,12 @@
  */
 
 /**
- * A fake language converter
+ * A fake language variant converter. Languages which do not implement variant
+ * conversion, for example, English, should return a FakeConverter rather than a
+ * LanguageConverter when asked for their converter. The fake converter just
+ * returns text unchanged, i.e. it doesn't do any conversion.
+ *
+ * See https://www.mediawiki.org/wiki/Writing_systems#LanguageConverter.
  *
  * @ingroup Language
  */
@@ -32,7 +37,7 @@ class FakeConverter {
 	 */
 	public $mLang;
 
-	function __construct( $langobj ) {
+	function __construct( Language $langobj ) {
 		$this->mLang = $langobj;
 	}
 
@@ -111,6 +116,10 @@ class FakeConverter {
 	}
 
 	function validateVariant( $variant = null ) {
+		if ( $variant === null ) {
+			return null;
+		}
+		$variant = strtolower( $variant );
 		return $variant === $this->mLang->getCode() ? $variant : null;
 	}
 
@@ -119,5 +128,13 @@ class FakeConverter {
 	}
 
 	public function updateConversionTable( Title $title ) {
+	}
+
+	/**
+	 * Used by test suites which need to reset the converter state.
+	 *
+	 * @private
+	 */
+	private function reloadTables() {
 	}
 }

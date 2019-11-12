@@ -52,7 +52,7 @@ class Throttler implements LoggerAwareInterface {
 	protected $warningLimit;
 
 	/**
-	 * @param array $conditions An array of arrays describing throttling conditions.
+	 * @param array|null $conditions An array of arrays describing throttling conditions.
 	 *     Defaults to $wgPasswordAttemptThrottle. See documentation of that variable for format.
 	 * @param array $params Parameters (all optional):
 	 *   - type: throttle type, used as a namespace for counters,
@@ -127,7 +127,7 @@ class Throttler implements LoggerAwareInterface {
 				continue;
 			}
 
-			$throttleKey = wfGlobalCacheKey( 'throttler', $this->type, $index, $ipKey, $userKey );
+			$throttleKey = $this->cache->makeGlobalKey( 'throttler', $this->type, $index, $ipKey, $userKey );
 			$throttleCount = $this->cache->get( $throttleKey );
 
 			if ( !$throttleCount ) { // counter not started yet
@@ -138,7 +138,7 @@ class Throttler implements LoggerAwareInterface {
 				$this->logRejection( [
 					'throttle' => $this->type,
 					'index' => $index,
-					'ip' => $ipKey,
+					'ipKey' => $ipKey,
 					'username' => $username,
 					'count' => $count,
 					'expiry' => $expiry,
@@ -170,7 +170,7 @@ class Throttler implements LoggerAwareInterface {
 		$userKey = $username ? md5( $username ) : null;
 		foreach ( $this->conditions as $index => $specificThrottle ) {
 			$ipKey = isset( $specificThrottle['allIPs'] ) ? null : $ip;
-			$throttleKey = wfGlobalCacheKey( 'throttler', $this->type, $index, $ipKey, $userKey );
+			$throttleKey = $this->cache->makeGlobalKey( 'throttler', $this->type, $index, $ipKey, $userKey );
 			$this->cache->delete( $throttleKey );
 		}
 	}
@@ -193,7 +193,7 @@ class Throttler implements LoggerAwareInterface {
 
 	protected function logRejection( array $context ) {
 		$logMsg = 'Throttle {throttle} hit, throttled for {expiry} seconds due to {count} attempts '
-			. 'from username {username} and IP {ip}';
+			. 'from username {username} and IP {ipKey}';
 
 		// If we are hitting a throttle for >= warningLimit attempts, it is much more likely to be
 		// an attack than someone simply forgetting their password, so log it at a higher level.

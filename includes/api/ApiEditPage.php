@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on August 16, 2007
- *
  * Copyright © 2007 Iker Labarga "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -62,9 +58,8 @@ class ApiEditPage extends ApiBase {
 
 				$redirValues = [];
 
-				/** @var $newTitle Title */
+				/** @var Title $newTitle */
 				foreach ( $titles as $id => $newTitle ) {
-
 					if ( !isset( $titles[$id - 1] ) ) {
 						$titles[$id - 1] = $oldTitle;
 					}
@@ -121,7 +116,8 @@ class ApiEditPage extends ApiBase {
 		// Now let's check whether we're even allowed to do this
 		$this->checkTitleUserPermissions(
 			$titleObj,
-			$titleObj->exists() ? 'edit' : [ 'edit', 'create' ]
+			$titleObj->exists() ? 'edit' : [ 'edit', 'create' ],
+			[ 'autoblock' => true ]
 		);
 
 		$toMD5 = $params['text'];
@@ -138,7 +134,7 @@ class ApiEditPage extends ApiBase {
 					}
 
 					try {
-						$content = ContentHandler::makeContent( $text, $this->getTitle() );
+						$content = ContentHandler::makeContent( $text, $titleObj );
 					} catch ( MWContentSerializationException $ex ) {
 						$this->dieWithException( $ex, [
 							'wrap' => ApiMessage::create( 'apierror-contentserializationexception', 'parseerror' )
@@ -267,6 +263,7 @@ class ApiEditPage extends ApiBase {
 			'wpIgnoreBlankArticle' => true,
 			'wpIgnoreSelfRedirect' => true,
 			'bot' => $params['bot'],
+			'wpUnicodeCheck' => EditPage::UNICODE_CHECK,
 		];
 
 		if ( !is_null( $params['summary'] ) ) {
@@ -334,7 +331,7 @@ class ApiEditPage extends ApiBase {
 		}
 
 		// Apply change tags
-		if ( count( $params['tags'] ) ) {
+		if ( $params['tags'] ) {
 			$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
 			if ( $tagStatus->isOK() ) {
 				$requestArray['wpChangeTags'] = implode( ',', $params['tags'] );
@@ -360,7 +357,7 @@ class ApiEditPage extends ApiBase {
 		$articleContext->setWikiPage( $pageObj );
 		$articleContext->setUser( $this->getUser() );
 
-		/** @var $articleObject Article */
+		/** @var Article $articleObject */
 		$articleObject = Article::newFromWikiPage( $pageObj, $articleContext );
 
 		$ep = new EditPage( $articleObject );
@@ -406,19 +403,23 @@ class ApiEditPage extends ApiBase {
 					return;
 				}
 				if ( !$status->getErrors() ) {
-					$status->fatal( 'hookaborted' );
+					// This appears to be unreachable right now, because all
+					// code paths will set an error.  Could change, though.
+					$status->fatal( 'hookaborted' ); //@codeCoverageIgnore
 				}
 				$this->dieStatus( $status );
 
+			// These two cases will normally have been caught earlier, and will
+			// only occur if something blocks the user between the earlier
+			// check and the check in EditPage (presumably a hook).  It's not
+			// obvious that this is even possible.
+			// @codeCoverageIgnoreStart
 			case EditPage::AS_BLOCKED_PAGE_FOR_USER:
-				$this->dieWithError(
-					'apierror-blocked',
-					'blocked',
-					[ 'blockinfo' => ApiQueryUserInfo::getBlockInfo( $user->getBlock() ) ]
-				);
+				$this->dieBlocked( $user->getBlock() );
 
 			case EditPage::AS_READ_ONLY_PAGE:
 				$this->dieReadOnly();
+			// @codeCoverageIgnoreEnd
 
 			case EditPage::AS_SUCCESS_NEW_ARTICLE:
 				$r['new'] = true;
@@ -426,15 +427,15 @@ class ApiEditPage extends ApiBase {
 
 			case EditPage::AS_SUCCESS_UPDATE:
 				$r['result'] = 'Success';
-				$r['pageid'] = intval( $titleObj->getArticleID() );
+				$r['pageid'] = (int)$titleObj->getArticleID();
 				$r['title'] = $titleObj->getPrefixedText();
 				$r['contentmodel'] = $articleObject->getContentModel();
 				$newRevId = $articleObject->getLatest();
 				if ( $newRevId == $oldRevId ) {
 					$r['nochange'] = true;
 				} else {
-					$r['oldrevid'] = intval( $oldRevId );
-					$r['newrevid'] = intval( $newRevId );
+					$r['oldrevid'] = (int)$oldRevId;
+					$r['newrevid'] = (int)$newRevId;
 					$r['newtimestamp'] = wfTimestamp( TS_ISO_8601,
 						$pageObj->getTimestamp() );
 				}
@@ -450,7 +451,7 @@ class ApiEditPage extends ApiBase {
 							$status->fatal( 'apierror-noimageredirect-anon' );
 							break;
 						case EditPage::AS_IMAGE_REDIRECT_LOGGED:
-							$status->fatal( 'apierror-noimageredirect-logged' );
+							$status->fatal( 'apierror-noimageredirect' );
 							break;
 						case EditPage::AS_CONTENT_TOO_BIG:
 						case EditPage::AS_MAX_ARTICLE_SIZE_EXCEEDED:
@@ -472,6 +473,7 @@ class ApiEditPage extends ApiBase {
 						// Currently shouldn't be needed, but here in case
 						// hooks use them without setting appropriate
 						// errors on the status.
+						// @codeCoverageIgnoreStart
 						case EditPage::AS_SPAM_ERROR:
 							$status->fatal( 'apierror-spamdetected', $result['spam'] );
 							break;
@@ -497,10 +499,10 @@ class ApiEditPage extends ApiBase {
 							wfWarn( __METHOD__ . ": Unknown EditPage code {$status->value} with no message" );
 							$status->fatal( 'apierror-unknownerror-editpage', $status->value );
 							break;
+						// @codeCoverageIgnoreEnd
 					}
 				}
 				$this->dieStatus( $status );
-				break;
 		}
 		$apiResult->addValue( null, $this->getModuleName(), $r );
 	}
@@ -570,10 +572,14 @@ class ApiEditPage extends ApiBase {
 				ApiBase::PARAM_TYPE => 'text',
 			],
 			'undo' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ApiBase::PARAM_TYPE => 'integer',
+				ApiBase::PARAM_MIN => 0,
+				ApiBase::PARAM_RANGE_ENFORCE => true,
 			],
 			'undoafter' => [
-				ApiBase::PARAM_TYPE => 'integer'
+				ApiBase::PARAM_TYPE => 'integer',
+				ApiBase::PARAM_MIN => 0,
+				ApiBase::PARAM_RANGE_ENFORCE => true,
 			],
 			'redirect' => [
 				ApiBase::PARAM_TYPE => 'boolean',

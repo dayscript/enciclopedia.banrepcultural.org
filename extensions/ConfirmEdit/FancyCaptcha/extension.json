@@ -6,7 +6,7 @@
 	],
 	"url": "https://www.mediawiki.org/wiki/Extension:ConfirmEdit#FancyCaptcha",
 	"descriptionmsg": "fancycaptcha-desc",
-	"license-name": "GPL-2.0+",
+	"license-name": "GPL-2.0-or-later",
 	"type": "antispam",
 	"APIModules": {
 		"fancycaptchareload": "ApiFancyCaptchaReload"
@@ -17,14 +17,17 @@
 		]
 	},
 	"AutoloadClasses": {
-		"FancyCaptcha": "FancyCaptcha.class.php",
-		"HTMLFancyCaptchaField": "HTMLFancyCaptchaField.php",
-		"ApiFancyCaptchaReload": "ApiFancyCaptchaReload.php"
+		"FancyCaptcha": "includes/FancyCaptcha.php",
+		"HTMLFancyCaptchaField": "includes/HTMLFancyCaptchaField.php",
+		"ApiFancyCaptchaReload": "includes/ApiFancyCaptchaReload.php"
 	},
 	"ResourceModules": {
 		"ext.confirmEdit.fancyCaptcha.styles": {
-			"position": "top",
-			"styles": "ext.confirmEdit.fancyCaptcha.css"
+			"styles": "ext.confirmEdit.fancyCaptcha.less",
+			"targets": [
+				"mobile",
+				"desktop"
+			]
 		},
 		"ext.confirmEdit.fancyCaptcha": {
 			"scripts": "ext.confirmEdit.fancyCaptcha.js",

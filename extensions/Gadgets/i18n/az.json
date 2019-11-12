@@ -4,12 +4,15 @@
 			"Cekli829",
 			"PPerviz",
 			"Vago",
-			"Vugar 1981"
+			"Vugar 1981",
+			"Wertuose",
+			"Toghrul Rahimli"
 		]
 	},
-	"prefs-gadgets": "Qadjetlər",
-	"gadgets": "Qadjetlər",
-	"gadgets-title": "Qadjetlər",
+	"prefs-gadgets": "Qadcetlər",
+	"gadgets": "Qadcetlər",
+	"gadgetusage-gadget": "Qadjet",
+	"gadgets-title": "Qadcetlər",
 	"gadgets-uses": "İstifadə",
 	"gadgets-export": "İxrac",
 	"gadgets-export-title": "Qadjet ixracı",

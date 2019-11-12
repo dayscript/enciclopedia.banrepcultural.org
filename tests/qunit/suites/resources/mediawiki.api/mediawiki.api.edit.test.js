@@ -1,4 +1,4 @@
-( function ( mw, $ ) {
+( function () {
 	QUnit.module( 'mediawiki.api.edit', QUnit.newMwEnvironment( {
 		setup: function () {
 			this.server = this.sandbox.useFakeServer();
@@ -43,7 +43,48 @@
 				return revision.content.replace( 'Sand', 'Box' );
 			} )
 			.then( function ( edit ) {
-				assert.equal( edit.newrevid, 13 );
+				assert.strictEqual( edit.newrevid, 13 );
+			} );
+	} );
+
+	QUnit.test( 'edit( mw.Title, transform String )', function ( assert ) {
+		this.server.respond( function ( req ) {
+			if ( /query.+titles=Sandbox/.test( req.url ) ) {
+				req.respond( 200, { 'Content-Type': 'application/json' }, JSON.stringify( {
+					curtimestamp: '2016-01-02T12:00:00Z',
+					query: {
+						pages: [ {
+							pageid: 1,
+							ns: 0,
+							title: 'Sandbox',
+							revisions: [ {
+								timestamp: '2016-01-01T12:00:00Z',
+								contentformat: 'text/x-wiki',
+								contentmodel: 'wikitext',
+								content: 'Sand.'
+							} ]
+						} ]
+					}
+				} ) );
+			}
+			if ( /edit.+basetimestamp=2016-01-01.+starttimestamp=2016-01-02.+text=Box%2E/.test( req.requestBody ) ) {
+				req.respond( 200, { 'Content-Type': 'application/json' }, JSON.stringify( {
+					edit: {
+						result: 'Success',
+						oldrevid: 11,
+						newrevid: 13,
+						newtimestamp: '2016-01-03T12:00:00Z'
+					}
+				} ) );
+			}
+		} );
+
+		return new mw.Api()
+			.edit( new mw.Title( 'Sandbox' ), function ( revision ) {
+				return revision.content.replace( 'Sand', 'Box' );
+			} )
+			.then( function ( edit ) {
+				assert.strictEqual( edit.newrevid, 13 );
 			} );
 	} );
 
@@ -84,7 +125,7 @@
 				return $.Deferred().resolve( revision.content.replace( 'Async', 'Promise' ) );
 			} )
 			.then( function ( edit ) {
-				assert.equal( edit.newrevid, 23 );
+				assert.strictEqual( edit.newrevid, 23 );
 			} );
 	} );
 
@@ -125,7 +166,33 @@
 				return { text: 'Content', summary: 'Sum' };
 			} )
 			.then( function ( edit ) {
-				assert.equal( edit.newrevid, 33 );
+				assert.strictEqual( edit.newrevid, 33 );
+			} );
+	} );
+
+	QUnit.test( 'edit( invalid-title, transform String )', function ( assert ) {
+		this.server.respond( function ( req ) {
+			if ( /query.+titles=%1F%7C/.test( req.url ) ) {
+				req.respond( 200, { 'Content-Type': 'application/json' }, JSON.stringify( {
+					query: {
+						pages: [ {
+							title: '|',
+							invalidreason: 'The requested page title contains invalid characters: "|".',
+							invalid: true
+						} ]
+					}
+				} ) );
+			}
+		} );
+
+		return new mw.Api()
+			.edit( '|', function ( revision ) {
+				return revision.content.replace( 'Sand', 'Box' );
+			} )
+			.then( function () {
+				return $.Deferred().reject( 'Unexpected success' );
+			}, function ( reason ) {
+				assert.strictEqual( reason, 'invalidtitle' );
 			} );
 	} );
 
@@ -146,8 +213,8 @@
 		return new mw.Api()
 			.create( 'Sandbox', { summary: 'Load sand particles.' }, 'Sand.' )
 			.then( function ( page ) {
-				assert.equal( page.newrevid, 41 );
+				assert.strictEqual( page.newrevid, 41 );
 			} );
 	} );
 
-}( mediaWiki, jQuery ) );
+}() );

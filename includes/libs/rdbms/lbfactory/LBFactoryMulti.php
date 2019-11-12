@@ -89,9 +89,6 @@ class LBFactoryMulti extends LBFactory {
 	 */
 	private $readOnlyBySection = [];
 
-	/** @var array Load balancer factory configuration */
-	private $conf;
-
 	/** @var LoadBalancer[] */
 	private $mainLBs = [];
 
@@ -166,7 +163,6 @@ class LBFactoryMulti extends LBFactory {
 	public function __construct( array $conf ) {
 		parent::__construct( $conf );
 
-		$this->conf = $conf;
 		$required = [ 'sectionsByDB', 'sectionLoads', 'serverTemplate' ];
 		$optional = [ 'groupLoadsBySection', 'groupLoadsByDB', 'hostsByName',
 			'externalLoads', 'externalTemplateOverrides', 'templateOverridesByServer',
@@ -196,11 +192,7 @@ class LBFactoryMulti extends LBFactory {
 			return $this->lastSection;
 		}
 		list( $dbName, ) = $this->getDBNameAndPrefix( $domain );
-		if ( isset( $this->sectionsByDB[$dbName] ) ) {
-			$section = $this->sectionsByDB[$dbName];
-		} else {
-			$section = 'DEFAULT';
-		}
+		$section = $this->sectionsByDB[$dbName] ?? 'DEFAULT';
 		$this->lastSection = $section;
 		$this->lastDomain = $domain;
 
@@ -214,11 +206,7 @@ class LBFactoryMulti extends LBFactory {
 	public function newMainLB( $domain = false ) {
 		list( $dbName, ) = $this->getDBNameAndPrefix( $domain );
 		$section = $this->getSectionForDomain( $domain );
-		if ( isset( $this->groupLoadsByDB[$dbName] ) ) {
-			$groupLoads = $this->groupLoadsByDB[$dbName];
-		} else {
-			$groupLoads = [];
-		}
+		$groupLoads = $this->groupLoadsByDB[$dbName] ?? [];
 
 		if ( isset( $this->groupLoadsBySection[$section] ) ) {
 			$groupLoads = array_merge_recursive(
@@ -362,11 +350,7 @@ class LBFactoryMulti extends LBFactory {
 			if ( isset( $groupLoadsByServer[$serverName] ) ) {
 				$serverInfo['groupLoads'] = $groupLoadsByServer[$serverName];
 			}
-			if ( isset( $this->hostsByName[$serverName] ) ) {
-				$serverInfo['host'] = $this->hostsByName[$serverName];
-			} else {
-				$serverInfo['host'] = $serverName;
-			}
+			$serverInfo['host'] = $this->hostsByName[$serverName] ?? $serverName;
 			$serverInfo['hostName'] = $serverName;
 			$serverInfo['load'] = $load;
 			$serverInfo += [ 'flags' => IDatabase::DBO_DEFAULT ];
@@ -414,10 +398,10 @@ class LBFactoryMulti extends LBFactory {
 	 */
 	public function forEachLB( $callback, array $params = [] ) {
 		foreach ( $this->mainLBs as $lb ) {
-			call_user_func_array( $callback, array_merge( [ $lb ], $params ) );
+			$callback( $lb, ...$params );
 		}
 		foreach ( $this->extLBs as $lb ) {
-			call_user_func_array( $callback, array_merge( [ $lb ], $params ) );
+			$callback( $lb, ...$params );
 		}
 	}
 }

@@ -2,8 +2,6 @@
 /**
  * Implements Special:Activeusers
  *
- * Copyright © 2008 Aaron Schulz
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -30,17 +28,12 @@
  */
 class SpecialActiveUsers extends SpecialPage {
 
-	/**
-	 * Constructor
-	 */
 	public function __construct() {
 		parent::__construct( 'Activeusers' );
 	}
 
 	/**
-	 * Show the special page
-	 *
-	 * @param string $par Parameter passed to the page or null
+	 * @param string|null $par Parameter passed to the page or null
 	 */
 	public function execute( $par ) {
 		$out = $this->getOutput();
@@ -85,10 +78,12 @@ class SpecialActiveUsers extends SpecialPage {
 	protected function buildForm() {
 		$groups = User::getAllGroups();
 
+		$options = [];
 		foreach ( $groups as $group ) {
 			$msg = htmlspecialchars( UserGroupMembership::getGroupName( $group ) );
 			$options[$msg] = $group;
 		}
+		asort( $options );
 
 		// Backwards-compatibility with old URLs
 		$req = $this->getRequest();

@@ -51,9 +51,9 @@ abstract class Preprocessor {
 		],
 		'-{' => [
 			'end' => '}-',
-			'names' => [ 1 => null ],
-			'min' => 1,
-			'max' => 1,
+			'names' => [ 2 => null ],
+			'min' => 2,
+			'max' => 2,
 		],
 	];
 
@@ -62,6 +62,7 @@ abstract class Preprocessor {
 	 *
 	 * @param string $text
 	 * @param int $flags
+	 * @param string $tree
 	 */
 	protected function cacheSetTree( $text, $flags, $tree ) {
 		$config = RequestContext::getMain()->getConfig();
@@ -69,15 +70,15 @@ abstract class Preprocessor {
 		$length = strlen( $text );
 		$threshold = $config->get( 'PreprocessorCacheThreshold' );
 		if ( $threshold === false || $length < $threshold || $length > 1e6 ) {
-			return false;
+			return;
 		}
 
-		$key = wfMemcKey(
+		$cache = ObjectCache::getLocalClusterInstance();
+		$key = $cache->makeKey(
 			defined( 'static::CACHE_PREFIX' ) ? static::CACHE_PREFIX : static::class,
 			md5( $text ), $flags );
 		$value = sprintf( "%08d", static::CACHE_VERSION ) . $tree;
 
-		$cache = ObjectCache::getInstance( $config->get( 'MainCacheType' ) );
 		$cache->set( $key, $value, 86400 );
 
 		LoggerFactory::getInstance( 'Preprocessor' )
@@ -101,9 +102,9 @@ abstract class Preprocessor {
 			return false;
 		}
 
-		$cache = ObjectCache::getInstance( $config->get( 'MainCacheType' ) );
+		$cache = ObjectCache::getLocalClusterInstance();
 
-		$key = wfMemcKey(
+		$key = $cache->makeKey(
 			defined( 'static::CACHE_PREFIX' ) ? static::CACHE_PREFIX : static::class,
 			md5( $text ), $flags );
 
@@ -170,7 +171,8 @@ interface PPFrame {
 	const RECOVER_COMMENTS = 16;
 	const NO_TAGS = 32;
 
-	const RECOVER_ORIG = 59; // = 1|2|8|16|32 no constant expression support in PHP yet
+	const RECOVER_ORIG = self::NO_ARGS | self::NO_TEMPLATES | self::NO_IGNORE |
+		self::RECOVER_COMMENTS | self::NO_TAGS;
 
 	/** This constant exists when $indexOffset is supported in newChild() */
 	const SUPPORTS_INDEX_OFFSET = 1;

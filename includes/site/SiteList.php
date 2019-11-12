@@ -23,7 +23,7 @@
  * @file
  * @ingroup Site
  *
- * @license GNU GPL v2+
+ * @license GPL-2.0-or-later
  * @author Jeroen De Dauw < jeroendedauw@gmail.com >
  */
 class SiteList extends GenericArrayObject {
@@ -63,7 +63,7 @@ class SiteList extends GenericArrayObject {
 	 * @return string
 	 */
 	public function getObjectType() {
-		return 'Site';
+		return Site::class;
 	}
 
 	/**

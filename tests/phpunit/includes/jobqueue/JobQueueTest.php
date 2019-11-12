@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @group JobQueue
  * @group medium
@@ -26,10 +28,12 @@ class JobQueueTest extends MediaWikiTestCase {
 			}
 			$baseConfig = $wgJobTypeConf[$name];
 		} else {
-			$baseConfig = [ 'class' => 'JobQueueDB' ];
+			$baseConfig = [ 'class' => JobQueueDBSingle::class ];
 		}
 		$baseConfig['type'] = 'null';
-		$baseConfig['wiki'] = wfWikiID();
+		$baseConfig['domain'] = WikiMap::getCurrentWikiDbDomain()->getId();
+		$baseConfig['stash'] = new HashBagOStuff();
+		$baseConfig['wanCache'] = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
 		$variants = [
 			'queueRand' => [ 'order' => 'random', 'claimTTL' => 0 ],
 			'queueRandTTL' => [ 'order' => 'random', 'claimTTL' => 10 ],
@@ -73,6 +77,10 @@ class JobQueueTest extends MediaWikiTestCase {
 			$this->markTestSkipped( $desc );
 		}
 		$this->assertEquals( wfWikiID(), $queue->getWiki(), "Proper wiki ID ($desc)" );
+		$this->assertEquals(
+			WikiMap::getCurrentWikiDbDomain()->getId(),
+			$queue->getDomain(),
+			"Proper wiki ID ($desc)" );
 	}
 
 	/**
@@ -232,7 +240,7 @@ class JobQueueTest extends MediaWikiTestCase {
 
 		$j = $queue->pop();
 		// Make sure ack() of the twin did not delete the sibling data
-		$this->assertType( 'NullJob', $j );
+		$this->assertType( NullJob::class, $j );
 	}
 
 	/**
@@ -379,5 +387,13 @@ class JobQueueTest extends MediaWikiTestCase {
 	function newDedupedJob( $i = 0, $rootJob = [] ) {
 		return new NullJob( Title::newMainPage(),
 			[ 'lives' => 0, 'usleep' => 0, 'removeDuplicates' => 1, 'i' => $i ] + $rootJob );
+	}
+}
+
+class JobQueueDBSingle extends JobQueueDB {
+	protected function getDB( $index ) {
+		$lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
+		// Override to not use CONN_TRX_AUTOCOMMIT so that we see the same temporary `job` table
+		return $lb->getConnection( $index, [], $this->domain );
 	}
 }

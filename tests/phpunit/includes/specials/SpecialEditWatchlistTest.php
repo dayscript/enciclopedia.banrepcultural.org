@@ -19,7 +19,7 @@ class SpecialEditWatchlistTest extends SpecialPageTestBase {
 	}
 
 	public function testNotLoggedIn_throwsException() {
-		$this->setExpectedException( 'UserNotLoggedIn' );
+		$this->setExpectedException( UserNotLoggedIn::class );
 		$this->executeSpecialPage();
 	}
 
@@ -33,7 +33,7 @@ class SpecialEditWatchlistTest extends SpecialPageTestBase {
 		$user = new TestUser( __METHOD__ );
 		list( $html, ) = $this->executeSpecialPage( 'clear', null, 'qqx', $user->getUser() );
 		$this->assertRegExp(
-			'/<form class="mw-htmlform" action=".*?Special:EditWatchlist\/clear" method="post">/',
+			'/<form action=\'.*?Special:EditWatchlist\/clear\'/',
 			$html
 		);
 	}
@@ -42,7 +42,7 @@ class SpecialEditWatchlistTest extends SpecialPageTestBase {
 		$user = new TestUser( __METHOD__ );
 		list( $html, ) = $this->executeSpecialPage( 'raw', null, 'qqx', $user->getUser() );
 		$this->assertContains(
-			'<textarea id="mw-input-wpTitles"',
+			'<div id=\'mw-input-wpTitles\'',
 			$html
 		);
 	}

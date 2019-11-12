@@ -18,15 +18,14 @@
  * @file
  */
 
-use RunningStat\RunningStat;
+use Wikimedia\RunningStat;
 
 /**
  * Convenience class for working with XHProf profiling data
  * <https://github.com/phacility/xhprof>. XHProf can be installed as a PECL
  * package for use with PHP5 (Zend PHP) and is built-in to HHVM 3.3.0.
  *
- * @author Bryan Davis <bd808@wikimedia.org>
- * @copyright © 2014 Bryan Davis and Wikimedia Foundation.
+ * @copyright © 2014 Wikimedia Foundation and contributors
  * @since 1.28
  */
 class XhprofData {
@@ -108,6 +107,7 @@ class XhprofData {
 	 * The resulting array is left padded with nulls, so a key
 	 * with no parent (eg 'main()') will return [null, 'function'].
 	 *
+	 * @param string $key
 	 * @return array
 	 */
 	public static function splitKey( $key ) {
@@ -209,14 +209,14 @@ class XhprofData {
 			foreach ( $this->inclusive as $func => $stats ) {
 				foreach ( $stats as $name => $value ) {
 					if ( $value instanceof RunningStat ) {
-						$total = $value->m1 * $value->n;
+						$total = $value->getMean() * $value->getCount();
 						$percent = ( isset( $main[$name] ) && $main[$name] )
 							? 100 * $total / $main[$name]
 							: 0;
 						$this->inclusive[$func][$name] = [
 							'total' => $total,
 							'min' => $value->min,
-							'mean' => $value->m1,
+							'mean' => $value->getMean(),
 							'max' => $value->max,
 							'variance' => $value->m2,
 							'percent' => $percent,
@@ -370,11 +370,10 @@ class XhprofData {
 		return function ( $a, $b ) use ( $key, $sub ) {
 			if ( isset( $a[$key] ) && isset( $b[$key] ) ) {
 				// Descending sort: larger values will be first in result.
-				// Assumes all values are numeric.
 				// Values for 'main()' will not have sub keys
 				$valA = is_array( $a[$key] ) ? $a[$key][$sub] : $a[$key];
 				$valB = is_array( $b[$key] ) ? $b[$key][$sub] : $b[$key];
-				return $valB - $valA;
+				return $valB <=> $valA;
 			} else {
 				// Sort datum with the key before those without
 				return isset( $a[$key] ) ? -1 : 1;

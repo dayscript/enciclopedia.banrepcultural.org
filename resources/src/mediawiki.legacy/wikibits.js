@@ -1,7 +1,7 @@
 /**
  * MediaWiki legacy wikibits
  */
-( function ( mw, $ ) {
+( function () {
 	var msg,
 		loadedScripts = {};
 
@@ -27,7 +27,9 @@
 	 * @deprecated since 1.17 Use jQuery instead
 	 */
 	mw.log.deprecate( window, 'addOnloadHook', function ( fn ) {
-		$( function () { fn(); } );
+		$( function () {
+			fn();
+		} );
 	}, 'Use jQuery instead.' );
 
 	/**
@@ -49,7 +51,7 @@
 		loadedScripts[ url ] = true;
 		s = document.createElement( 'script' );
 		s.setAttribute( 'src', url );
-		document.getElementsByTagName( 'head' )[ 0 ].appendChild( s );
+		document.head.appendChild( s );
 		return s;
 	}
 
@@ -72,7 +74,7 @@
 		if ( media ) {
 			l.media = media;
 		}
-		document.getElementsByTagName( 'head' )[ 0 ].appendChild( l );
+		document.head.appendChild( l );
 		return l;
 	}
 
@@ -96,10 +98,10 @@
 	 *
 	 * @deprecated since 1.26
 	 */
-	$.each( [ 'write', 'writeln' ], function ( idx, method ) {
+	[ 'write', 'writeln' ].forEach( function ( method ) {
 		mw.log.deprecate( document, method, function () {
 			$( 'body' ).append( $.parseHTML( Array.prototype.join.call( arguments, '' ) ) );
-		}, 'Use jQuery or mw.loader.load instead.' );
+		}, 'Use jQuery or mw.loader.load instead.', 'document.' + method );
 	} );
 
-}( mediaWiki, jQuery ) );
+}() );

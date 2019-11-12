@@ -27,7 +27,7 @@ use Monolog\Logger;
 use UnexpectedValueException;
 
 /**
- * Log handler that replicates the behavior of MediaWiki's wfErrorLog()
+ * Log handler that replicates the behavior of MediaWiki's former wfErrorLog()
  * logging service. Log output can be directed to a local file, a PHP stream,
  * or a udp2log server.
  *
@@ -44,8 +44,7 @@ use UnexpectedValueException;
  * replacement for \Monolog\Handler\StreamHandler.
  *
  * @since 1.25
- * @author Bryan Davis <bd808@wikimedia.org>
- * @copyright © 2013 Bryan Davis and Wikimedia Foundation.
+ * @copyright © 2013 Wikimedia Foundation and contributors
  */
 class LegacyHandler extends AbstractProcessingHandler {
 
@@ -195,7 +194,6 @@ class LegacyHandler extends AbstractProcessingHandler {
 
 		$text = (string)$record['formatted'];
 		if ( $this->useUdp() ) {
-
 			// Clean it up for the multiplexer
 			if ( $this->prefix !== '' ) {
 				$leader = ( $this->prefix === '{channel}' ) ?

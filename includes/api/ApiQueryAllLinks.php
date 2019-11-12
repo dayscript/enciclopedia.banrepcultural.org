@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on July 7, 2007
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -144,7 +140,7 @@ class ApiQueryAllLinks extends ApiQueryGeneratorBase {
 			} else {
 				$this->dieContinueUsageIf( count( $continueArr ) != 2 );
 				$continueTitle = $db->addQuotes( $continueArr[0] );
-				$continueFrom = intval( $continueArr[1] );
+				$continueFrom = (int)$continueArr[1];
 				$this->addWhere(
 					"{$pfx}{$fieldTitle} $op $continueTitle OR " .
 					"({$pfx}{$fieldTitle} = $continueTitle AND " .
@@ -154,10 +150,10 @@ class ApiQueryAllLinks extends ApiQueryGeneratorBase {
 		}
 
 		// 'continue' always overrides 'from'
-		$from = ( $continue || $params['from'] === null ? null :
-			$this->titlePartToKey( $params['from'], $namespace ) );
-		$to = ( $params['to'] === null ? null :
-			$this->titlePartToKey( $params['to'], $namespace ) );
+		$from = $continue || $params['from'] === null ? null :
+			$this->titlePartToKey( $params['from'], $namespace );
+		$to = $params['to'] === null ? null :
+			$this->titlePartToKey( $params['to'], $namespace );
 		$this->addWhereRange( $pfx . $fieldTitle, 'newer', $from, $to );
 
 		if ( isset( $params['prefix'] ) ) {
@@ -208,7 +204,7 @@ class ApiQueryAllLinks extends ApiQueryGeneratorBase {
 					ApiResult::META_TYPE => 'assoc',
 				];
 				if ( $fld_ids ) {
-					$vals['fromid'] = intval( $row->pl_from );
+					$vals['fromid'] = (int)$row->pl_from;
 				}
 				if ( $fld_title ) {
 					$title = Title::makeTitle( $namespace, $row->pl_title );

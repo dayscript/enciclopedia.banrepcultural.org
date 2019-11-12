@@ -5,7 +5,7 @@
  * This is loaded in the top queue, so avoid unnecessary dependencies
  * like mediawiki.Title or mediawiki.Uri.
  */
-( function ( mw, $ ) {
+( function () {
 	var profile = $.client.profile(),
 		canonical = mw.config.get( 'wgInternalRedirectTargetUrl' ),
 		fragment = null,
@@ -31,7 +31,7 @@
 		history.replaceState( /* data= */ history.state, /* title= */ document.title, /* url= */ canonical );
 		if ( shouldChangeFragment ) {
 			// Specification for history.replaceState() doesn't require browser to scroll,
-			// so scroll to be sure (see also T110501). Support for IE9 and IE10.
+			// so scroll to be sure (see also T110501). Support for IE10.
 			node = document.getElementById( fragment.slice( 1 ) );
 			if ( node ) {
 				node.scrollIntoView();
@@ -62,4 +62,4 @@
 		} );
 	}
 
-}( mediaWiki, jQuery ) );
+}() );

@@ -23,7 +23,6 @@
  * @author Tim Starling
  * @author Luke Welling lwelling@wikimedia.org
  */
-use MediaWiki\Linker\LinkTarget;
 
 use MediaWiki\MediaWikiServices;
 
@@ -43,7 +42,8 @@ use MediaWiki\MediaWikiServices;
  * of sending out bulk mails (bcc:user1,user2...) for all these users having the
  * same timeoffset in their preferences.
  *
- * Visit the documentation pages under http://meta.wikipedia.com/Enotif
+ * Visit the documentation pages under
+ * https://www.mediawiki.org/wiki/Help:Watching_pages
  */
 class EmailNotification {
 
@@ -75,30 +75,17 @@ class EmailNotification {
 	protected $editor;
 
 	/**
-	 * @deprecated since 1.27 use WatchedItemStore::updateNotificationTimestamp directly
+	 * Extensions that have hooks for
+	 * UpdateUserMailerFormattedPageStatus (to provide additional
+	 * pageStatus indicators) need a way to make sure that, when their
+	 * hook is called in SendWatchlistemailNotification, they only
+	 * handle notifications using their pageStatus indicator.
 	 *
-	 * @param User $editor The editor that triggered the update.  Their notification
-	 *  timestamp will not be updated(they have already seen it)
-	 * @param LinkTarget $linkTarget The link target of the title to update timestamps for
-	 * @param string $timestamp Set the update timestamp to this value
-	 *
-	 * @return int[] Array of user IDs
+	 * @since 1.33
+	 * @return string
 	 */
-	public static function updateWatchlistTimestamp(
-		User $editor,
-		LinkTarget $linkTarget,
-		$timestamp
-	) {
-		// wfDeprecated( __METHOD__, '1.27' );
-		$config = RequestContext::getMain()->getConfig();
-		if ( !$config->get( 'EnotifWatchlist' ) && !$config->get( 'ShowUpdatedMarker' ) ) {
-			return [];
-		}
-		return MediaWikiServices::getInstance()->getWatchedItemStore()->updateNotificationTimestamp(
-			$editor,
-			$linkTarget,
-			$timestamp
-		);
+	public function getPageStatus() {
+		return $this->pageStatus;
 	}
 
 	/**
@@ -139,7 +126,7 @@ class EmailNotification {
 		// If nobody is watching the page, and there are no users notified on all changes
 		// don't bother creating a job/trying to send emails, unless it's a
 		// talk page with an applicable notification.
-		if ( !count( $watchers ) && !count( $wgUsersNotifiedOnAllChanges ) ) {
+		if ( $watchers === [] && !count( $wgUsersNotifiedOnAllChanges ) ) {
 			$sendEmail = false;
 			// Only send notification for non minor edits, unless $wgEnotifMinorEdits
 			if ( !$minorEdit || ( $wgEnotifMinorEdits && !$editor->isAllowed( 'nominornewtalk' ) ) ) {
@@ -238,10 +225,9 @@ class EmailNotification {
 						&& $watchingUser->getId() != $userTalkId
 						&& !in_array( $watchingUser->getName(), $wgUsersNotifiedOnAllChanges )
 						&& !( $wgBlockDisablesLogin && $watchingUser->isBlocked() )
+						&& Hooks::run( 'SendWatchlistEmailNotification', [ $watchingUser, $title, $this ] )
 					) {
-						if ( Hooks::run( 'SendWatchlistEmailNotification', [ $watchingUser, $title, $this ] ) ) {
-							$this->compose( $watchingUser, self::WATCHLIST );
-						}
+						$this->compose( $watchingUser, self::WATCHLIST );
 					}
 				}
 			}
@@ -342,7 +328,8 @@ class EmailNotification {
 		$keys['$PAGETITLE'] = $this->title->getPrefixedText();
 		$keys['$PAGETITLE_URL'] = $this->title->getCanonicalURL();
 		$keys['$PAGEMINOREDIT'] = $this->minorEdit ?
-			wfMessage( 'minoredit' )->inContentLanguage()->text() : '';
+			"\n\n" . wfMessage( 'enotif_minoredit' )->inContentLanguage()->text() :
+			'';
 		$keys['$UNWATCHURL'] = $this->title->getCanonicalURL( 'action=unwatch' );
 
 		if ( $this->editor->isAnon() ) {
@@ -443,15 +430,16 @@ class EmailNotification {
 	/**
 	 * Does the per-user customizations to a notification e-mail (name,
 	 * timestamp in proper timezone, etc) and sends it out.
-	 * Returns true if the mail was sent successfully.
+	 * Returns Status if email was sent successfully or not (Status::newGood()
+	 * or Status::newFatal() respectively).
 	 *
 	 * @param User $watchingUser
 	 * @param string $source
-	 * @return bool
+	 * @return Status
 	 * @private
 	 */
 	function sendPersonalised( $watchingUser, $source ) {
-		global $wgContLang, $wgEnotifUseRealName;
+		global $wgEnotifUseRealName;
 		// From the PHP manual:
 		//   Note: The to parameter cannot be an address in the form of
 		//   "Something <someone@example.com>". The mail command will not parse
@@ -461,14 +449,15 @@ class EmailNotification {
 		# $PAGEEDITDATE is the time and date of the page change
 		# expressed in terms of individual local time of the notification
 		# recipient, i.e. watching user
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
 		$body = str_replace(
 			[ '$WATCHINGUSERNAME',
 				'$PAGEEDITDATE',
 				'$PAGEEDITTIME' ],
 			[ $wgEnotifUseRealName && $watchingUser->getRealName() !== ''
 				? $watchingUser->getRealName() : $watchingUser->getName(),
-				$wgContLang->userDate( $this->timestamp, $watchingUser ),
-				$wgContLang->userTime( $this->timestamp, $watchingUser ) ],
+				$contLang->userDate( $this->timestamp, $watchingUser ),
+				$contLang->userTime( $this->timestamp, $watchingUser ) ],
 			$this->body );
 
 		$headers = [];
@@ -489,19 +478,18 @@ class EmailNotification {
 	 * @return Status|null
 	 */
 	function sendImpersonal( $addresses ) {
-		global $wgContLang;
-
 		if ( empty( $addresses ) ) {
 			return null;
 		}
 
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
 		$body = str_replace(
 			[ '$WATCHINGUSERNAME',
 				'$PAGEEDITDATE',
 				'$PAGEEDITTIME' ],
 			[ wfMessage( 'enotif_impersonal_salutation' )->inContentLanguage()->text(),
-				$wgContLang->date( $this->timestamp, false, false ),
-				$wgContLang->time( $this->timestamp, false, false ) ],
+				$contLang->date( $this->timestamp, false, false ),
+				$contLang->time( $this->timestamp, false, false ) ],
 			$this->body );
 
 		return UserMailer::send( $addresses, $this->from, $this->subject, $body, [

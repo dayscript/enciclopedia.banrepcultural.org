@@ -2,8 +2,6 @@
 /**
  * Implements Special:Mostinterwikis
  *
- * Copyright © 2012 Umherirrender
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -21,10 +19,9 @@
  *
  * @file
  * @ingroup SpecialPage
- * @author Umherirrender
  */
 
-use Wikimedia\Rdbms\ResultWrapper;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -75,7 +72,7 @@ class MostinterwikisPage extends QueryPage {
 	 * Pre-fill the link cache
 	 *
 	 * @param IDatabase $db
-	 * @param ResultWrapper $res
+	 * @param IResultWrapper $res
 	 */
 	function preprocessResults( $db, $res ) {
 		$this->executeLBFromResultWrapper( $res );

@@ -4,6 +4,7 @@ namespace MediaWiki\Widget\Search;
 
 use Hooks;
 use Html;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Widget\SearchInputWidget;
 use MWNamespace;
 use SearchEngineConfig;
@@ -50,7 +51,8 @@ class SearchFormWidget {
 		$offset,
 		$isPowerSearch
 	) {
-		return Xml::openElement(
+		return '<div class="mw-search-form-wrapper">' .
+			Xml::openElement(
 				'form',
 				[
 					'id' => $isPowerSearch ? 'powersearch' : 'search',
@@ -67,7 +69,8 @@ class SearchFormWidget {
 					"<div style='clear:both'></div>" .
 				"</div>" .
 				$this->optionsHtml( $term, $isPowerSearch, $profile ) .
-			'</form>';
+			'</form>' .
+		'</div>';
 	}
 
 	/**
@@ -99,6 +102,10 @@ class SearchFormWidget {
 		] );
 
 		$html .= $layout;
+
+		if ( $this->specialSearch->getPrefix() !== '' ) {
+			$html .= Html::hidden( 'prefix', $this->specialSearch->getPrefix() );
+		}
 
 		if ( $totalResults > 0 && $offset < $totalResults ) {
 			$html .= Xml::tags(
@@ -153,10 +160,9 @@ class SearchFormWidget {
 			);
 		}
 
-		return
-				"<div class='search-types'>" .
-					"<ul>" . implode( '', $items ) . "</ul>" .
-				"</div>";
+		return "<div class='search-types'>" .
+			"<ul>" . implode( '', $items ) . "</ul>" .
+		"</div>";
 	}
 
 	/**
@@ -166,11 +172,10 @@ class SearchFormWidget {
 	 * @return bool
 	 */
 	protected function startsWithImage( $term ) {
-		global $wgContLang;
-
 		$parts = explode( ':', $term );
 		return count( $parts ) > 1
-			? $wgContLang->getNsIndex( $parts[0] ) === NS_FILE
+			? MediaWikiServices::getInstance()->getContentLanguage()->getNsIndex( $parts[0] ) ===
+				NS_FILE
 			: false;
 	}
 
@@ -231,17 +236,16 @@ class SearchFormWidget {
 	 * @return string HTML
 	 */
 	protected function powerSearchBox( $term, array $opts ) {
-		global $wgContLang;
-
 		$rows = [];
 		$activeNamespaces = $this->specialSearch->getNamespaces();
+		$langConverter = $this->specialSearch->getLanguage();
 		foreach ( $this->searchConfig->searchableNamespaces() as $namespace => $name ) {
 			$subject = MWNamespace::getSubject( $namespace );
 			if ( !isset( $rows[$subject] ) ) {
 				$rows[$subject] = "";
 			}
 
-			$name = $wgContLang->getConverter()->convertNamespace( $namespace );
+			$name = $langConverter->convertNamespace( $namespace );
 			if ( $name === '' ) {
 				$name = $this->specialSearch->msg( 'blanknamespace' )->text();
 			}
@@ -271,7 +275,7 @@ class SearchFormWidget {
 		$showSections = [
 			'namespaceTables' => "<table>" . implode( '</table><table>', $namespaceTables ) . '</table>',
 		];
-		Hooks::run( 'SpecialSearchPowerBox', [ &$showSections, $term, $opts ] );
+		Hooks::run( 'SpecialSearchPowerBox', [ &$showSections, $term, &$opts ] );
 
 		$hidden = '';
 		foreach ( $opts as $key => $value ) {
@@ -298,19 +302,24 @@ class SearchFormWidget {
 			);
 		}
 
-		return
-			"<fieldset id='mw-searchoptions'>" .
-				"<legend>" . $this->specialSearch->msg( 'powersearch-legend' )->escaped() . '</legend>' .
-				"<h4>" . $this->specialSearch->msg( 'powersearch-ns' )->parse() . '</h4>' .
-				// populated by js if available
-				"<div id='mw-search-togglebox'></div>" .
-				$divider .
-				implode(
-					$divider,
-					$showSections
-				) .
-				$hidden .
-				$remember .
-			"</fieldset>";
+		return "<fieldset id='mw-searchoptions'>" .
+			"<legend>" . $this->specialSearch->msg( 'powersearch-legend' )->escaped() . '</legend>' .
+			"<h4>" . $this->specialSearch->msg( 'powersearch-ns' )->parse() . '</h4>' .
+			// Handled by JavaScript if available
+			'<div id="mw-search-togglebox">' .
+			'<label>' . $this->specialSearch->msg( 'powersearch-togglelabel' )->escaped() . '</label>' .
+			'<input type="button" id="mw-search-toggleall" value="' .
+			$this->specialSearch->msg( 'powersearch-toggleall' )->escaped() . '"/>' .
+			'<input type="button" id="mw-search-togglenone" value="' .
+			$this->specialSearch->msg( 'powersearch-togglenone' )->escaped() . '"/>' .
+			'</div>' .
+			$divider .
+			implode(
+				$divider,
+				$showSections
+			) .
+			$hidden .
+			$remember .
+		"</fieldset>";
 	}
 }

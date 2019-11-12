@@ -4,7 +4,7 @@
  * @package SyntaxHighlight_GeSHi
  */
 
-/* eslint-env node */
+/* eslint-env node, es6 */
 module.exports = function ( grunt ) {
 	var conf = grunt.file.readJSON( 'extension.json' );
 
@@ -16,6 +16,10 @@ module.exports = function ( grunt ) {
 
 	grunt.initConfig( {
 		eslint: {
+			options: {
+				reportUnusedDisableDirectives: true,
+				cache: true
+			},
 			all: [
 				'*.js',
 				'modules/**/*.js'
@@ -39,8 +43,8 @@ module.exports = function ( grunt ) {
 		banana: conf.MessagesDirs,
 		watch: {
 			files: [
-				'.{stylelintrc,jscsrc,jshintignore,jshintrc}',
 				'<%= eslint.all %>',
+				'<%= jsonlint.all %>',
 				'<%= stylelint.all %>'
 			],
 			tasks: 'test'

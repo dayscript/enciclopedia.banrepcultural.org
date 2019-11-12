@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileBackend
- * @author Aaron Schulz
  */
 use Psr\Log\LoggerInterface;
 
@@ -116,7 +115,7 @@ abstract class FileOp {
 		if ( FileBackend::isStoragePath( $path ) ) {
 			$res = FileBackend::normalizeStoragePath( $path );
 
-			return ( $res !== null ) ? $res : $path;
+			return $res ?? $path;
 		}
 
 		return $path;
@@ -138,7 +137,7 @@ abstract class FileOp {
 	 * @return mixed Returns null if the parameter is not set
 	 */
 	final public function getParam( $name ) {
-		return isset( $this->params[$name] ) ? $this->params[$name] : null;
+		return $this->params[$name] ?? null;
 	}
 
 	/**
@@ -248,7 +247,7 @@ abstract class FileOp {
 	 * This must update $predicates for each path that the op can change
 	 * except when a failing StatusValue object is returned.
 	 *
-	 * @param array $predicates
+	 * @param array &$predicates
 	 * @return StatusValue
 	 */
 	final public function precheck( array &$predicates ) {
@@ -265,7 +264,7 @@ abstract class FileOp {
 	}
 
 	/**
-	 * @param array $predicates
+	 * @param array &$predicates
 	 * @return StatusValue
 	 */
 	protected function doPrecheck( array &$predicates ) {

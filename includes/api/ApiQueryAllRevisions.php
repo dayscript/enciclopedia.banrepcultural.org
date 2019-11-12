@@ -1,8 +1,6 @@
 <?php
 /**
- * Created on Sep 27, 2015
- *
- * Copyright © 2015 Brad Jorsch "bjorsch@wikimedia.org"
+ * Copyright © 2015 Wikimedia Foundation and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +20,9 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionRecord;
+
 /**
  * Query module to enumerate all revisions.
  *
@@ -35,16 +36,32 @@ class ApiQueryAllRevisions extends ApiQueryRevisionsBase {
 	}
 
 	/**
-	 * @param ApiPageSet $resultPageSet
+	 * @param ApiPageSet|null $resultPageSet
 	 * @return void
 	 */
 	protected function run( ApiPageSet $resultPageSet = null ) {
+		global $wgActorTableSchemaMigrationStage;
+
 		$db = $this->getDB();
 		$params = $this->extractRequestParams( false );
+		$revisionStore = MediaWikiServices::getInstance()->getRevisionStore();
 
 		$result = $this->getResult();
 
 		$this->requireMaxOneParameter( $params, 'user', 'excludeuser' );
+
+		$tsField = 'rev_timestamp';
+		$idField = 'rev_id';
+		$pageField = 'rev_page';
+		if ( $params['user'] !== null &&
+			( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW )
+		) {
+			// The query is probably best done using the actor_timestamp index on
+			// revision_actor_temp. Use the denormalized fields from that table.
+			$tsField = 'revactor_timestamp';
+			$idField = 'revactor_rev';
+			$pageField = 'revactor_page';
+		}
 
 		// Namespace check is likely to be desired, but can't be done
 		// efficiently in SQL.
@@ -63,79 +80,85 @@ class ApiQueryAllRevisions extends ApiQueryRevisionsBase {
 			}
 		}
 
-		$this->addTables( 'revision' );
 		if ( $resultPageSet === null ) {
 			$this->parseParameters( $params );
-			$this->addTables( 'page' );
-			$this->addJoinConds(
-				[ 'page' => [ 'INNER JOIN', [ 'rev_page = page_id' ] ] ]
+			$revQuery = $revisionStore->getQueryInfo(
+				$this->fetchContent ? [ 'page', 'text' ] : [ 'page' ]
 			);
-			$this->addFields( Revision::selectFields() );
-			$this->addFields( Revision::selectPageFields() );
-
-			// Review this depeneding on the outcome of T113901
-			$this->addOption( 'STRAIGHT_JOIN' );
 		} else {
 			$this->limit = $this->getParameter( 'limit' ) ?: 10;
-			$this->addFields( [ 'rev_timestamp', 'rev_id' ] );
+			$revQuery = [
+				'tables' => [ 'revision' ],
+				'fields' => [ 'rev_timestamp', 'rev_id' ],
+				'joins' => [],
+			];
+
 			if ( $params['generatetitles'] ) {
-				$this->addFields( [ 'rev_page' ] );
+				$revQuery['fields'][] = 'rev_page';
+			}
+
+			if ( $params['user'] !== null || $params['excludeuser'] !== null ) {
+				$actorQuery = ActorMigration::newMigration()->getJoin( 'rev_user' );
+				$revQuery['tables'] += $actorQuery['tables'];
+				$revQuery['joins'] += $actorQuery['joins'];
 			}
 
 			if ( $needPageTable ) {
-				$this->addTables( 'page' );
-				$this->addJoinConds(
-					[ 'page' => [ 'INNER JOIN', [ 'rev_page = page_id' ] ] ]
-				);
-				$this->addFieldsIf( [ 'page_namespace' ], (bool)$miser_ns );
-
-				// Review this depeneding on the outcome of T113901
-				$this->addOption( 'STRAIGHT_JOIN' );
+				$revQuery['tables'][] = 'page';
+				$revQuery['joins']['page'] = [ 'JOIN', [ "$pageField = page_id" ] ];
+				if ( (bool)$miser_ns ) {
+					$revQuery['fields'][] = 'page_namespace';
+				}
 			}
 		}
 
-		$dir = $params['dir'];
-		$this->addTimestampWhereRange( 'rev_timestamp', $dir, $params['start'], $params['end'] );
-
-		if ( $this->fld_tags ) {
-			$this->addTables( 'tag_summary' );
-			$this->addJoinConds(
-				[ 'tag_summary' => [ 'LEFT JOIN', [ 'rev_id=ts_rev_id' ] ] ]
+		// If we're going to be using actor_timestamp, we need to swap the order of `revision`
+		// and `revision_actor_temp` in the query (for the straight join) and adjust some field aliases.
+		if ( $idField !== 'rev_id' && isset( $revQuery['tables']['temp_rev_user'] ) ) {
+			$aliasFields = [ 'rev_id' => $idField, 'rev_timestamp' => $tsField, 'rev_page' => $pageField ];
+			$revQuery['fields'] = array_merge(
+				$aliasFields,
+				array_diff( $revQuery['fields'], array_keys( $aliasFields ) )
 			);
-			$this->addFields( 'ts_tags' );
+			unset( $revQuery['tables']['temp_rev_user'] );
+			$revQuery['tables'] = array_merge(
+				[ 'temp_rev_user' => 'revision_actor_temp' ],
+				$revQuery['tables']
+			);
+			$revQuery['joins']['revision'] = $revQuery['joins']['temp_rev_user'];
+			unset( $revQuery['joins']['temp_rev_user'] );
 		}
 
-		if ( $this->fetchContent ) {
-			$this->addTables( 'text' );
-			$this->addJoinConds(
-				[ 'text' => [ 'INNER JOIN', [ 'rev_text_id=old_id' ] ] ]
-			);
-			$this->addFields( 'old_id' );
-			$this->addFields( Revision::selectTextFields() );
+		$this->addTables( $revQuery['tables'] );
+		$this->addFields( $revQuery['fields'] );
+		$this->addJoinConds( $revQuery['joins'] );
+
+		// Seems to be needed to avoid a planner bug (T113901)
+		$this->addOption( 'STRAIGHT_JOIN' );
+
+		$dir = $params['dir'];
+		$this->addTimestampWhereRange( $tsField, $dir, $params['start'], $params['end'] );
+
+		if ( $this->fld_tags ) {
+			$this->addFields( [ 'ts_tags' => ChangeTags::makeTagSummarySubquery( 'revision' ) ] );
 		}
 
 		if ( $params['user'] !== null ) {
-			$id = User::idFromName( $params['user'] );
-			if ( $id ) {
-				$this->addWhereFld( 'rev_user', $id );
-			} else {
-				$this->addWhereFld( 'rev_user_text', $params['user'] );
-			}
+			$actorQuery = ActorMigration::newMigration()
+				->getWhere( $db, 'rev_user', User::newFromName( $params['user'], false ) );
+			$this->addWhere( $actorQuery['conds'] );
 		} elseif ( $params['excludeuser'] !== null ) {
-			$id = User::idFromName( $params['excludeuser'] );
-			if ( $id ) {
-				$this->addWhere( 'rev_user != ' . $id );
-			} else {
-				$this->addWhere( 'rev_user_text != ' . $db->addQuotes( $params['excludeuser'] ) );
-			}
+			$actorQuery = ActorMigration::newMigration()
+				->getWhere( $db, 'rev_user', User::newFromName( $params['excludeuser'], false ) );
+			$this->addWhere( 'NOT(' . $actorQuery['conds'] . ')' );
 		}
 
 		if ( $params['user'] !== null || $params['excludeuser'] !== null ) {
 			// Paranoia: avoid brute force searches (T19342)
 			if ( !$this->getUser()->isAllowed( 'deletedhistory' ) ) {
-				$bitmask = Revision::DELETED_USER;
+				$bitmask = RevisionRecord::DELETED_USER;
 			} elseif ( !$this->getUser()->isAllowedAny( 'suppressrevision', 'viewsuppressed' ) ) {
-				$bitmask = Revision::DELETED_USER | Revision::DELETED_RESTRICTED;
+				$bitmask = RevisionRecord::DELETED_USER | RevisionRecord::DELETED_RESTRICTED;
 			} else {
 				$bitmask = 0;
 			}
@@ -151,17 +174,17 @@ class ApiQueryAllRevisions extends ApiQueryRevisionsBase {
 			$ts = $db->addQuotes( $db->timestamp( $cont[0] ) );
 			$rev_id = (int)$cont[1];
 			$this->dieContinueUsageIf( strval( $rev_id ) !== $cont[1] );
-			$this->addWhere( "rev_timestamp $op $ts OR " .
-				"(rev_timestamp = $ts AND " .
-				"rev_id $op= $rev_id)" );
+			$this->addWhere( "$tsField $op $ts OR " .
+				"($tsField = $ts AND " .
+				"$idField $op= $rev_id)" );
 		}
 
 		$this->addOption( 'LIMIT', $this->limit + 1 );
 
 		$sort = ( $dir == 'newer' ? '' : ' DESC' );
 		$orderby = [];
-		// Targeting index rev_timestamp, user_timestamp, or usertext_timestamp
-		// But 'user' is always constant for the latter two, so it doesn't matter here.
+		// Targeting index rev_timestamp, user_timestamp, usertext_timestamp, or actor_timestamp.
+		// But 'user' is always constant for the latter three, so it doesn't matter here.
 		$orderby[] = "rev_timestamp $sort";
 		$orderby[] = "rev_id $sort";
 		$this->addOption( 'ORDER BY', $orderby );
@@ -198,13 +221,13 @@ class ApiQueryAllRevisions extends ApiQueryRevisionsBase {
 					$generated[] = $row->rev_id;
 				}
 			} else {
-				$revision = Revision::newFromRow( $row );
+				$revision = $revisionStore->newRevisionFromRow( $row );
 				$rev = $this->extractRevisionInfo( $revision, $row );
 
 				if ( !isset( $pageMap[$row->rev_page] ) ) {
 					$index = $nextIndex++;
 					$pageMap[$row->rev_page] = $index;
-					$title = $revision->getTitle();
+					$title = Title::newFromLinkTarget( $revision->getPageAsLinkTarget() );
 					$a = [
 						'pageid' => $title->getArticleID(),
 						'revisions' => [ $rev ],

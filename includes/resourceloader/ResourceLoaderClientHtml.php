@@ -18,10 +18,11 @@
  * @file
  */
 
-use WrappedString\WrappedStringList;
+use Wikimedia\WrappedString;
+use Wikimedia\WrappedStringList;
 
 /**
- * Bootstrap a ResourceLoader client on an HTML page.
+ * Load and configure a ResourceLoader client on an HTML page.
  *
  * @since 1.28
  */
@@ -33,8 +34,8 @@ class ResourceLoaderClientHtml {
 	/** @var ResourceLoader */
 	private $resourceLoader;
 
-	/** @var string|null */
-	private $target;
+	/** @var array */
+	private $options;
 
 	/** @var array */
 	private $config = [];
@@ -46,9 +47,6 @@ class ResourceLoaderClientHtml {
 	private $moduleStyles = [];
 
 	/** @var array */
-	private $moduleScripts = [];
-
-	/** @var array */
 	private $exemptStates = [];
 
 	/** @var array */
@@ -56,12 +54,19 @@ class ResourceLoaderClientHtml {
 
 	/**
 	 * @param ResourceLoaderContext $context
-	 * @param string|null $target [optional] Custom 'target' parameter for the startup module
+	 * @param array $options [optional] Array of options
+	 *  - 'target': Parameter for modules=startup request, see ResourceLoaderStartUpModule.
+	 *  - 'safemode': Parameter for modules=startup request, see ResourceLoaderStartUpModule.
+	 *  - 'nonce': From OutputPage::getCSPNonce().
 	 */
-	public function __construct( ResourceLoaderContext $context, $target = null ) {
+	public function __construct( ResourceLoaderContext $context, array $options = [] ) {
 		$this->context = $context;
 		$this->resourceLoader = $context->getResourceLoader();
-		$this->target = $target;
+		$this->options = $options + [
+			'target' => null,
+			'safemode' => null,
+			'nonce' => null,
+		];
 	}
 
 	/**
@@ -87,7 +92,6 @@ class ResourceLoaderClientHtml {
 	/**
 	 * Ensure the styles of one or more modules are loaded.
 	 *
-	 * @deprecated since 1.28
 	 * @param array $modules Array of module names
 	 */
 	public function setModuleStyles( array $modules ) {
@@ -95,21 +99,11 @@ class ResourceLoaderClientHtml {
 	}
 
 	/**
-	 * Ensure the scripts of one or more modules are loaded.
-	 *
-	 * @deprecated since 1.28
-	 * @param array $modules Array of module names
-	 */
-	public function setModuleScripts( array $modules ) {
-		$this->moduleScripts = $modules;
-	}
-
-	/**
 	 * Set state of special modules that are handled by the caller manually.
 	 *
 	 * See OutputPage::buildExemptModules() for use cases.
 	 *
-	 * @param array $modules Module state keyed by module name
+	 * @param array $states Module state keyed by module name
 	 */
 	public function setExemptStates( array $states ) {
 		$this->exemptStates = $states;
@@ -131,16 +125,14 @@ class ResourceLoaderClientHtml {
 				// moduleName => state
 			],
 			'general' => [],
-			'styles' => [
-				// moduleName
-			],
-			'scripts' => [],
+			'styles' => [],
 			// Embedding for private modules
 			'embed' => [
 				'styles' => [],
 				'general' => [],
 			],
-
+			// Deprecations for style-only modules
+			'styleDeprecations' => [],
 		];
 
 		foreach ( $this->modules as $name ) {
@@ -150,9 +142,21 @@ class ResourceLoaderClientHtml {
 			}
 
 			$group = $module->getGroup();
+			$context = $this->getContext( $group, ResourceLoaderModule::TYPE_COMBINED );
+			if ( $module->isKnownEmpty( $context ) ) {
+				// Avoid needless request or embed for empty module
+				$data['states'][$name] = 'ready';
+				continue;
+			}
 
-			if ( $group === 'private' ) {
-				// Embed via mw.loader.implement per T36907.
+			if ( $group === 'user' || $module->shouldEmbedModule( $this->context ) ) {
+				// Call makeLoad() to decide how to load these, instead of
+				// loading via mw.loader.load().
+				// - For group=user: We need to provide a pre-generated load.php
+				//   url to the client that has the 'user' and 'version' parameters
+				//   filled in. Without this, the client would wrongly use the static
+				//   version hash, per T64602.
+				// - For shouldEmbed=true:  Embed via mw.loader.implement, per T36907.
 				$data['embed']['general'][] = $name;
 				// Avoid duplicate request from mw.loader
 				$data['states'][$name] = 'loading';
@@ -170,50 +174,32 @@ class ResourceLoaderClientHtml {
 
 			if ( $module->getType() !== ResourceLoaderModule::LOAD_STYLES ) {
 				$logger = $rl->getLogger();
-				$logger->warning( 'Unexpected general module "{module}" in styles queue.', [
+				$logger->error( 'Unexpected general module "{module}" in styles queue.', [
 					'module' => $name,
 				] );
-			} else {
-				// Stylesheet doesn't trigger mw.loader callback.
-				// Set "ready" state to allow dependencies and avoid duplicate requests. (T87871)
-				$data['states'][$name] = 'ready';
+				continue;
 			}
+
+			// Stylesheet doesn't trigger mw.loader callback.
+			// Set "ready" state to allow script modules to depend on this module  (T87871).
+			// And to avoid duplicate requests at run-time from mw.loader.
+			$data['states'][$name] = 'ready';
 
 			$group = $module->getGroup();
 			$context = $this->getContext( $group, ResourceLoaderModule::TYPE_STYLES );
-			if ( $module->isKnownEmpty( $context ) ) {
-				// Avoid needless request for empty module
-				$data['states'][$name] = 'ready';
-			} else {
-				if ( $group === 'private' ) {
+			// Avoid needless request for empty module
+			if ( !$module->isKnownEmpty( $context ) ) {
+				if ( $module->shouldEmbedModule( $this->context ) ) {
 					// Embed via style element
 					$data['embed']['styles'][] = $name;
-					// Avoid duplicate request from mw.loader
-					$data['states'][$name] = 'ready';
 				} else {
 					// Load from load.php?only=styles via <link rel=stylesheet>
 					$data['styles'][] = $name;
 				}
 			}
-		}
-
-		foreach ( $this->moduleScripts as $name ) {
-			$module = $rl->getModule( $name );
-			if ( !$module ) {
-				continue;
-			}
-
-			$group = $module->getGroup();
-			$context = $this->getContext( $group, ResourceLoaderModule::TYPE_SCRIPTS );
-			if ( $module->isKnownEmpty( $context ) ) {
-				// Avoid needless request for empty module
-				$data['states'][$name] = 'ready';
-			} else {
-				// Load from load.php?only=scripts via <script src></script>
-				$data['scripts'][] = $name;
-
-				// Avoid duplicate request from mw.loader
-				$data['states'][$name] = 'loading';
+			$deprecation = $module->getDeprecationInformation();
+			if ( $deprecation ) {
+				$data['styleDeprecations'][] = $deprecation;
 			}
 		}
 
@@ -242,6 +228,7 @@ class ResourceLoaderClientHtml {
 	 * @return string|WrappedStringList HTML
 	 */
 	public function getHeadHtml() {
+		$nonce = $this->options['nonce'];
 		$data = $this->getData();
 		$chunks = [];
 
@@ -250,13 +237,15 @@ class ResourceLoaderClientHtml {
 		// See also #getDocumentAttributes() and /resources/src/startup.js.
 		$chunks[] = Html::inlineScript(
 			'document.documentElement.className = document.documentElement.className'
-			. '.replace( /(^|\s)client-nojs(\s|$)/, "$1client-js$2" );'
+			. '.replace( /(^|\s)client-nojs(\s|$)/, "$1client-js$2" );',
+			$nonce
 		);
 
 		// Inline RLQ: Set page variables
 		if ( $this->config ) {
 			$chunks[] = ResourceLoader::makeInlineScript(
-				ResourceLoader::makeConfigSetScript( $this->config )
+				ResourceLoader::makeConfigSetScript( $this->config ),
+				$nonce
 			);
 		}
 
@@ -264,7 +253,8 @@ class ResourceLoaderClientHtml {
 		$states = array_merge( $this->exemptStates, $data['states'] );
 		if ( $states ) {
 			$chunks[] = ResourceLoader::makeInlineScript(
-				ResourceLoader::makeLoaderStateScript( $states )
+				ResourceLoader::makeLoaderStateScript( $states ),
+				$nonce
 			);
 		}
 
@@ -272,30 +262,28 @@ class ResourceLoaderClientHtml {
 		if ( $data['embed']['general'] ) {
 			$chunks[] = $this->getLoad(
 				$data['embed']['general'],
-				ResourceLoaderModule::TYPE_COMBINED
+				ResourceLoaderModule::TYPE_COMBINED,
+				$nonce
 			);
 		}
 
 		// Inline RLQ: Load general modules
 		if ( $data['general'] ) {
 			$chunks[] = ResourceLoader::makeInlineScript(
-				Xml::encodeJsCall( 'mw.loader.load', [ $data['general'] ] )
+				'RLPAGEMODULES='
+					. ResourceLoader::encodeJsonForScript( $data['general'] )
+					. ';'
+					. 'mw.loader.load(RLPAGEMODULES);',
+				$nonce
 			);
 		}
 
-		// Inline RLQ: Load only=scripts
-		if ( $data['scripts'] ) {
-			$chunks[] = $this->getLoad(
-				$data['scripts'],
-				ResourceLoaderModule::TYPE_SCRIPTS
-			);
-		}
-
-		// External stylesheets
+		// External stylesheets (only=styles)
 		if ( $data['styles'] ) {
 			$chunks[] = $this->getLoad(
 				$data['styles'],
-				ResourceLoaderModule::TYPE_STYLES
+				ResourceLoaderModule::TYPE_STYLES,
+				$nonce
 			);
 		}
 
@@ -303,35 +291,53 @@ class ResourceLoaderClientHtml {
 		if ( $data['embed']['styles'] ) {
 			$chunks[] = $this->getLoad(
 				$data['embed']['styles'],
-				ResourceLoaderModule::TYPE_STYLES
+				ResourceLoaderModule::TYPE_STYLES,
+				$nonce
 			);
 		}
 
 		// Async scripts. Once the startup is loaded, inline RLQ scripts will run.
-		// Pass-through a custom target from OutputPage (T143066).
-		$startupQuery = $this->target ? [ 'target' => $this->target ] : [];
+		// Pass-through a custom 'target' from OutputPage (T143066).
+		$startupQuery = [];
+		foreach ( [ 'target', 'safemode' ] as $param ) {
+			if ( $this->options[$param] !== null ) {
+				$startupQuery[$param] = (string)$this->options[$param];
+			}
+		}
 		$chunks[] = $this->getLoad(
 			'startup',
 			ResourceLoaderModule::TYPE_SCRIPTS,
+			$nonce,
 			$startupQuery
 		);
 
-		return WrappedStringList::join( "\n", $chunks );
+		return WrappedString::join( "\n", $chunks );
 	}
 
 	/**
 	 * @return string|WrappedStringList HTML
 	 */
 	public function getBodyHtml() {
-		return '';
+		$data = $this->getData();
+		$chunks = [];
+
+		// Deprecations for only=styles modules
+		if ( $data['styleDeprecations'] ) {
+			$chunks[] = ResourceLoader::makeInlineScript(
+				implode( '', $data['styleDeprecations'] ),
+				$this->options['nonce']
+			);
+		}
+
+		return WrappedString::join( "\n", $chunks );
 	}
 
 	private function getContext( $group, $type ) {
 		return self::makeContext( $this->context, $group, $type );
 	}
 
-	private function getLoad( $modules, $only, array $extraQuery = [] ) {
-		return self::makeLoad( $this->context, (array)$modules, $only, $extraQuery );
+	private function getLoad( $modules, $only, $nonce, array $extraQuery = [] ) {
+		return self::makeLoad( $this->context, (array)$modules, $only, $extraQuery, $nonce );
 	}
 
 	private static function makeContext( ResourceLoaderContext $mainContext, $group, $type,
@@ -347,7 +353,9 @@ class ResourceLoaderClientHtml {
 		}
 		$context = new ResourceLoaderContext( $mainContext->getResourceLoader(), $req );
 		// Allow caller to setVersion() and setModules()
-		return new DerivativeResourceLoaderContext( $context );
+		$ret = new DerivativeResourceLoaderContext( $context );
+		$ret->setContentOverrideCallback( $mainContext->getContentOverrideCallback() );
+		return $ret;
 	}
 
 	/**
@@ -357,10 +365,12 @@ class ResourceLoaderClientHtml {
 	 * @param array $modules One or more module names
 	 * @param string $only ResourceLoaderModule TYPE_ class constant
 	 * @param array $extraQuery [optional] Array with extra query parameters for the request
+	 * @param string|null $nonce [optional] Content-Security-Policy nonce
+	 *  (from OutputPage::getCSPNonce)
 	 * @return string|WrappedStringList HTML
 	 */
 	public static function makeLoad( ResourceLoaderContext $mainContext, array $modules, $only,
-		array $extraQuery = []
+		array $extraQuery = [], $nonce = null
 	) {
 		$rl = $mainContext->getResourceLoader();
 		$chunks = [];
@@ -369,11 +379,10 @@ class ResourceLoaderClientHtml {
 		sort( $modules );
 
 		if ( $mainContext->getDebug() && count( $modules ) > 1 ) {
-
 			$chunks = [];
 			// Recursively call us for every item
 			foreach ( $modules as $name ) {
-				$chunks[] = self::makeLoad( $mainContext, [ $name ], $only, $extraQuery );
+				$chunks[] = self::makeLoad( $mainContext, [ $name ], $only, $extraQuery, $nonce );
 			}
 			return new WrappedStringList( "\n", $chunks );
 		}
@@ -392,61 +401,74 @@ class ResourceLoaderClientHtml {
 		foreach ( $sortedModules as $source => $groups ) {
 			foreach ( $groups as $group => $grpModules ) {
 				$context = self::makeContext( $mainContext, $group, $only, $extraQuery );
-				$context->setModules( array_keys( $grpModules ) );
 
-				if ( $group === 'private' ) {
-					// Decide whether to use style or script element
-					if ( $only == ResourceLoaderModule::TYPE_STYLES ) {
-						$chunks[] = Html::inlineStyle(
-							$rl->makeModuleResponse( $context, $grpModules )
-						);
-					} else {
-						$chunks[] = ResourceLoader::makeInlineScript(
-							$rl->makeModuleResponse( $context, $grpModules )
-						);
+				// Separate sets of linked and embedded modules while preserving order
+				$moduleSets = [];
+				$idx = -1;
+				foreach ( $grpModules as $name => $module ) {
+					$shouldEmbed = $module->shouldEmbedModule( $context );
+					if ( !$moduleSets || $moduleSets[$idx][0] !== $shouldEmbed ) {
+						$moduleSets[++$idx] = [ $shouldEmbed, [] ];
 					}
-					continue;
+					$moduleSets[$idx][1][$name] = $module;
 				}
 
-				// See if we have one or more raw modules
-				$isRaw = false;
-				foreach ( $grpModules as $key => $module ) {
-					$isRaw |= $module->isRaw();
-				}
-
-				// Special handling for the user group; because users might change their stuff
-				// on-wiki like user pages, or user preferences; we need to find the highest
-				// timestamp of these user-changeable modules so we can ensure cache misses on change
-				// This should NOT be done for the site group (T29564) because anons get that too
-				// and we shouldn't be putting timestamps in CDN-cached HTML
-				if ( $group === 'user' ) {
-					// Must setModules() before makeVersionQuery()
-					$context->setVersion( $rl->makeVersionQuery( $context ) );
-				}
-
-				$url = $rl->createLoaderURL( $source, $context, $extraQuery );
-
-				// Decide whether to use 'style' or 'script' element
-				if ( $only === ResourceLoaderModule::TYPE_STYLES ) {
-					$chunk = Html::linkedStyle( $url );
-				} else {
-					if ( $context->getRaw() || $isRaw ) {
-						$chunk = Html::element( 'script', [
-							// In SpecialJavaScriptTest, QUnit must load synchronous
-							'async' => !isset( $extraQuery['sync'] ),
-							'src' => $url
-						] );
+				// Link/embed each set
+				foreach ( $moduleSets as list( $embed, $moduleSet ) ) {
+					$context->setModules( array_keys( $moduleSet ) );
+					if ( $embed ) {
+						// Decide whether to use style or script element
+						if ( $only == ResourceLoaderModule::TYPE_STYLES ) {
+							$chunks[] = Html::inlineStyle(
+								$rl->makeModuleResponse( $context, $moduleSet )
+							);
+						} else {
+							$chunks[] = ResourceLoader::makeInlineScript(
+								$rl->makeModuleResponse( $context, $moduleSet ),
+								$nonce
+							);
+						}
 					} else {
-						$chunk = ResourceLoader::makeInlineScript(
-							Xml::encodeJsCall( 'mw.loader.load', [ $url ] )
-						);
-					}
-				}
+						// See if we have one or more raw modules
+						$isRaw = false;
+						foreach ( $moduleSet as $key => $module ) {
+							$isRaw |= $module->isRaw();
+						}
 
-				if ( $group == 'noscript' ) {
-					$chunks[] = Html::rawElement( 'noscript', [], $chunk );
-				} else {
-					$chunks[] = $chunk;
+						// Special handling for the user group; because users might change their stuff
+						// on-wiki like user pages, or user preferences; we need to find the highest
+						// timestamp of these user-changeable modules so we can ensure cache misses on change
+						// This should NOT be done for the site group (T29564) because anons get that too
+						// and we shouldn't be putting timestamps in CDN-cached HTML
+						if ( $group === 'user' ) {
+							// Must setModules() before makeVersionQuery()
+							$context->setVersion( $rl->makeVersionQuery( $context ) );
+						}
+
+						$url = $rl->createLoaderURL( $source, $context, $extraQuery );
+
+						// Decide whether to use 'style' or 'script' element
+						if ( $only === ResourceLoaderModule::TYPE_STYLES ) {
+							$chunk = Html::linkedStyle( $url );
+						} elseif ( $context->getRaw() || $isRaw ) {
+							$chunk = Html::element( 'script', [
+								// In SpecialJavaScriptTest, QUnit must load synchronous
+								'async' => !isset( $extraQuery['sync'] ),
+								'src' => $url
+							] );
+						} else {
+							$chunk = ResourceLoader::makeInlineScript(
+								Xml::encodeJsCall( 'mw.loader.load', [ $url ] ),
+								$nonce
+							);
+						}
+
+						if ( $group == 'noscript' ) {
+							$chunks[] = Html::rawElement( 'noscript', [], $chunk );
+						} else {
+							$chunks[] = $chunk;
+						}
+					}
 				}
 			}
 		}

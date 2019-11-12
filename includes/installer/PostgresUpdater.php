@@ -71,7 +71,6 @@ class PostgresUpdater extends DatabaseUpdater {
 			[ 'addSequence', 'externallinks', false, 'externallinks_el_id_seq' ],
 			[ 'addSequence', 'watchlist', false, 'watchlist_wl_id_seq' ],
 			[ 'addSequence', 'change_tag', false, 'change_tag_ct_id_seq' ],
-			[ 'addSequence', 'tag_summary', false, 'tag_summary_ts_id_seq' ],
 
 			# new tables
 			[ 'addTable', 'category', 'patch-category.sql' ],
@@ -84,8 +83,6 @@ class PostgresUpdater extends DatabaseUpdater {
 			[ 'addTable', 'redirect', 'patch-redirect.sql' ],
 			[ 'addTable', 'updatelog', 'patch-updatelog.sql' ],
 			[ 'addTable', 'change_tag', 'patch-change_tag.sql' ],
-			[ 'addTable', 'tag_summary', 'patch-tag_summary.sql' ],
-			[ 'addTable', 'valid_tag', 'patch-valid_tag.sql' ],
 			[ 'addTable', 'user_properties', 'patch-user_properties.sql' ],
 			[ 'addTable', 'log_search', 'patch-log_search.sql' ],
 			[ 'addTable', 'l10n_cache', 'patch-l10n_cache.sql' ],
@@ -294,7 +291,7 @@ class PostgresUpdater extends DatabaseUpdater {
 				[ 'log_timestamp', 'timestamptz_ops', 'btree', 0 ],
 			],
 			'CREATE INDEX "logging_times" ON "logging" USING "btree" ("log_timestamp")' ],
-			[ 'dropIndex', 'oldimage', 'oi_name' ],
+			[ 'dropPgIndex', 'oldimage', 'oi_name' ],
 			[ 'checkIndex', 'oi_name_archive_name', [
 				[ 'oi_name', 'text_ops', 'btree', 0 ],
 				[ 'oi_archive_name', 'text_ops', 'btree', 0 ],
@@ -353,7 +350,7 @@ class PostgresUpdater extends DatabaseUpdater {
 			[ 'checkOiNameConstraint' ],
 			[ 'checkPageDeletedTrigger' ],
 			[ 'checkRevUserFkey' ],
-			[ 'dropIndex', 'ipblocks', 'ipb_address' ],
+			[ 'dropPgIndex', 'ipblocks', 'ipb_address' ],
 			[ 'checkIndex', 'ipb_address_unique', [
 				[ 'ipb_address', 'text_ops', 'btree', 0 ],
 				[ 'ipb_user', 'int4_ops', 'btree', 0 ],
@@ -443,8 +440,6 @@ class PostgresUpdater extends DatabaseUpdater {
 				'( rc_namespace, rc_type, rc_patrolled, rc_timestamp )' ],
 			[ 'addPgField', 'change_tag', 'ct_id',
 				"INTEGER NOT NULL PRIMARY KEY DEFAULT nextval('change_tag_ct_id_seq')" ],
-			[ 'addPgField', 'tag_summary', 'ts_id',
-				"INTEGER NOT NULL PRIMARY KEY DEFAULT nextval('tag_summary_ts_id_seq')" ],
 
 			// 1.29
 			[ 'addPgField', 'externallinks', 'el_index_60', "BYTEA NOT NULL DEFAULT ''" ],
@@ -452,6 +447,183 @@ class PostgresUpdater extends DatabaseUpdater {
 			[ 'addPgIndex', 'externallinks', 'el_from_index_60', '( el_from, el_index_60, el_id )' ],
 			[ 'addPgField', 'user_groups', 'ug_expiry', "TIMESTAMPTZ NULL" ],
 			[ 'addPgIndex', 'user_groups', 'user_groups_expiry', '( ug_expiry )' ],
+
+			// 1.30
+			[ 'addPgEnumValue', 'media_type', '3D' ],
+			[ 'setDefault', 'revision', 'rev_comment', '' ],
+			[ 'changeNullableField', 'revision', 'rev_comment', 'NOT NULL', true ],
+			[ 'setDefault', 'archive', 'ar_comment', '' ],
+			[ 'changeNullableField', 'archive', 'ar_comment', 'NOT NULL', true ],
+			[ 'addPgField', 'archive', 'ar_comment_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'ipblocks', 'ipb_reason', '' ],
+			[ 'addPgField', 'ipblocks', 'ipb_reason_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'image', 'img_description', '' ],
+			[ 'setDefault', 'oldimage', 'oi_description', '' ],
+			[ 'changeNullableField', 'oldimage', 'oi_description', 'NOT NULL', true ],
+			[ 'addPgField', 'oldimage', 'oi_description_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'filearchive', 'fa_deleted_reason', '' ],
+			[ 'changeNullableField', 'filearchive', 'fa_deleted_reason', 'NOT NULL', true ],
+			[ 'addPgField', 'filearchive', 'fa_deleted_reason_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'filearchive', 'fa_description', '' ],
+			[ 'addPgField', 'filearchive', 'fa_description_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'recentchanges', 'rc_comment', '' ],
+			[ 'changeNullableField', 'recentchanges', 'rc_comment', 'NOT NULL', true ],
+			[ 'addPgField', 'recentchanges', 'rc_comment_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'logging', 'log_comment', '' ],
+			[ 'changeNullableField', 'logging', 'log_comment', 'NOT NULL', true ],
+			[ 'addPgField', 'logging', 'log_comment_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'protected_titles', 'pt_reason', '' ],
+			[ 'changeNullableField', 'protected_titles', 'pt_reason', 'NOT NULL', true ],
+			[ 'addPgField', 'protected_titles', 'pt_reason_id', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'addTable', 'comment', 'patch-comment-table.sql' ],
+			[ 'addTable', 'revision_comment_temp', 'patch-revision_comment_temp-table.sql' ],
+			// image_comment_temp is no longer needed when upgrading to MW 1.31 or newer,
+			// as it is dropped later in the update process as part of 'migrateImageCommentTemp'.
+			// File kept on disk and the updater entry here for historical purposes.
+			// [ 'addTable', 'image_comment_temp', 'patch-image_comment_temp-table.sql' ],
+
+			// This field was added in 1.31, but is put here so it can be used by 'migrateComments'
+			[ 'addPgField', 'image', 'img_description_id', 'INTEGER NOT NULL DEFAULT 0' ],
+
+			[ 'migrateComments' ],
+			[ 'addIndex', 'site_stats', 'site_stats_pkey', 'patch-site_stats-pk.sql' ],
+			[ 'addTable', 'ip_changes', 'patch-ip_changes.sql' ],
+
+			// 1.31
+			[ 'addTable', 'slots', 'patch-slots-table.sql' ],
+			[ 'dropPgIndex', 'slots', 'slot_role_inherited' ],
+			[ 'dropPgField', 'slots', 'slot_inherited' ],
+			[ 'addPgField', 'slots', 'slot_origin', 'INTEGER NOT NULL' ],
+			[
+				'addPgIndex',
+				'slots',
+				'slot_revision_origin_role',
+				'( slot_revision_id, slot_origin, slot_role_id )',
+			],
+			[ 'addTable', 'content', 'patch-content-table.sql' ],
+			[ 'addTable', 'content_models', 'patch-content_models-table.sql' ],
+			[ 'addTable', 'slot_roles', 'patch-slot_roles-table.sql' ],
+			[ 'migrateArchiveText' ],
+			[ 'addTable', 'actor', 'patch-actor-table.sql' ],
+			[ 'addTable', 'revision_actor_temp', 'patch-revision_actor_temp-table.sql' ],
+			[ 'setDefault', 'revision', 'rev_user', 0 ],
+			[ 'setDefault', 'revision', 'rev_user_text', '' ],
+			[ 'setDefault', 'archive', 'ar_user', 0 ],
+			[ 'changeNullableField', 'archive', 'ar_user', 'NOT NULL', true ],
+			[ 'setDefault', 'archive', 'ar_user_text', '' ],
+			[ 'addPgField', 'archive', 'ar_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'addPgIndex', 'archive', 'archive_actor', '( ar_actor )' ],
+			[ 'setDefault', 'ipblocks', 'ipb_by', 0 ],
+			[ 'addPgField', 'ipblocks', 'ipb_by_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'image', 'img_user', 0 ],
+			[ 'changeNullableField', 'image', 'img_user', 'NOT NULL', true ],
+			[ 'setDefault', 'image', 'img_user_text', '' ],
+			[ 'addPgField', 'image', 'img_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'oldimage', 'oi_user', 0 ],
+			[ 'changeNullableField', 'oldimage', 'oi_user', 'NOT NULL', true ],
+			[ 'setDefault', 'oldimage', 'oi_user_text', '' ],
+			[ 'addPgField', 'oldimage', 'oi_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'filearchive', 'fa_user', 0 ],
+			[ 'changeNullableField', 'filearchive', 'fa_user', 'NOT NULL', true ],
+			[ 'setDefault', 'filearchive', 'fa_user_text', '' ],
+			[ 'addPgField', 'filearchive', 'fa_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'recentchanges', 'rc_user', 0 ],
+			[ 'changeNullableField', 'recentchanges', 'rc_user', 'NOT NULL', true ],
+			[ 'setDefault', 'recentchanges', 'rc_user_text', '' ],
+			[ 'addPgField', 'recentchanges', 'rc_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'setDefault', 'logging', 'log_user', 0 ],
+			[ 'changeNullableField', 'logging', 'log_user', 'NOT NULL', true ],
+			[ 'addPgField', 'logging', 'log_actor', 'INTEGER NOT NULL DEFAULT 0' ],
+			[ 'addPgIndex', 'logging', 'logging_actor_time_backwards', '( log_timestamp, log_actor )' ],
+			[ 'addPgIndex', 'logging', 'logging_actor_type_time', '( log_actor, log_type, log_timestamp )' ],
+			[ 'addPgIndex', 'logging', 'logging_actor_time', '( log_actor, log_timestamp )' ],
+			[ 'migrateActors' ],
+			[ 'modifyTable', 'site_stats', 'patch-site_stats-modify.sql' ],
+			[ 'populateArchiveRevId' ],
+			[ 'dropPgIndex', 'recentchanges', 'rc_namespace_title' ],
+			[
+				'addPgIndex',
+				'recentchanges',
+				'rc_namespace_title_timestamp', '( rc_namespace, rc_title, rc_timestamp )'
+			],
+			[ 'setSequenceOwner', 'mwuser', 'user_id', 'user_user_id_seq' ],
+			[ 'setSequenceOwner', 'actor', 'actor_id', 'actor_actor_id_seq' ],
+			[ 'setSequenceOwner', 'page', 'page_id', 'page_page_id_seq' ],
+			[ 'setSequenceOwner', 'revision', 'rev_id', 'revision_rev_id_seq' ],
+			[ 'setSequenceOwner', 'ip_changes', 'ipc_rev_id', 'ip_changes_ipc_rev_id_seq' ],
+			[ 'setSequenceOwner', 'pagecontent', 'old_id', 'text_old_id_seq' ],
+			[ 'setSequenceOwner', 'comment', 'comment_id', 'comment_comment_id_seq' ],
+			[ 'setSequenceOwner', 'page_restrictions', 'pr_id', 'page_restrictions_pr_id_seq' ],
+			[ 'setSequenceOwner', 'archive', 'ar_id', 'archive_ar_id_seq' ],
+			[ 'setSequenceOwner', 'content', 'content_id', 'content_content_id_seq' ],
+			[ 'setSequenceOwner', 'slot_roles', 'role_id', 'slot_roles_role_id_seq' ],
+			[ 'setSequenceOwner', 'content_models', 'model_id', 'content_models_model_id_seq' ],
+			[ 'setSequenceOwner', 'externallinks', 'el_id', 'externallinks_el_id_seq' ],
+			[ 'setSequenceOwner', 'ipblocks', 'ipb_id', 'ipblocks_ipb_id_seq' ],
+			[ 'setSequenceOwner', 'filearchive', 'fa_id', 'filearchive_fa_id_seq' ],
+			[ 'setSequenceOwner', 'uploadstash', 'us_id', 'uploadstash_us_id_seq' ],
+			[ 'setSequenceOwner', 'recentchanges', 'rc_id', 'recentchanges_rc_id_seq' ],
+			[ 'setSequenceOwner', 'watchlist', 'wl_id', 'watchlist_wl_id_seq' ],
+			[ 'setSequenceOwner', 'logging', 'log_id', 'logging_log_id_seq' ],
+			[ 'setSequenceOwner', 'job', 'job_id', 'job_job_id_seq' ],
+			[ 'setSequenceOwner', 'category', 'cat_id', 'category_cat_id_seq' ],
+			[ 'setSequenceOwner', 'change_tag', 'ct_id', 'change_tag_ct_id_seq' ],
+			[ 'setSequenceOwner', 'sites', 'site_id', 'sites_site_id_seq' ],
+
+			// 1.32
+			[ 'addTable', 'change_tag_def', 'patch-change_tag_def.sql' ],
+			[ 'populateExternallinksIndex60' ],
+			[ 'dropDefault', 'externallinks', 'el_index_60' ],
+			[ 'runMaintenance', DeduplicateArchiveRevId::class, 'maintenance/deduplicateArchiveRevId.php' ],
+			[ 'addPgField', 'change_tag', 'ct_tag_id', 'INTEGER NULL' ],
+			[
+				'addPgIndex',
+				'change_tag',
+				'change_tag_tag_id_id',
+				'( ct_tag_id, ct_rc_id, ct_rev_id, ct_log_id )'
+			],
+			[ 'addPgIndex', 'archive', 'ar_revid_uniq', '(ar_rev_id)', 'unique' ],
+			[ 'dropPgIndex', 'archive', 'ar_revid' ], // Probably doesn't exist, but do it anyway.
+			[ 'populateContentTables' ],
+			[ 'addPgIndex', 'logging', 'log_type_action', '( log_type, log_action, log_timestamp )' ],
+			[ 'dropPgIndex', 'page_props', 'page_props_propname' ],
+			[ 'addIndex', 'interwiki', 'interwiki_pkey', 'patch-interwiki-pk.sql' ],
+			[ 'addIndex', 'protected_titles', 'protected_titles_pkey', 'patch-protected_titles-pk.sql' ],
+			[ 'addIndex', 'site_identifiers', 'site_identifiers_pkey', 'patch-site_identifiers-pk.sql' ],
+			[ 'addPgIndex', 'recentchanges', 'rc_this_oldid', '(rc_this_oldid)' ],
+			[ 'dropTable', 'transcache' ],
+			[ 'runMaintenance', PopulateChangeTagDef::class, 'maintenance/populateChangeTagDef.php' ],
+			[ 'addIndex', 'change_tag', 'change_tag_rc_tag_id',
+				'patch-change_tag-change_tag_rc_tag_id.sql' ],
+			[ 'addPgField', 'ipblocks', 'ipb_sitewide', 'SMALLINT NOT NULL DEFAULT 1' ],
+			[ 'addTable', 'ipblocks_restrictions', 'patch-ipblocks_restrictions-table.sql' ],
+			[ 'migrateImageCommentTemp' ],
+			[ 'dropPgField', 'category', 'cat_hidden' ],
+			[ 'dropPgField', 'site_stats', 'ss_admins' ],
+			[ 'dropPgField', 'recentchanges', 'rc_cur_time' ],
+
+			// 1.33
+			[ 'dropField', 'change_tag', 'ct_tag', 'patch-drop-ct_tag.sql' ],
+			[ 'dropTable', 'valid_tag' ],
+			[ 'dropTable', 'tag_summary' ],
+			[ 'dropPgField', 'archive', 'ar_comment' ],
+			[ 'dropDefault', 'archive', 'ar_comment_id' ],
+			[ 'dropPgField', 'ipblocks', 'ipb_reason' ],
+			[ 'dropDefault', 'ipblocks', 'ipb_reason_id' ],
+			[ 'dropPgField', 'image', 'img_description' ],
+			[ 'dropDefault', 'image', 'img_description_id' ],
+			[ 'dropPgField', 'oldimage', 'oi_description' ],
+			[ 'dropDefault', 'oldimage', 'oi_description_id' ],
+			[ 'dropPgField', 'filearchive', 'fa_deleted_reason' ],
+			[ 'dropDefault', 'filearchive', 'fa_deleted_reason_id' ],
+			[ 'dropPgField', 'filearchive', 'fa_description' ],
+			[ 'dropDefault', 'filearchive', 'fa_description_id' ],
+			[ 'dropPgField', 'recentchanges', 'rc_comment' ],
+			[ 'dropDefault', 'recentchanges', 'rc_comment_id' ],
+			[ 'dropPgField', 'logging', 'log_comment' ],
+			[ 'dropDefault', 'logging', 'log_comment_id' ],
+			[ 'dropPgField', 'protected_titles', 'pt_reason' ],
+			[ 'dropDefault', 'protected_titles', 'pt_reason_id' ],
 		];
 	}
 
@@ -619,10 +791,19 @@ END;
 	protected function addSequence( $table, $pkey, $ns ) {
 		if ( !$this->db->sequenceExists( $ns ) ) {
 			$this->output( "Creating sequence $ns\n" );
-			$this->db->query( "CREATE SEQUENCE $ns" );
 			if ( $pkey !== false ) {
+				$this->db->query( "CREATE SEQUENCE $ns OWNED BY $table.$pkey" );
 				$this->setDefault( $table, $pkey, '"nextval"(\'"' . $ns . '"\'::"regclass")' );
+			} else {
+				$this->db->query( "CREATE SEQUENCE $ns" );
 			}
+		}
+	}
+
+	protected function dropSequence( $table, $ns ) {
+		if ( $this->db->sequenceExists( $ns ) ) {
+			$this->output( "Dropping sequence $ns\n" );
+			$this->db->query( "DROP SEQUENCE $ns CASCADE" );
 		}
 	}
 
@@ -635,6 +816,13 @@ END;
 		if ( $this->db->sequenceExists( $old ) ) {
 			$this->output( "Renaming sequence $old to $new\n" );
 			$this->db->query( "ALTER SEQUENCE $old RENAME TO $new" );
+		}
+	}
+
+	protected function setSequenceOwner( $table, $pkey, $seq ) {
+		if ( $this->db->sequenceExists( $seq ) ) {
+			$this->output( "Setting sequence $seq owner to $table.$pkey\n" );
+			$this->db->query( "ALTER SEQUENCE $seq OWNED BY $table.$pkey" );
 		}
 	}
 
@@ -657,7 +845,7 @@ END;
 		if ( !$this->db->tableExists( $table, __METHOD__ ) ) {
 			$this->output( "...skipping: '$table' table doesn't exist yet.\n" );
 
-			return;
+			return true;
 		}
 
 		// Second requirement: the new index must be missing
@@ -671,17 +859,30 @@ END;
 					"            $old should be manually removed if not needed anymore.\n" );
 			}
 
-			return;
+			return true;
 		}
 
 		// Third requirement: the old index must exist
 		if ( !$this->db->indexExists( $table, $old, __METHOD__ ) ) {
 			$this->output( "...skipping: index $old doesn't exist.\n" );
 
-			return;
+			return true;
 		}
 
 		$this->db->query( "ALTER INDEX $old RENAME TO $new" );
+		return true;
+	}
+
+	protected function dropPgField( $table, $field ) {
+		$fi = $this->db->fieldInfo( $table, $field );
+		if ( is_null( $fi ) ) {
+			$this->output( "...$table table does not contain $field field.\n" );
+
+			return;
+		} else {
+			$this->output( "Dropping column '$table.$field'\n" );
+			$this->db->query( "ALTER TABLE $table DROP COLUMN $field" );
+		}
 	}
 
 	protected function addPgField( $table, $field, $type ) {
@@ -751,32 +952,47 @@ END;
 	}
 
 	protected function setDefault( $table, $field, $default ) {
-
 		$info = $this->db->fieldInfo( $table, $field );
-		if ( $info->defaultValue() !== $default ) {
+		if ( $info && $info->defaultValue() !== $default ) {
 			$this->output( "Changing '$table.$field' default value\n" );
 			$this->db->query( "ALTER TABLE $table ALTER $field SET DEFAULT "
 				. $this->db->addQuotes( $default ) );
 		}
 	}
 
-	protected function changeNullableField( $table, $field, $null ) {
+	/**
+	 * Drop a default value from a field
+	 * @since 1.32
+	 * @param string $table
+	 * @param string $field
+	 */
+	protected function dropDefault( $table, $field ) {
+		$info = $this->db->fieldInfo( $table, $field );
+		if ( $info->defaultValue() !== false ) {
+			$this->output( "Removing '$table.$field' default value\n" );
+			$this->db->query( "ALTER TABLE $table ALTER $field DROP DEFAULT" );
+		}
+	}
+
+	protected function changeNullableField( $table, $field, $null, $update = false ) {
 		$fi = $this->db->fieldInfo( $table, $field );
 		if ( is_null( $fi ) ) {
-			$this->output( "...ERROR: expected column $table.$field to exist\n" );
-			exit( 1 );
+			return;
 		}
 		if ( $fi->isNullable() ) {
 			# # It's NULL - does it need to be NOT NULL?
-			if ( 'NOT NULL' === $null ) {
+			if ( $null === 'NOT NULL' ) {
 				$this->output( "Changing '$table.$field' to not allow NULLs\n" );
+				if ( $update ) {
+					$this->db->query( "UPDATE $table SET $field = DEFAULT WHERE $field IS NULL" );
+				}
 				$this->db->query( "ALTER TABLE $table ALTER $field SET NOT NULL" );
 			} else {
 				$this->output( "...column '$table.$field' is already set as NULL\n" );
 			}
 		} else {
 			# # It's NOT NULL - does it need to be NULL?
-			if ( 'NULL' === $null ) {
+			if ( $null === 'NULL' ) {
 				$this->output( "Changing '$table.$field' to allow NULLs\n" );
 				$this->db->query( "ALTER TABLE $table ALTER $field DROP NOT NULL" );
 			} else {
@@ -785,25 +1001,64 @@ END;
 		}
 	}
 
-	public function addPgIndex( $table, $index, $type ) {
+	public function addPgIndex( $table, $index, $type, $unique = false ) {
 		if ( $this->db->indexExists( $table, $index ) ) {
 			$this->output( "...index '$index' on table '$table' already exists\n" );
 		} else {
 			$this->output( "Creating index '$index' on table '$table' $type\n" );
-			$this->db->query( "CREATE INDEX $index ON $table $type" );
+			$unique = $unique ? 'UNIQUE' : '';
+			$this->db->query( "CREATE $unique INDEX $index ON $table $type" );
 		}
 	}
 
 	public function addPgExtIndex( $table, $index, $type ) {
 		if ( $this->db->indexExists( $table, $index ) ) {
 			$this->output( "...index '$index' on table '$table' already exists\n" );
+		} elseif ( preg_match( '/^\(/', $type ) ) {
+			$this->output( "Creating index '$index' on table '$table'\n" );
+			$this->db->query( "CREATE INDEX $index ON $table $type" );
 		} else {
-			if ( preg_match( '/^\(/', $type ) ) {
-				$this->output( "Creating index '$index' on table '$table'\n" );
-				$this->db->query( "CREATE INDEX $index ON $table $type" );
-			} else {
-				$this->applyPatch( $type, true, "Creating index '$index' on table '$table'" );
-			}
+			$this->applyPatch( $type, true, "Creating index '$index' on table '$table'" );
+		}
+	}
+
+	/**
+	 * Add a value to an existing PostgreSQL enum type
+	 * @since 1.31
+	 * @param string $type Type name. Must be in the core schema.
+	 * @param string $value Value to add.
+	 */
+	public function addPgEnumValue( $type, $value ) {
+		$row = $this->db->selectRow(
+			[
+				't' => 'pg_catalog.pg_type',
+				'n' => 'pg_catalog.pg_namespace',
+				'e' => 'pg_catalog.pg_enum',
+			],
+			[ 't.typname', 't.typtype', 'e.enumlabel' ],
+			[
+				't.typname' => $type,
+				'n.nspname' => $this->db->getCoreSchema(),
+			],
+			__METHOD__,
+			[],
+			[
+				'n' => [ 'JOIN', 't.typnamespace = n.oid' ],
+				'e' => [ 'LEFT JOIN', [ 'e.enumtypid = t.oid', 'e.enumlabel' => $value ] ],
+			]
+		);
+
+		if ( !$row ) {
+			$this->output( "...Type $type does not exist, skipping modify enum.\n" );
+		} elseif ( $row->typtype !== 'e' ) {
+			$this->output( "...Type $type does not seem to be an enum, skipping modify enum.\n" );
+		} elseif ( $row->enumlabel === $value ) {
+			$this->output( "...Enum type $type already contains value '$value'.\n" );
+		} else {
+			$this->output( "...Adding value '$value' to enum type $type.\n" );
+			$etype = $this->db->addIdentifierQuotes( $type );
+			$evalue = $this->db->addQuotes( $value );
+			$this->db->query( "ALTER TYPE $etype ADD VALUE $evalue" );
 		}
 	}
 
@@ -918,7 +1173,7 @@ END;
 		}
 	}
 
-	protected function dropIndex( $table, $index, $patch = '', $fullpath = false ) {
+	protected function dropPgIndex( $table, $index ) {
 		if ( $this->db->indexExists( $table, $index ) ) {
 			$this->output( "Dropping obsolete index '$index'\n" );
 			$this->db->query( "DROP INDEX \"" . $index . "\"" );

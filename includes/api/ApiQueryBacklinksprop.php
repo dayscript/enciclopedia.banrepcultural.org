@@ -2,9 +2,7 @@
 /**
  * API module to handle links table back-queries
  *
- * Created on Aug 19, 2014
- *
- * Copyright © 2014 Brad Jorsch <bjorsch@wikimedia.org>
+ * Copyright © 2014 Wikimedia Foundation and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -90,7 +88,7 @@ class ApiQueryBacklinksprop extends ApiQueryGeneratorBase {
 	}
 
 	/**
-	 * @param ApiPageSet $resultPageSet
+	 * @param ApiPageSet|null $resultPageSet
 	 */
 	private function run( ApiPageSet $resultPageSet = null ) {
 		$settings = self::$settings[$this->getModuleName()];
@@ -131,6 +129,9 @@ class ApiQueryBacklinksprop extends ApiQueryGeneratorBase {
 		if ( !$titles ) {
 			return; // nothing to do
 		}
+		if ( $params['namespace'] !== null && count( $params['namespace'] ) === 0 ) {
+			return; // nothing to do
+		}
 
 		// Figure out what we're sorting by, and add associated WHERE clauses.
 		// MySQL's query planner screws up if we include a field in ORDER BY
@@ -161,7 +162,9 @@ class ApiQueryBacklinksprop extends ApiQueryGeneratorBase {
 				}
 			} else {
 				$this->addWhereFld( "{$p}_from_namespace", $params['namespace'] );
-				if ( !empty( $settings['from_namespace'] ) && count( $params['namespace'] ) > 1 ) {
+				if ( !empty( $settings['from_namespace'] )
+					&& $params['namespace'] !== null && count( $params['namespace'] ) > 1
+				) {
 					$sortby["{$p}_from_namespace"] = 'int';
 				}
 			}
@@ -419,7 +422,7 @@ class ApiQueryBacklinksprop extends ApiQueryGeneratorBase {
 		$settings = self::$settings[$this->getModuleName()];
 		$name = $this->getModuleName();
 		$path = $this->getModulePath();
-		$title = isset( $settings['exampletitle'] ) ? $settings['exampletitle'] : 'Main Page';
+		$title = $settings['exampletitle'] ?? 'Main Page';
 		$etitle = rawurlencode( $title );
 
 		return [

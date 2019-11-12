@@ -4,7 +4,8 @@
 			"Zaheen",
 			"Aftabuzzaman",
 			"Jim Carter",
-			"Sayma Jahan"
+			"Sayma Jahan",
+			"আফতাবুজ্জামান"
 		]
 	},
 	"syntaxhighlight-desc": "[http://pygments.org/ Pygments - পাইথন সিনট্যাক্স হাইলাইটার] ব্যবহার করে <code>&lt;syntaxhighlight&gt;</code> সিনট্যাক্স আলোকপাতের ক্ষমতা দেয়",
@@ -14,6 +15,7 @@
 	"syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-language": "ভাষা",
 	"syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-none": "(কিছু না)",
 	"syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-showlines": "সারির নম্বর প্রদর্শন",
+	"syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-startingline": "শুরুর লাইনের নম্বর",
 	"syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-title": "কোড ব্লক",
 	"syntaxhighlight-error-pygments-invocation-failure": "Pygments আবাহন করতে ব্যর্থ হয়েছে",
 	"syntaxhighlight-error-unknown-language": "অজানা ভাষা \"$1\"",

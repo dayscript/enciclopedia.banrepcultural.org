@@ -29,9 +29,8 @@ class SubpageImportTitleFactoryTest extends MediaWikiTestCase {
 	protected function setUp() {
 		parent::setUp();
 
+		$this->setContentLang( 'en' );
 		$this->setMwGlobals( [
-			'wgLanguageCode' => 'en',
-			'wgContLang' => Language::factory( 'en' ),
 			'wgNamespacesWithSubpages' => [ 0 => false, 2 => true ],
 		] );
 	}
@@ -60,8 +59,8 @@ class SubpageImportTitleFactoryTest extends MediaWikiTestCase {
 	 * @dataProvider basicProvider
 	 */
 	public function testBasic( ForeignTitle $foreignTitle, Title $rootPage,
-		Title $title ) {
-
+		Title $title
+	) {
 		$factory = new SubpageImportTitleFactory( $rootPage );
 		$testTitle = $factory->createTitleFromForeignTitle( $foreignTitle );
 
@@ -80,7 +79,7 @@ class SubpageImportTitleFactoryTest extends MediaWikiTestCase {
 	 * @dataProvider failureProvider
 	 */
 	public function testFailures( Title $rootPage ) {
-		$this->setExpectedException( 'MWException' );
+		$this->setExpectedException( MWException::class );
 		new SubpageImportTitleFactory( $rootPage );
 	}
 }

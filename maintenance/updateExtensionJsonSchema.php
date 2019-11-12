@@ -14,12 +14,12 @@ class UpdateExtensionJsonSchema extends Maintenance {
 	public function execute() {
 		$filename = $this->getArg( 0 );
 		if ( !is_readable( $filename ) ) {
-			$this->error( "Error: Unable to read $filename", 1 );
+			$this->fatalError( "Error: Unable to read $filename" );
 		}
 
 		$json = FormatJson::decode( file_get_contents( $filename ), true );
 		if ( $json === null ) {
-			$this->error( "Error: Invalid JSON", 1 );
+			$this->fatalError( "Error: Invalid JSON" );
 		}
 
 		if ( !isset( $json['manifest_version'] ) ) {
@@ -59,11 +59,18 @@ class UpdateExtensionJsonSchema extends Maintenance {
 						$json['config'][$name]['merge_strategy'] = $value[ExtensionRegistry::MERGE_STRATEGY];
 						unset( $value[ExtensionRegistry::MERGE_STRATEGY] );
 					}
+					if ( isset( $config["@$name"] ) ) {
+						// Put 'description' first for better human-legibility.
+						$json['config'][$name] = array_merge(
+							[ 'description' => $config["@$name"] ],
+							$json['config'][$name]
+						);
+					}
 				}
 			}
 		}
 	}
 }
 
-$maintClass = 'UpdateExtensionJsonSchema';
+$maintClass = UpdateExtensionJsonSchema::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

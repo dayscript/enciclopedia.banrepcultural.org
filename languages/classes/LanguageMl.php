@@ -41,11 +41,13 @@ class LanguageMl extends Language {
 	 *
 	 * @return string
 	 */
-	function normalize( $s ) {
+	public function normalize( $s ) {
 		global $wgFixMalayalamUnicode;
 		$s = parent::normalize( $s );
 		if ( $wgFixMalayalamUnicode ) {
-			$s = $this->transformUsingPairFile( 'normalize-ml.ser', $s );
+			$s = $this->transformUsingPairFile( 'normalize-ml.php', $s );
+		} else {
+			wfDeprecated( '$wgFixMalayalamUnicode = false', '1.33' );
 		}
 		return $s;
 	}

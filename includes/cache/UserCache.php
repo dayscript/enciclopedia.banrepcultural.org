@@ -56,9 +56,7 @@ class UserCache {
 			$this->doQuery( [ $userId ] ); // cache miss
 		}
 
-		return isset( $this->cache[$userId][$prop] )
-			? $this->cache[$userId][$prop]
-			: false; // user does not exist?
+		return $this->cache[$userId][$prop] ?? false; // user does not exist?
 	}
 
 	/**
@@ -80,6 +78,8 @@ class UserCache {
 	 * @param string $caller The calling method
 	 */
 	public function doQuery( array $userIds, $options = [], $caller = '' ) {
+		global $wgActorTableSchemaMigrationStage;
+
 		$usersToCheck = [];
 		$usersToQuery = [];
 
@@ -100,21 +100,36 @@ class UserCache {
 		// Lookup basic info for users not yet loaded...
 		if ( count( $usersToQuery ) ) {
 			$dbr = wfGetDB( DB_REPLICA );
-			$table = [ 'user' ];
+			$tables = [ 'user' ];
 			$conds = [ 'user_id' => $usersToQuery ];
 			$fields = [ 'user_name', 'user_real_name', 'user_registration', 'user_id' ];
+			$joinConds = [];
+
+			// Technically we shouldn't allow this without SCHEMA_COMPAT_READ_NEW,
+			// but it does little harm and might be needed for write callers loading a User.
+			if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_NEW ) {
+				$tables[] = 'actor';
+				$fields[] = 'actor_id';
+				$joinConds['actor'] = [
+					( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW ) ? 'JOIN' : 'LEFT JOIN',
+					[ 'actor_user = user_id' ]
+				];
+			}
 
 			$comment = __METHOD__;
 			if ( strval( $caller ) !== '' ) {
 				$comment .= "/$caller";
 			}
 
-			$res = $dbr->select( $table, $fields, $conds, $comment );
+			$res = $dbr->select( $tables, $fields, $conds, $comment, [], $joinConds );
 			foreach ( $res as $row ) { // load each user into cache
 				$userId = (int)$row->user_id;
 				$this->cache[$userId]['name'] = $row->user_name;
 				$this->cache[$userId]['real_name'] = $row->user_real_name;
 				$this->cache[$userId]['registration'] = $row->user_registration;
+				if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_NEW ) {
+					$this->cache[$userId]['actor'] = $row->actor_id;
+				}
 				$usersToCheck[$userId] = $row->user_name;
 			}
 		}

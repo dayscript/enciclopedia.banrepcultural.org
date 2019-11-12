@@ -1,4 +1,4 @@
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Provides various methods needed for formatting dates and times.
@@ -333,6 +333,7 @@
 							parseValue: this.parseSpecValue
 						};
 						spec.size = Math.max.apply(
+							// eslint-disable-next-line no-jquery/no-map-util
 							null, $.map( spec.values, function ( v ) { return v.length; } )
 						);
 						return spec;
@@ -409,10 +410,12 @@
 			}
 		}
 
+		// eslint-disable-next-line no-restricted-properties
 		if ( v.normalize ) {
+			// eslint-disable-next-line no-restricted-properties
 			v = v.normalize();
 		}
-		re = new RegExp( '^\\s*' + v.replace( /([\\{}()|.?*+\-\^$\[\]])/g, '\\$1' ), 'i' );
+		re = new RegExp( '^\\s*' + mw.RegExp.escape( v ), 'i' );
 		for ( k in this.values ) {
 			k = +k;
 			if ( !isNaN( k ) && re.test( this.values[ k ] ) ) {
@@ -624,4 +627,4 @@
 		};
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

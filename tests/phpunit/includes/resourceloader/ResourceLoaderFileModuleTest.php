@@ -41,6 +41,12 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 				]
 			],
 
+			'htmlTemplateUnknown' => $base + [
+				'templates' => [
+					'templates/notfound.html',
+				]
+			],
+
 			'aliasedHtmlTemplateModule' => $base + [
 				'templates' => [
 					'foo.html' => 'templates/template.html',
@@ -126,10 +132,32 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 	 */
 	public function testDeprecatedModules( $name, $expected ) {
 		$modules = self::getModules();
-		$rl = new ResourceLoaderFileModule( $modules[$name] );
-		$rl->setName( $name );
+		$module = new ResourceLoaderFileModule( $modules[$name] );
+		$module->setName( $name );
 		$ctx = $this->getResourceLoaderContext();
-		$this->assertEquals( $rl->getScript( $ctx ), $expected );
+		$this->assertEquals( $module->getScript( $ctx ), $expected );
+	}
+
+	/**
+	 * @covers ResourceLoaderFileModule::getScript
+	 * @covers ResourceLoaderFileModule::getScriptFiles
+	 * @covers ResourceLoaderFileModule::readScriptFiles
+	 */
+	public function testGetScript() {
+		$module = new ResourceLoaderFileModule( [
+			'localBasePath' => __DIR__ . '/../../data/resourceloader',
+			'scripts' => [ 'script-nosemi.js', 'script-comment.js' ],
+		] );
+		$module->setName( 'testing' );
+		$ctx = $this->getResourceLoaderContext();
+		$this->assertEquals(
+			"/* eslint-disable */\nmw.foo()\n" .
+			"\n" .
+			"/* eslint-disable */\nmw.foo()\n// mw.bar();\n" .
+			"\n",
+			$module->getScript( $ctx ),
+			'scripts are concatenated with a new-line'
+		);
 	}
 
 	/**
@@ -194,6 +222,8 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 	 *
 	 * @covers ResourceLoaderFileModule::getStyles
 	 * @covers ResourceLoaderFileModule::getStyleFiles
+	 * @covers ResourceLoaderFileModule::readStyleFiles
+	 * @covers ResourceLoaderFileModule::readStyleFile
 	 */
 	public function testMixedCssAnnotations() {
 		$basePath = __DIR__ . '/../../data/css';
@@ -259,6 +289,10 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 					'bar.html' => "<div>goodbye</div>\n",
 				],
 			],
+			[
+				$modules['htmlTemplateUnknown'],
+				false,
+			],
 		];
 	}
 
@@ -270,15 +304,23 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 		$rl = new ResourceLoaderFileModule( $module );
 		$rl->setName( 'testing' );
 
-		$this->assertEquals( $rl->getTemplates(), $expected );
+		if ( $expected === false ) {
+			$this->setExpectedException( MWException::class );
+			$rl->getTemplates();
+		} else {
+			$this->assertEquals( $rl->getTemplates(), $expected );
+		}
 	}
 
+	/**
+	 * @covers ResourceLoaderFileModule::stripBom
+	 */
 	public function testBomConcatenation() {
 		$basePath = __DIR__ . '/../../data/css';
 		$testModule = new ResourceLoaderFileModule( [
 			'localBasePath' => $basePath,
 			'styles' => [ 'bom.css' ],
-			] );
+		] );
 		$testModule->setName( 'testing' );
 		$this->assertEquals(
 			substr( file_get_contents( "$basePath/bom.css" ), 0, 10 ),
@@ -292,5 +334,245 @@ class ResourceLoaderFileModuleTest extends ResourceLoaderTestCase {
 			[ 'all' => ".efbbbf_bom_char_at_start_of_file {}\n" ],
 			'Leading BOM removed when concatenating files'
 		);
+	}
+
+	/**
+	 * @covers ResourceLoaderFileModule::compileLessFile
+	 */
+	public function testLessFileCompilation() {
+		$context = $this->getResourceLoaderContext();
+		$basePath = __DIR__ . '/../../data/less/module';
+		$module = new ResourceLoaderFileTestModule( [
+			'localBasePath' => $basePath,
+			'styles' => [ 'styles.less' ],
+		], [
+			'lessVars' => [ 'foo' => '2px', 'Foo' => '#eeeeee' ]
+		] );
+		$module->setName( 'test.less' );
+		$styles = $module->getStyles( $context );
+		$this->assertStringEqualsFile( $basePath . '/styles.css', $styles['all'] );
+	}
+
+	/**
+	 * @covers ResourceLoaderFileModule::getDefinitionSummary
+	 * @covers ResourceLoaderFileModule::getFileHashes
+	 */
+	public function testGetVersionHash() {
+		$context = $this->getResourceLoaderContext();
+
+		// Less variables
+		$module = new ResourceLoaderFileTestModule();
+		$version = $module->getVersionHash( $context );
+		$module = new ResourceLoaderFileTestModule( [], [
+			'lessVars' => [ 'key' => 'value' ],
+		] );
+		$this->assertNotEquals(
+			$version,
+			$module->getVersionHash( $context ),
+			'Using less variables is significant'
+		);
+	}
+
+	public function providerGetScriptPackageFiles() {
+		$basePath = __DIR__ . '/../../data/resourceloader';
+		$base = [ 'localBasePath' => $basePath ];
+		$commentScript = file_get_contents( "$basePath/script-comment.js" );
+		$nosemiScript = file_get_contents( "$basePath/script-nosemi.js" );
+		$config = RequestContext::getMain()->getConfig();
+		return [
+			[
+				$base + [
+					'packageFiles' => [
+						'script-comment.js',
+						'script-nosemi.js'
+					]
+				],
+				[
+					'files' => [
+						'script-comment.js' => [
+							'type' => 'script',
+							'content' => $commentScript,
+						],
+						'script-nosemi.js' => [
+							'type' => 'script',
+							'content' => $nosemiScript
+						]
+					],
+					'main' => 'script-comment.js'
+				]
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						'script-comment.js',
+						[ 'name' => 'script-nosemi.js', 'main' => true ]
+					],
+					'deprecated' => 'Deprecation test',
+					'name' => 'test-deprecated'
+				],
+				[
+					'files' => [
+						'script-comment.js' => [
+							'type' => 'script',
+							'content' => $commentScript,
+						],
+						'script-nosemi.js' => [
+							'type' => 'script',
+							'content' => 'mw.log.warn(' .
+								'"This page is using the deprecated ResourceLoader module \"test-deprecated\".\\n' .
+								"Deprecation test" .
+								'");' .
+								$nosemiScript
+						]
+					],
+					'main' => 'script-nosemi.js'
+				]
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						[ 'name' => 'init.js', 'file' => 'script-comment.js', 'main' => true ],
+						[ 'name' => 'nosemi.js', 'file' => 'script-nosemi.js' ],
+					]
+				],
+				[
+					'files' => [
+						'init.js' => [
+							'type' => 'script',
+							'content' => $commentScript,
+						],
+						'nosemi.js' => [
+							'type' => 'script',
+							'content' => $nosemiScript
+						]
+					],
+					'main' => 'init.js'
+				]
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						[ 'name' => 'foo.json', 'content' => [ 'Hello' => 'world' ] ],
+						'sample.json',
+						[ 'name' => 'bar.js', 'content' => "console.log('Hello');" ],
+						[ 'name' => 'data.json', 'callback' => function ( $context ) {
+							return [ 'langCode' => $context->getLanguage() ];
+						} ],
+						[ 'name' => 'config.json', 'config' => [
+							'Sitename',
+							'wgVersion' => 'Version',
+						] ],
+					]
+				],
+				[
+					'files' => [
+						'foo.json' => [
+							'type' => 'data',
+							'content' => [ 'Hello' => 'world' ],
+						],
+						'sample.json' => [
+							'type' => 'data',
+							'content' => (object)[ 'foo' => 'bar', 'answer' => 42 ],
+						],
+						'bar.js' => [
+							'type' => 'script',
+							'content' => "console.log('Hello');",
+						],
+						'data.json' => [
+							'type' => 'data',
+							'content' => [ 'langCode' => 'fy' ]
+						],
+						'config.json' => [
+							'type' => 'data',
+							'content' => [
+								'Sitename' => $config->get( 'Sitename' ),
+								'wgVersion' => $config->get( 'Version' ),
+							]
+						]
+					],
+					'main' => 'bar.js'
+				],
+				[
+					'lang' => 'fy'
+				]
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						[ 'file' => 'script-comment.js' ]
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						[ 'name' => 'foo.json', 'callback' => 'functionThatDoesNotExist142857' ]
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						'foo.json' => [ 'type' => 'script', 'config' => [ 'Sitename' ] ]
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						[ 'name' => 'foo.js', 'config' => 'Sitename' ]
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						'foo.js' => [ 'garbage' => 'data' ]
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						'filethatdoesnotexist142857.js'
+					]
+				],
+				false
+			],
+			[
+				$base + [
+					'packageFiles' => [
+						'script-nosemi.js',
+						[ 'name' => 'foo.json', 'content' => [ 'Hello' => 'world' ], 'main' => true ]
+					]
+				],
+				false
+			]
+		];
+	}
+
+	/**
+	 * @dataProvider providerGetScriptPackageFiles
+	 * @covers ResourceLoaderFileModule::getScript
+	 * @covers ResourceLoaderFileModule::getPackageFiles
+	 * @covers ResourceLoaderFileModule::expandPackageFiles
+	 */
+	public function testGetScriptPackageFiles( $moduleDefinition, $expected, $contextOptions = [] ) {
+		$module = new ResourceLoaderFileModule( $moduleDefinition );
+		$context = $this->getResourceLoaderContext( $contextOptions );
+		if ( isset( $moduleDefinition['name'] ) ) {
+			$module->setName( $moduleDefinition['name'] );
+		}
+		if ( $expected === false ) {
+			$this->setExpectedException( MWException::class );
+			$module->getScript( $context );
+		} else {
+			$this->assertEquals( $expected, $module->getScript( $context ) );
+		}
 	}
 }

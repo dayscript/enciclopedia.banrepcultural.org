@@ -1792,7 +1792,6 @@ hidepatrolled
 hideredirects
 hiderevision
 hideuser
-hidpi
 highlimit
 highmax
 highuse
@@ -2027,7 +2026,6 @@ isminor
 ismodsince
 ismulti
 isnew
-ispermalink
 isroot
 isself
 isset
@@ -2427,7 +2425,6 @@ mkdir
 mms
 mobile
 mobileformat
-mobilelanding
 mobileview
 modified
 modifiedarticleprotection
@@ -3181,7 +3178,7 @@ prefixsearchdisabled
 prefs
 prefsection
 prefsnologintext2
-prefsubmit
+prefcontrol
 preload
 preloads
 preloadtitle
@@ -3307,7 +3304,6 @@ qvalues
 rabdiff
 radic
 radius
-raggett
 raii
 raimond
 random
@@ -3698,7 +3694,6 @@ showredirs
 showreviewed
 showsizediff
 showtoc
-showtoolbar
 showunreviewed
 shtml
 si
@@ -4323,7 +4318,6 @@ useemail
 uselang
 uselivepreview
 usemod
-usemsgcache
 usenewrc
 user
 useragent
@@ -4585,7 +4579,6 @@ wrongpassword
 x
 xanalytics
 xbitmap
-xcache
 xcancel
 xdebug
 xdiff

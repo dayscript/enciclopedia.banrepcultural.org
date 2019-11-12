@@ -40,9 +40,7 @@ class WatchAction extends FormAction {
 	}
 
 	public function onSubmit( $data ) {
-		self::doWatch( $this->getTitle(), $this->getUser() );
-
-		return true;
+		return self::doWatch( $this->getTitle(), $this->getUser() );
 	}
 
 	protected function checkCanExecute( User $user ) {
@@ -79,8 +77,6 @@ class WatchAction extends FormAction {
 		$msgKey = $this->getTitle()->isTalkPage() ? 'addedwatchtext-talk' : 'addedwatchtext';
 		$this->getOutput()->addWikiMsg( $msgKey, $this->getTitle()->getPrefixedText() );
 	}
-
-	/* Static utility methods */
 
 	/**
 	 * Watch or unwatch a page
@@ -185,8 +181,10 @@ class WatchAction extends FormAction {
 	 * @param string $action Optionally override the action to 'watch'
 	 * @return string Token
 	 * @since 1.18
+	 * @deprecated since 1.32 Use WatchAction::getWatchToken() with action 'unwatch' directly.
 	 */
 	public static function getUnwatchToken( Title $title, User $user, $action = 'unwatch' ) {
+		wfDeprecated( __METHOD__, '1.32' );
 		return self::getWatchToken( $title, $user, $action );
 	}
 

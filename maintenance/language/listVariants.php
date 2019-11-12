@@ -42,7 +42,7 @@ class ListVariants extends Maintenance {
 		$variants = [];
 		foreach ( LanguageConverter::$languagesWithVariants as $langCode ) {
 			$lang = Language::factory( $langCode );
-			if ( count( $lang->getVariants() ) > 1 ) {
+			if ( $lang->hasVariants() ) {
 				$variants += array_flip( $lang->getVariants() );
 				$variantLangs[$langCode] = $lang->getVariants();
 			}
@@ -69,5 +69,5 @@ class ListVariants extends Maintenance {
 	}
 }
 
-$maintClass = 'ListVariants';
+$maintClass = ListVariants::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

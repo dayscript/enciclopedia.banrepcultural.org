@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Oct 16, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,12 +20,17 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Storage\NameTableAccessException;
+
 /**
  * Query action to List the log events, with optional filtering by various parameters.
  *
  * @ingroup API
  */
 class ApiQueryLogEvents extends ApiQueryBase {
+
+	private $commentStore;
 
 	public function __construct( ApiQuery $query, $moduleName ) {
 		parent::__construct( $query, $moduleName, 'le' );
@@ -43,6 +44,7 @@ class ApiQueryLogEvents extends ApiQueryBase {
 	public function execute() {
 		$params = $this->extractRequestParams();
 		$db = $this->getDB();
+		$this->commentStore = CommentStore::getStore();
 		$this->requireMaxOneParameter( $params, 'title', 'prefix', 'namespace' );
 
 		$prop = array_flip( $params['prop'] );
@@ -63,11 +65,15 @@ class ApiQueryLogEvents extends ApiQueryBase {
 			$this->addWhere( $hideLogs );
 		}
 
-		// Order is significant here
-		$this->addTables( [ 'logging', 'user', 'page' ] );
+		$actorMigration = ActorMigration::newMigration();
+		$actorQuery = $actorMigration->getJoin( 'log_user' );
+		$this->addTables( 'logging' );
+		$this->addTables( $actorQuery['tables'] );
+		$this->addTables( [ 'user', 'page' ] );
+		$this->addJoinConds( $actorQuery['joins'] );
 		$this->addJoinConds( [
 			'user' => [ 'LEFT JOIN',
-				'user_id=log_user' ],
+				'user_id=' . $actorQuery['fields']['log_user'] ],
 			'page' => [ 'LEFT JOIN',
 				[ 'log_namespace=page_namespace',
 					'log_title=page_title' ] ] ] );
@@ -85,26 +91,36 @@ class ApiQueryLogEvents extends ApiQueryBase {
 		// join at query time.  This leads to different results in various
 		// scenarios, e.g. deletion, recreation.
 		$this->addFieldsIf( 'log_page', $this->fld_ids );
-		$this->addFieldsIf( [ 'log_user', 'log_user_text', 'user_name' ], $this->fld_user );
-		$this->addFieldsIf( 'log_user', $this->fld_userid );
+		$this->addFieldsIf( $actorQuery['fields'] + [ 'user_name' ], $this->fld_user );
+		$this->addFieldsIf( $actorQuery['fields'], $this->fld_userid );
 		$this->addFieldsIf(
 			[ 'log_namespace', 'log_title' ],
 			$this->fld_title || $this->fld_parsedcomment
 		);
-		$this->addFieldsIf( 'log_comment', $this->fld_comment || $this->fld_parsedcomment );
 		$this->addFieldsIf( 'log_params', $this->fld_details );
 
+		if ( $this->fld_comment || $this->fld_parsedcomment ) {
+			$commentQuery = $this->commentStore->getJoin( 'log_comment' );
+			$this->addTables( $commentQuery['tables'] );
+			$this->addFields( $commentQuery['fields'] );
+			$this->addJoinConds( $commentQuery['joins'] );
+		}
+
 		if ( $this->fld_tags ) {
-			$this->addTables( 'tag_summary' );
-			$this->addJoinConds( [ 'tag_summary' => [ 'LEFT JOIN', 'log_id=ts_log_id' ] ] );
-			$this->addFields( 'ts_tags' );
+			$this->addFields( [ 'ts_tags' => ChangeTags::makeTagSummarySubquery( 'logging' ) ] );
 		}
 
 		if ( !is_null( $params['tag'] ) ) {
 			$this->addTables( 'change_tag' );
-			$this->addJoinConds( [ 'change_tag' => [ 'INNER JOIN',
+			$this->addJoinConds( [ 'change_tag' => [ 'JOIN',
 				[ 'log_id=ct_log_id' ] ] ] );
-			$this->addWhereFld( 'ct_tag', $params['tag'] );
+			$changeTagDefStore = MediaWikiServices::getInstance()->getChangeTagDefStore();
+			try {
+				$this->addWhereFld( 'ct_tag_id', $changeTagDefStore->getId( $params['tag'] ) );
+			} catch ( NameTableAccessException $exception ) {
+				// Return nothing.
+				$this->addWhere( '1=0' );
+			}
 		}
 
 		if ( !is_null( $params['action'] ) ) {
@@ -161,12 +177,16 @@ class ApiQueryLogEvents extends ApiQueryBase {
 
 		$user = $params['user'];
 		if ( !is_null( $user ) ) {
-			$userid = User::idFromName( $user );
-			if ( $userid ) {
-				$this->addWhereFld( 'log_user', $userid );
-			} else {
-				$this->addWhereFld( 'log_user_text', $user );
-			}
+			// Note the joins in $q are the same as those from ->getJoin() above
+			// so we only need to add 'conds' here.
+			$q = $actorMigration->getWhere(
+				$db, 'log_user', User::newFromName( $params['user'], false )
+			);
+			$this->addWhere( $q['conds'] );
+
+			// T71222: MariaDB's optimizer, at least 10.1.37 and .38, likes to choose a wildly bad plan for
+			// some reason for this code path. Tell it not to use the wrong index it wants to pick.
+			$this->addOption( 'IGNORE INDEX', [ 'logging' => [ 'times' ] ] );
 		}
 
 		$title = $params['title'];
@@ -239,32 +259,6 @@ class ApiQueryLogEvents extends ApiQueryBase {
 		$result->addIndexedTagName( [ 'query', $this->getModuleName() ], 'item' );
 	}
 
-	/**
-	 * @deprecated since 1.25 Use LogFormatter::formatParametersForApi instead
-	 * @param ApiResult $result
-	 * @param array $vals
-	 * @param string $params
-	 * @param string $type
-	 * @param string $action
-	 * @param string $ts
-	 * @param bool $legacy
-	 * @return array
-	 */
-	public static function addLogParams( $result, &$vals, $params, $type,
-		$action, $ts, $legacy = false
-	) {
-		wfDeprecated( __METHOD__, '1.25' );
-
-		$entry = new ManualLogEntry( $type, $action );
-		$entry->setParameters( $params );
-		$entry->setTimestamp( $ts );
-		$entry->setLegacy( $legacy );
-		$formatter = LogFormatter::newFromEntry( $entry );
-		$vals['params'] = $formatter->formatParametersForApi();
-
-		return $vals;
-	}
-
 	private function extractRowInfo( $row ) {
 		$logEntry = DatabaseLogEntry::newFromRow( $row );
 		$vals = [
@@ -274,7 +268,7 @@ class ApiQueryLogEvents extends ApiQueryBase {
 		$user = $this->getUser();
 
 		if ( $this->fld_ids ) {
-			$vals['logid'] = intval( $row->log_id );
+			$vals['logid'] = (int)$row->log_id;
 		}
 
 		if ( $this->fld_title || $this->fld_parsedcomment ) {
@@ -291,8 +285,8 @@ class ApiQueryLogEvents extends ApiQueryBase {
 					ApiQueryBase::addTitleInfo( $vals, $title );
 				}
 				if ( $this->fld_ids ) {
-					$vals['pageid'] = intval( $row->page_id );
-					$vals['logpage'] = intval( $row->log_page );
+					$vals['pageid'] = (int)$row->page_id;
+					$vals['logpage'] = (int)$row->log_page;
 				}
 				if ( $this->fld_details ) {
 					$vals['params'] = LogFormatter::newFromEntry( $logEntry )->formatParametersForApi();
@@ -312,10 +306,10 @@ class ApiQueryLogEvents extends ApiQueryBase {
 			}
 			if ( LogEventsList::userCan( $row, LogPage::DELETED_USER, $user ) ) {
 				if ( $this->fld_user ) {
-					$vals['user'] = $row->user_name === null ? $row->log_user_text : $row->user_name;
+					$vals['user'] = $row->user_name ?? $row->log_user_text;
 				}
 				if ( $this->fld_userid ) {
-					$vals['userid'] = intval( $row->log_user );
+					$vals['userid'] = (int)$row->log_user;
 				}
 
 				if ( !$row->log_user ) {
@@ -327,18 +321,19 @@ class ApiQueryLogEvents extends ApiQueryBase {
 			$vals['timestamp'] = wfTimestamp( TS_ISO_8601, $row->log_timestamp );
 		}
 
-		if ( ( $this->fld_comment || $this->fld_parsedcomment ) && isset( $row->log_comment ) ) {
+		if ( $this->fld_comment || $this->fld_parsedcomment ) {
 			if ( LogEventsList::isDeleted( $row, LogPage::DELETED_COMMENT ) ) {
 				$vals['commenthidden'] = true;
 				$anyHidden = true;
 			}
 			if ( LogEventsList::userCan( $row, LogPage::DELETED_COMMENT, $user ) ) {
+				$comment = $this->commentStore->getComment( 'log_comment', $row )->text;
 				if ( $this->fld_comment ) {
-					$vals['comment'] = $row->log_comment;
+					$vals['comment'] = $comment;
 				}
 
 				if ( $this->fld_parsedcomment ) {
-					$vals['parsedcomment'] = Linker::formatComment( $row->log_comment, $title );
+					$vals['parsedcomment'] = Linker::formatComment( $comment, $title );
 				}
 			}
 		}
@@ -389,6 +384,12 @@ class ApiQueryLogEvents extends ApiQueryBase {
 
 	public function getAllowedParams( $flags = 0 ) {
 		$config = $this->getConfig();
+		if ( $flags & ApiBase::GET_VALUES_FOR_HELP ) {
+			$logActions = $this->getAllowedLogActions();
+			sort( $logActions );
+		} else {
+			$logActions = null;
+		}
 		$ret = [
 			'prop' => [
 				ApiBase::PARAM_ISMULTI => true,
@@ -408,13 +409,11 @@ class ApiQueryLogEvents extends ApiQueryBase {
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => [],
 			],
 			'type' => [
-				ApiBase::PARAM_TYPE => $config->get( 'LogTypes' )
+				ApiBase::PARAM_TYPE => LogPage::validTypes(),
 			],
 			'action' => [
 				// validation on request is done in execute()
-				ApiBase::PARAM_TYPE => ( $flags & ApiBase::GET_VALUES_FOR_HELP )
-					? $this->getAllowedLogActions()
-					: null
+				ApiBase::PARAM_TYPE => $logActions
 			],
 			'start' => [
 				ApiBase::PARAM_TYPE => 'timestamp'

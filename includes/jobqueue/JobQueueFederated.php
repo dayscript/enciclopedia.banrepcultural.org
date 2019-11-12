@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Aaron Schulz
  */
 
 /**
@@ -29,7 +28,7 @@
  * For example, one can set $wgJobTypeConf['refreshLinks'] to point to a
  * JobQueueFederated instance, which itself would consist of three JobQueueRedis
  * instances, each using their own redis server. This would allow for the jobs
- * to be split (evenly or based on weights) accross multiple servers if a single
+ * to be split (evenly or based on weights) across multiple servers if a single
  * server becomes impractical or expensive. Different JobQueue classes can be mixed.
  *
  * The basic queue configuration (e.g. "order", "claimTTL") of a federated queue
@@ -74,15 +73,11 @@ class JobQueueFederated extends JobQueue {
 	 */
 	protected function __construct( array $params ) {
 		parent::__construct( $params );
-		$section = isset( $params['sectionsByWiki'][$this->wiki] )
-			? $params['sectionsByWiki'][$this->wiki]
-			: 'default';
+		$section = $params['sectionsByWiki'][$this->domain] ?? 'default';
 		if ( !isset( $params['partitionsBySection'][$section] ) ) {
 			throw new MWException( "No configuration for section '$section'." );
 		}
-		$this->maxPartitionsTry = isset( $params['maxPartitionsTry'] )
-			? $params['maxPartitionsTry']
-			: 2;
+		$this->maxPartitionsTry = $params['maxPartitionsTry'] ?? 2;
 		// Get the full partition map
 		$partitionMap = $params['partitionsBySection'][$section];
 		arsort( $partitionMap, SORT_NUMERIC );
@@ -185,11 +180,9 @@ class JobQueueFederated extends JobQueue {
 		// Try to insert the jobs and update $partitionsTry on any failures.
 		// Retry to insert any remaning jobs again, ignoring the bad partitions.
 		$jobsLeft = $jobs;
-		// @codingStandardsIgnoreStart Generic.CodeAnalysis.ForLoopWithTestFunctionCall.NotAllowed
 		for ( $i = $this->maxPartitionsTry; $i > 0 && count( $jobsLeft ); --$i ) {
-			// @codingStandardsIgnoreEnd
 			try {
-				$partitionRing->getLiveRing();
+				$partitionRing->getLiveLocationWeights();
 			} catch ( UnexpectedValueException $e ) {
 				break; // all servers down; nothing to insert to
 			}
@@ -203,7 +196,7 @@ class JobQueueFederated extends JobQueue {
 
 	/**
 	 * @param array $jobs
-	 * @param HashRing $partitionRing
+	 * @param HashRing &$partitionRing
 	 * @param int $flags
 	 * @throws JobQueueError
 	 * @return array List of Job object that could not be inserted
@@ -294,7 +287,7 @@ class JobQueueFederated extends JobQueue {
 				$job = false;
 			}
 			if ( $job ) {
-				$job->metadata['QueuePartition'] = $partition;
+				$job->setMetadata( 'QueuePartition', $partition );
 
 				return $job;
 			} else {
@@ -307,11 +300,12 @@ class JobQueueFederated extends JobQueue {
 	}
 
 	protected function doAck( Job $job ) {
-		if ( !isset( $job->metadata['QueuePartition'] ) ) {
+		$partition = $job->getMetadata( 'QueuePartition' );
+		if ( $partition === null ) {
 			throw new MWException( "The given job has no defined partition name." );
 		}
 
-		$this->partitionQueues[$job->metadata['QueuePartition']]->ack( $job );
+		$this->partitionQueues[$partition]->ack( $job );
 	}
 
 	protected function doIsRootJobOldDuplicate( Job $job ) {
@@ -425,7 +419,7 @@ class JobQueueFederated extends JobQueue {
 	}
 
 	public function getCoalesceLocationInternal() {
-		return "JobQueueFederated:wiki:{$this->wiki}" .
+		return "JobQueueFederated:wiki:{$this->domain}" .
 			sha1( serialize( array_keys( $this->partitionQueues ) ) );
 	}
 

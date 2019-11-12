@@ -56,36 +56,36 @@ wbr {
 
 /* Input types that should follow user direction, like buttons */
 /* TODO: What about buttons in wikipage content ? */
-input[type='submit'],
-input[type='button'],
-input[type='reset'],
-input[type='file'] {
+input[ type='submit' ],
+input[ type='button' ],
+input[ type='reset' ],
+input[ type='file' ] {
 	direction: ltr;
 }
 
 /* Override default values */
-textarea[dir='ltr'],
-input[dir='ltr'] {
+textarea[ dir='ltr' ],
+input[ dir='ltr' ] {
 	/* @noflip */
 	direction: ltr;
 }
 
-textarea[dir='rtl'],
-input[dir='rtl'] {
+textarea[ dir='rtl' ],
+input[ dir='rtl' ] {
 	/* @noflip */
 	direction: rtl;
 }
 
 /* Default style for semantic tags */
-abbr[title],
-.explain[title] {
+abbr[ title ],
+.explain[ title ] {
 	border-bottom: 1px dotted;
 	cursor: help;
 }
 
 @supports ( text-decoration: underline dotted ) {
-	abbr[title],
-	.explain[title] {
+	abbr[ title ],
+	.explain[ title ] {
 		border-bottom: 0;
 		text-decoration: underline dotted;
 	}
@@ -105,23 +105,9 @@ span.comment {
 	clear: both;
 }
 
-/* Edit font preference */
-/* TODO: for 'default' on non-textareas we could compute the default font of textarea in the client */
-.mw-editfont-default:not( textarea ) {
-	font-family: monospace;
-}
-
-/* Keep this rule separate from the :not rule above so it still works in older browsers */
-.mw-editfont-monospace {
-	font-family: monospace;
-}
-
-.mw-editfont-sans-serif {
-	font-family: sans-serif;
-}
-
-.mw-editfont-serif {
-	font-family: serif;
+/* Prevent editing textarea from jumping when toolbar is loaded */
+#toolbar {
+	height: 22px;
 }
 
 /* Underline preference */
@@ -140,7 +126,7 @@ span.comment {
 li span.deleted,
 span.history-deleted {
 	text-decoration: line-through;
-	color: #888;
+	color: #72777d;
 	font-style: italic;
 }
 
@@ -153,7 +139,7 @@ span.history-deleted {
 
 .unpatrolled {
 	font-weight: bold;
-	color: #f00;
+	color: #d33;
 }
 
 div.patrollink {
@@ -224,9 +210,7 @@ td.mw-submit {
 	display: inline;
 	margin: 0;
 	padding: 0;
-	list-style: none;
-	list-style-type: none;
-	list-style-image: none;
+	list-style: none none;
 	vertical-align: middle !ie;
 }
 
@@ -272,8 +256,10 @@ p.mw-delete-editreasons {
 }
 
 /* The auto-generated edit comments */
-.autocomment {
-	color: #808080;
+.autocomment,
+.autocomment a,
+.autocomment a:visited {
+	color: #72777d;
 }
 
 /** Generic minor/bot/newpage styling (recent changes) */
@@ -322,21 +308,6 @@ a.new {
 	color: #ba0000;
 }
 
-/* self links */
-a.mw-selflink {
-	color: inherit;
-	font-weight: bold;
-	text-decoration: inherit;
-}
-a.mw-selflink:hover {
-	cursor: inherit;
-	text-decoration: inherit;
-}
-a.mw-selflink:active,
-a.mw-selflink:visited {
-	color: inherit;
-}
-
 /* Plainlinks - this can be used to switch
  * off special external link styling */
 .plainlinks a.external {
@@ -355,29 +326,29 @@ a.mw-selflink:visited {
  * wikitable class for skinning normal tables
  * keep in sync with commonPrint.css
  */
-table.wikitable {
-	margin: 1em 0;
+.wikitable {
 	background-color: #f8f9fa;
+	color: #222;
+	margin: 1em 0;
 	border: 1px solid #a2a9b1;
 	border-collapse: collapse;
-	color: #000;
 }
 
-table.wikitable > tr > th,
-table.wikitable > tr > td,
-table.wikitable > * > tr > th,
-table.wikitable > * > tr > td {
+.wikitable > tr > th,
+.wikitable > tr > td,
+.wikitable > * > tr > th,
+.wikitable > * > tr > td {
 	border: 1px solid #a2a9b1;
 	padding: 0.2em 0.4em;
 }
 
-table.wikitable > tr > th,
-table.wikitable > * > tr > th {
+.wikitable > tr > th,
+.wikitable > * > tr > th {
 	background-color: #eaecf0;
 	text-align: center;
 }
 
-table.wikitable > caption {
+.wikitable > caption {
 	font-weight: bold;
 }
 
@@ -389,7 +360,7 @@ table.wikitable > caption {
 }
 
 .error {
-	color: #c00;
+	color: #d33;
 }
 
 .warning {
@@ -423,7 +394,7 @@ table.wikitable > caption {
 }
 
 .errorbox {
-	color: #c00;
+	color: #d33;
 	border-color: #fac5c5;
 	background-color: #fae3e3;
 }
@@ -460,7 +431,7 @@ table.wikitable > caption {
 
 /* Note on preview page */
 .previewnote {
-	color: #c00;
+	color: #d33;
 	margin-bottom: 1em;
 }
 
@@ -476,22 +447,22 @@ table.wikitable > caption {
 /**
  * Data table style
  *
- * Transparent table with suddle borders
- * and blue row-highlighting.
+ * Table with suddle borders
+ * and row-highlighting.
  */
 .mw-datatable {
+	border: 1px solid #a2a9b1;
 	border-collapse: collapse;
 }
 
-.mw-datatable,
 .mw-datatable td,
 .mw-datatable th {
 	border: 1px solid #a2a9b1;
-	padding: 0 0.15em 0 0.15em;
+	padding: 0.2em 0.4em;
 }
 
 .mw-datatable th {
-	background-color: #ddf;
+	background-color: #eaeeff;
 }
 
 .mw-datatable td {
@@ -636,7 +607,9 @@ ol:lang( sdh ) li {
 }
 
 ol:lang( hi ) li,
-ol:lang( mr ) li {
+ol:lang( mai ) li,
+ol:lang( mr ) li,
+ol:lang( ne ) li {
 	list-style-type: -moz-devanagari;
 	list-style-type: devanagari;
 }
@@ -652,43 +625,31 @@ ol:lang( or ) li {
 	list-style-type: oriya;
 }
 
-#toc ul,
 .toc ul {
 	margin: 0.3em 0;
 }
 
 /* Correct directionality when page dir is different from site/user dir */
 /* @noflip */ .mw-content-ltr .toc ul,
-.mw-content-ltr #toc ul,
-.mw-content-rtl .mw-content-ltr .toc ul,
-.mw-content-rtl .mw-content-ltr #toc ul {
+.mw-content-rtl .mw-content-ltr .toc ul {
 	text-align: left;
 }
 
 /* @noflip */ .mw-content-rtl .toc ul,
-.mw-content-rtl #toc ul,
-.mw-content-ltr .mw-content-rtl .toc ul,
-.mw-content-ltr .mw-content-rtl #toc ul {
+.mw-content-ltr .mw-content-rtl .toc ul {
 	text-align: right;
 }
 
 /* @noflip */ .mw-content-ltr .toc ul ul,
-.mw-content-ltr #toc ul ul,
-.mw-content-rtl .mw-content-ltr .toc ul ul,
-.mw-content-rtl .mw-content-ltr #toc ul ul {
+.mw-content-rtl .mw-content-ltr .toc ul ul {
 	margin: 0 0 0 2em;
 }
 
 /* @noflip */ .mw-content-rtl .toc ul ul,
-.mw-content-rtl #toc ul ul,
-.mw-content-ltr .mw-content-rtl .toc ul ul,
-.mw-content-ltr .mw-content-rtl #toc ul ul {
+.mw-content-ltr .mw-content-rtl .toc ul ul {
 	margin: 0 2em 0 0;
 }
 
-#toc #toctitle,
-.toc #toctitle,
-#toc .toctitle,
 .toc .toctitle {
 	direction: ltr;
 }
@@ -736,14 +697,6 @@ table.floatleft {
 	unicode-bidi: embed;
 }
 
-/* Accessibility */
-.mw-jump,
-#jump-to-nav {
-	overflow: hidden;
-	height: 0;
-	zoom: 1; /* http://webaim.org/techniques/skipnav/#iequirk */
-}
-
 /* Print footer should be hidden by default in screen. */
 .printfooter {
 	display: none;
@@ -755,8 +708,7 @@ table.floatleft {
 	z-index: 99;
 }
 
-.mw-editsection,
-#jump-to-nav {
+.mw-editsection {
 	-moz-user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
@@ -772,11 +724,6 @@ table.floatleft {
 	vertical-align: baseline;
 	/* Reset line-height; headings tend to have it set to larger values */
 	line-height: 1em;
-	/* As .mw-editsection is a <span> (inline element), it is treated as part */
-	/* of the heading content when selecting text by multiple clicks and thus */
-	/* selected together with heading content, despite the user-select: none; */
-	/* rule set above. This enforces non-selection without changing the look. */
-	display: inline-block;
 }
 
 /* Correct directionality when page dir is different from site/user dir */

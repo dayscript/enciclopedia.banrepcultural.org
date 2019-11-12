@@ -70,16 +70,12 @@ class XmlSelect {
 	 * @return string|null
 	 */
 	public function getAttribute( $name ) {
-		if ( isset( $this->attributes[$name] ) ) {
-			return $this->attributes[$name];
-		} else {
-			return null;
-		}
+		return $this->attributes[$name] ?? null;
 	}
 
 	/**
 	 * @param string $label
-	 * @param string $value If not given, assumed equal to $label
+	 * @param string|false $value If not given, assumed equal to $label
 	 */
 	public function addOption( $label, $value = false ) {
 		$value = $value !== false ? $value : $label;
@@ -103,7 +99,7 @@ class XmlSelect {
 	 * label => ( label => value, label => value )
 	 *
 	 * @param array $options
-	 * @param string|array $default
+	 * @param string|array|false $default
 	 * @return string
 	 */
 	static function formatOptions( $options, $default = false ) {

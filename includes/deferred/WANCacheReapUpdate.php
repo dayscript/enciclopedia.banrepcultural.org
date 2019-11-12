@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Linker\LinkTarget;
 use Psr\Log\LoggerInterface;
 use Wikimedia\Rdbms\IDatabase;
 
@@ -10,7 +12,7 @@ use Wikimedia\Rdbms\IDatabase;
  * recentchanges table as a reliable stream to make certain keys reach consistency
  * as soon as the underlying replica database catches up. These means that critical
  * keys will not escape getting purged simply due to brief hiccups in the network,
- * which are more prone to happen accross datacenters.
+ * which are more prone to happen across datacenters.
  *
  * ----
  * "I was trying to cheat death. I was only trying to surmount for a little while the
@@ -38,12 +40,12 @@ class WANCacheReapUpdate implements DeferrableUpdate {
 
 	function doUpdate() {
 		$reaper = new WANObjectCacheReaper(
-			ObjectCache::getMainWANInstance(),
+			MediaWikiServices::getInstance()->getMainWANObjectCache(),
 			ObjectCache::getLocalClusterInstance(),
 			[ $this, 'getTitleChangeEvents' ],
 			[ $this, 'getEventAffectedKeys' ],
 			[
-				'channel' => 'table:recentchanges:' . $this->db->getWikiID(),
+				'channel' => 'table:recentchanges:' . $this->db->getDomainID(),
 				'logger' => $this->logger
 			]
 		);
@@ -97,14 +99,20 @@ class WANCacheReapUpdate implements DeferrableUpdate {
 	 *
 	 * @see WANObjectCacheRepear
 	 * @param WANObjectCache $cache
-	 * @param TitleValue $t
-	 * @returns string[]
+	 * @param LinkTarget $t
+	 * @return string[]
 	 */
-	public function getEventAffectedKeys( WANObjectCache $cache, TitleValue $t ) {
+	public function getEventAffectedKeys( WANObjectCache $cache, LinkTarget $t ) {
 		/** @var WikiPage[]|LocalFile[]|User[] $entities */
 		$entities = [];
 
-		$entities[] = WikiPage::factory( Title::newFromTitleValue( $t ) );
+		// You can't create a WikiPage for special pages (-1) or other virtual
+		// namespaces, but special pages do appear in RC sometimes, e.g. for logs
+		// of AbuseFilter filter changes.
+		if ( $t->getNamespace() >= 0 ) {
+			$entities[] = WikiPage::factory( Title::newFromLinkTarget( $t ) );
+		}
+
 		if ( $t->inNamespace( NS_FILE ) ) {
 			$entities[] = wfLocalFile( $t->getText() );
 		}

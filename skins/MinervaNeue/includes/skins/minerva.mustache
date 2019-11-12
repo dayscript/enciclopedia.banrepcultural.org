@@ -1,0 +1,57 @@
+{{{headelement}}}
+<div id="mw-mf-viewport">
+	<nav id="mw-mf-page-left" class="navigation-drawer view-border-box">
+		{{{mainmenuhtml}}}
+	</nav>
+	<div id="mw-mf-page-center">
+		<header class="header-container header-chrome">
+			<form class="header" action="{{wgScript}}" method="get">
+				<div>{{{menuButton}}}</div>
+				<div class="branding-box">
+					<a href="{{mainPageURL}}">
+						<span>{{{siteheading}}}</span>
+						{{#isBeta}}<sup>&beta;</sup>{{/isBeta}}
+					</a>
+				</div>
+				<div class="search-box">
+					<input class="search skin-minerva-search-trigger" type="search" name="search" id="searchInput"
+					   autocomplete="off" placeholder="{{placeholder}}" aria-label="{{placeholder}}"
+					   value="{{search}}">
+				</div>
+				<div>{{{searchButton}}}</div>
+				{{^isAnon}}<div>{{#secondaryButtonData}}{{>secondaryButton}}{{/secondaryButtonData}}</div>{{/isAnon}}
+			</form>
+		</header>
+		<main id="content" class="mw-body">
+			<div class="banner-container">
+			{{>banners}}
+			</div>
+			{{#hasheadingholder}}
+			{{{prebodyhtml}}}
+			<div class="pre-content heading-holder">
+				<div class="page-heading">
+					{{{headinghtml}}}
+					{{{taglinehtml}}}
+				</div>
+				{{#tabs}}
+					{{#items}}
+						<a href="{{href}}" rel="{{rel}}" class="minerva__tab {{class}}">{{text}}</a>
+					{{/items}}
+				{{/tabs}}
+				{{{subtitle}}}
+				{{{pageactionshtml}}}
+				{{{postheadinghtml}}}
+				{{{internalBanner}}}
+			</div>
+			{{/hasheadingholder}}
+			{{{precontenthtml}}}
+			{{{contenthtml}}}
+			<div class="post-content" id="page-secondary-actions">
+			{{{secondaryactionshtml}}}
+			</div>
+		</main>
+		{{>footer}}
+	</div>
+</div>
+<div class="mw-notification-area" data-mw="interface"></div>
+<!-- v:8.1.6 -->

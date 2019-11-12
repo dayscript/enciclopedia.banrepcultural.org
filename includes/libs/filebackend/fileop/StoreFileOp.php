@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileBackend
- * @author Aaron Schulz
  */
 
 /**
@@ -78,9 +77,9 @@ class StoreFileOp extends FileOp {
 	}
 
 	protected function getSourceSha1Base36() {
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$hash = sha1_file( $this->params['src'] );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( $hash !== false ) {
 			$hash = Wikimedia\base_convert( $hash, 16, 36, 31 );
 		}

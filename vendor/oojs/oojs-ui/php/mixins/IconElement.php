@@ -27,18 +27,18 @@ trait IconElement {
 
 	/**
 	 * @param array $config Configuration options
-	 * @param string $config['icon'] Symbolic icon name
+	 *      - string $config['icon'] Symbolic icon name
 	 */
 	public function initializeIconElement( array $config = [] ) {
 		// Properties
 		// FIXME 'iconElement' is a very stupid way to call '$icon'
-		$this->icon = isset( $config['iconElement'] ) ? $config['iconElement'] : new Tag( 'span' );
+		$this->icon = $config['iconElement'] ?? new Tag( 'span' );
 
 		// Initialization
 		$this->icon->addClasses( [ 'oo-ui-iconElement-icon' ] );
-		$this->setIcon( isset( $config['icon'] ) ? $config['icon'] : null );
+		$this->setIcon( $config['icon'] ?? null );
 
-		$this->registerConfigCallback( function( &$config ) {
+		$this->registerConfigCallback( function ( &$config ) {
 			if ( $this->iconName !== null ) {
 				$config['icon'] = $this->iconName;
 			}
@@ -61,6 +61,7 @@ trait IconElement {
 
 		$this->iconName = $icon;
 		$this->toggleClasses( [ 'oo-ui-iconElement' ], (bool)$this->iconName );
+		$this->icon->toggleClasses( [ 'oo-ui-iconElement-noIcon' ], !$this->iconName );
 
 		return $this;
 	}

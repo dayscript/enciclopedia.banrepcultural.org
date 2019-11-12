@@ -71,7 +71,7 @@ TEXT
 	public function execute() {
 		$begin = $this->getOption( 'begin', '' );
 		$throttle = $this->getOption( 'throttle', 0 );
-		$force = $this->getOption( 'force', false );
+		$force = $this->hasOption( 'force' );
 
 		$dbw = $this->getDB( DB_MASTER );
 
@@ -93,9 +93,9 @@ TEXT
 
 		$throttle = intval( $throttle );
 		if ( $begin !== '' ) {
-			$where = 'cl_to > ' . $dbw->addQuotes( $begin );
+			$where = [ 'cl_to > ' . $dbw->addQuotes( $begin ) ];
 		} else {
-			$where = null;
+			$where = [ '1 = 1' ];
 		}
 		$i = 0;
 
@@ -133,22 +133,16 @@ TEXT
 			usleep( $throttle * 1000 );
 		}
 
-		if ( $dbw->insert(
+		$dbw->insert(
 			'updatelog',
 			[ 'ul_key' => 'populate category' ],
 			__METHOD__,
 			'IGNORE'
-		) ) {
-			$this->output( "Category population complete.\n" );
+		);
 
-			return true;
-		} else {
-			$this->output( "Could not insert category population row.\n" );
-
-			return false;
-		}
+		return true;
 	}
 }
 
-$maintClass = "PopulateCategory";
+$maintClass = PopulateCategory::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

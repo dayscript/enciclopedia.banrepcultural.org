@@ -62,8 +62,8 @@ class Tag {
 	/**
 	 * Check for CSS class.
 	 *
-	 * @param string $name CSS class name
-	 * @return boolean
+	 * @param string $class CSS class name
+	 * @return bool
 	 */
 	public function hasClass( $class ) {
 		return in_array( $class, $this->classes );
@@ -76,7 +76,7 @@ class Tag {
 	 * @return $this
 	 */
 	public function addClasses( array $classes ) {
-		$this->classes = array_merge( $this->classes, $classes );
+		$this->classes = array_unique( array_merge( $this->classes, $classes ) );
 		return $this;
 	}
 
@@ -95,7 +95,7 @@ class Tag {
 	 * Toggle CSS classes.
 	 *
 	 * @param array $classes List of classes to add
-	 * @param boolean $toggle Add classes
+	 * @param bool|null $toggle Add classes
 	 * @return $this
 	 */
 	public function toggleClasses( array $classes, $toggle = null ) {
@@ -123,7 +123,7 @@ class Tag {
 	 * @return string|null
 	 */
 	public function getAttribute( $key ) {
-		return isset( $this->attributes[$key] ) ? $this->attributes[$key] : null;
+		return $this->attributes[$key] ?? null;
 	}
 
 	/**
@@ -169,6 +169,32 @@ class Tag {
 	}
 
 	/**
+	 * Remove any items that match by reference
+	 *
+	 * String items should never match by reference
+	 * so will not be removed.
+	 *
+	 * @param string|Tag|HtmlSnippet ...$content Content to reomve.
+	 * @return $this
+	 */
+	public function removeContent( ...$content ) {
+		if ( is_array( $content[ 0 ] ) ) {
+			$content = $content[ 0 ];
+		}
+		foreach ( $content as $item ) {
+			if ( !is_string( $item ) ) {
+				// Use strict type comparions so we don't
+				// compare objects with existing strings
+				$index = array_search( $item, $this->content, true );
+				if ( $index !== false ) {
+					array_splice( $this->content, $index, 1 );
+				}
+			}
+		}
+		return $this;
+	}
+
+	/**
 	 * Add content to the end.
 	 *
 	 * Accepts either variadic arguments (the $content argument can be repeated any number of times)
@@ -180,17 +206,19 @@ class Tag {
 	 * This, however, is not acceptable
 	 * * $tag->appendContent( [ $element1, $element2 ], $element3 );
 	 *
-	 * @param string|Tag|HtmlSnippet $content Content to append. Strings will be HTML-escaped
+	 * Objects that are already in $this->content will be moved
+	 * to the end of the list, not duplicated.
+	 *
+	 * @param string|Tag|HtmlSnippet ...$content Content to append. Strings will be HTML-escaped
 	 *   for output, use a HtmlSnippet instance to prevent that.
 	 * @return $this
 	 */
-	public function appendContent( /* $content... */ ) {
-		$contents = func_get_args();
-		if ( is_array( $contents[ 0 ] ) ) {
-			$this->content = array_merge( $this->content, $contents[ 0 ] );
-		} else {
-			$this->content = array_merge( $this->content, $contents );
+	public function appendContent( ...$content ) {
+		if ( is_array( $content[ 0 ] ) ) {
+			$content = $content[ 0 ];
 		}
+		$this->removeContent( $content );
+		$this->content = array_merge( $this->content, $content );
 		return $this;
 	}
 
@@ -200,23 +228,25 @@ class Tag {
 	 * Accepts either variadic arguments (the $content argument can be repeated any number of times)
 	 * or an array of arguments.
 	 *
+	 * Objects that are already in $this->content will be moved
+	 * to the end of the list, not duplicated.
+	 *
 	 * For example, these uses are valid:
 	 * * $tag->prependContent( [ $element1, $element2 ] );
 	 * * $tag->prependContent( $element1, $element2 );
 	 * This, however, is not acceptable
 	 * * $tag->prependContent( [ $element1, $element2 ], $element3 );
 	 *
-	 * @param string|Tag|HtmlSnippet $content Content to prepend. Strings will be HTML-escaped
+	 * @param string|Tag|HtmlSnippet ...$content Content to prepend. Strings will be HTML-escaped
 	 *   for output, use a HtmlSnippet instance to prevent that.
 	 * @return $this
 	 */
-	public function prependContent( /* $content... */ ) {
-		$contents = func_get_args();
-		if ( is_array( $contents[ 0 ] ) ) {
-			array_splice( $this->content, 0, 0, $contents[ 0 ] );
-		} else {
-			array_splice( $this->content, 0, 0, $contents );
+	public function prependContent( ...$content ) {
+		if ( is_array( $content[ 0 ] ) ) {
+			$content = $content[ 0 ];
 		}
+		$this->removeContent( $content );
+		array_splice( $this->content, 0, 0, $content );
 		return $this;
 	}
 
@@ -253,7 +283,7 @@ class Tag {
 	/**
 	 * Enable widget for client-side infusion.
 	 *
-	 * @param boolean $infusable True to allow tag/element/widget to be referenced client-side.
+	 * @param bool $infusable True to allow tag/element/widget to be referenced client-side.
 	 * @return $this
 	 */
 	public function setInfusable( $infusable ) {
@@ -264,7 +294,7 @@ class Tag {
 	/**
 	 * Get client-side infusability.
 	 *
-	 * @return boolean If this tag/element/widget can be referenced client-side.
+	 * @return bool If this tag/element/widget can be referenced client-side.
 	 */
 	public function isInfusable() {
 		return $this->infusable;
@@ -275,11 +305,11 @@ class Tag {
 	/**
 	 * Generate a unique ID for element
 	 *
-	 * @return {string} ID
+	 * @return string ID
 	 */
 	public static function generateElementId() {
 		self::$elementId++;
-		return 'ooui-' . self::$elementId;
+		return 'ooui-php-' . self::$elementId;
 	}
 
 	/**
@@ -345,7 +375,7 @@ class Tag {
 	 * distinguish them from malformed absolute ones (again, very lax rules for parsing protocols).
 	 *
 	 * @param string $url URL
-	 * @return boolean [description]
+	 * @return bool [description]
 	 */
 	public static function isSafeUrl( $url ) {
 		// Keep this function in sync with OO.ui.isSafeUrl
@@ -409,7 +439,7 @@ class Tag {
 			}
 
 			// Note that this is not a complete list of HTML attributes that need this validation.
-			// We only check for the ones that are generated by built-in OOjs UI PHP elements.
+			// We only check for the ones that are generated by built-in OOUI PHP elements.
 			if ( $key === 'href' || $key === 'action' ) {
 				if ( !self::isSafeUrl( $value ) ) {
 					// We can't tell for sure whether this URL is safe (although it might be). The only safe

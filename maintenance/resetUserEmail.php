@@ -32,10 +32,10 @@ require_once __DIR__ . '/Maintenance.php';
 class ResetUserEmail extends Maintenance {
 	public function __construct() {
 		$this->addDescription( "Resets a user's email" );
-		$this->addArg( 'user', 'Username or user ID, if starts with #', true );
+		$this->addArg( 'user', 'Username or user ID, if starts with #' );
 		$this->addArg( 'email', 'Email to assign' );
 
-		$this->addOption( 'no-reset-password', 'Don\'t reset the user\'s password', false, false );
+		$this->addOption( 'no-reset-password', 'Don\'t reset the user\'s password' );
 
 		parent::__construct();
 	}
@@ -48,12 +48,12 @@ class ResetUserEmail extends Maintenance {
 			$user = User::newFromName( $userName );
 		}
 		if ( !$user || !$user->getId() || !$user->loadFromId() ) {
-			$this->error( "Error: user '$userName' does not exist\n", 1 );
+			$this->fatalError( "Error: user '$userName' does not exist\n" );
 		}
 
 		$email = $this->getArg( 1 );
 		if ( !Sanitizer::validateEmail( $email ) ) {
-			$this->error( "Error: email '$email' is not valid\n", 1 );
+			$this->fatalError( "Error: email '$email' is not valid\n" );
 		}
 
 		// Code from https://wikitech.wikimedia.org/wiki/Password_reset
@@ -65,8 +65,9 @@ class ResetUserEmail extends Maintenance {
 			// Kick whomever is currently controlling the account off
 			$user->setPassword( PasswordFactory::generateRandomPasswordString( 128 ) );
 		}
+		$this->output( "Done!\n" );
 	}
 }
 
-$maintClass = 'ResetUserEmail';
+$maintClass = ResetUserEmail::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

@@ -20,7 +20,7 @@
  *
  * @file
  * @ingroup MaintenanceLanguage
- * @todo Make this more useful, right now just dumps $wgContLang
+ * @todo Make this more useful, right now just dumps content language
  */
 
 require_once __DIR__ . '/../Maintenance.php';
@@ -48,5 +48,5 @@ class DumpMessages extends Maintenance {
 	}
 }
 
-$maintClass = "DumpMessages";
+$maintClass = DumpMessages::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

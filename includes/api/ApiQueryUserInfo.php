@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on July 30, 2007
- *
  * Copyright © 2007 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -71,9 +67,10 @@ class ApiQueryUserInfo extends ApiQueryBase {
 		$vals['blockid'] = $block->getId();
 		$vals['blockedby'] = $block->getByName();
 		$vals['blockedbyid'] = $block->getBy();
-		$vals['blockreason'] = $block->mReason;
-		$vals['blockedtimestamp'] = wfTimestamp( TS_ISO_8601, $block->mTimestamp );
+		$vals['blockreason'] = $block->getReason();
+		$vals['blockedtimestamp'] = wfTimestamp( TS_ISO_8601, $block->getTimestamp() );
 		$vals['blockexpiry'] = ApiResult::formatExpiry( $block->getExpiry(), 'infinite' );
+		$vals['blockpartial'] = !$block->isSitewide();
 		if ( $block->getSystemBlockType() !== null ) {
 			$vals['systemblocktype'] = $block->getSystemBlockType();
 		}
@@ -122,7 +119,7 @@ class ApiQueryUserInfo extends ApiQueryBase {
 	protected function getCurrentUserInfo() {
 		$user = $this->getUser();
 		$vals = [];
-		$vals['id'] = intval( $user->getId() );
+		$vals['id'] = (int)$user->getId();
 		$vals['name'] = $user->getName();
 
 		if ( $user->isAnon() ) {
@@ -182,17 +179,6 @@ class ApiQueryUserInfo extends ApiQueryBase {
 			$vals['options'][ApiResult::META_BC_BOOLS] = array_keys( $vals['options'] );
 		}
 
-		if ( isset( $this->prop['preferencestoken'] ) ) {
-			$p = $this->getModulePrefix();
-			$this->addDeprecation(
-				[
-					'apiwarn-deprecation-withreplacement',
-					"{$p}prop=preferencestoken",
-					'action=query&meta=tokens',
-				],
-				"meta=userinfo&{$p}prop=preferencestoken"
-			);
-		}
 		if ( isset( $this->prop['preferencestoken'] ) &&
 			!$this->lacksSameOriginSecurity() &&
 			$user->isAllowed( 'editmyoptions' )
@@ -203,7 +189,7 @@ class ApiQueryUserInfo extends ApiQueryBase {
 		if ( isset( $this->prop['editcount'] ) ) {
 			// use intval to prevent null if a non-logged-in user calls
 			// api.php?format=jsonfm&action=query&meta=userinfo&uiprop=editcount
-			$vals['editcount'] = intval( $user->getEditCount() );
+			$vals['editcount'] = (int)$user->getEditCount();
 		}
 
 		if ( isset( $this->prop['ratelimits'] ) ) {
@@ -216,13 +202,11 @@ class ApiQueryUserInfo extends ApiQueryBase {
 			$vals['realname'] = $user->getRealName();
 		}
 
-		if ( $user->isAllowed( 'viewmyprivateinfo' ) ) {
-			if ( isset( $this->prop['email'] ) ) {
-				$vals['email'] = $user->getEmail();
-				$auth = $user->getEmailAuthenticationTimestamp();
-				if ( !is_null( $auth ) ) {
-					$vals['emailauthenticated'] = wfTimestamp( TS_ISO_8601, $auth );
-				}
+		if ( $user->isAllowed( 'viewmyprivateinfo' ) && isset( $this->prop['email'] ) ) {
+			$vals['email'] = $user->getEmail();
+			$auth = $user->getEmailAuthenticationTimestamp();
+			if ( $auth !== null ) {
+				$vals['emailauthenticated'] = wfTimestamp( TS_ISO_8601, $auth );
 			}
 		}
 
@@ -265,6 +249,13 @@ class ApiQueryUserInfo extends ApiQueryBase {
 			);
 		}
 
+		if ( isset( $this->prop['latestcontrib'] ) ) {
+			$ts = $this->getLatestContributionTime();
+			if ( $ts !== null ) {
+				$vals['latestcontrib'] = $ts;
+			}
+		}
+
 		return $vals;
 	}
 
@@ -298,13 +289,47 @@ class ApiQueryUserInfo extends ApiQueryBase {
 		foreach ( $this->getConfig()->get( 'RateLimits' ) as $action => $limits ) {
 			foreach ( $categories as $cat ) {
 				if ( isset( $limits[$cat] ) && !is_null( $limits[$cat] ) ) {
-					$retval[$action][$cat]['hits'] = intval( $limits[$cat][0] );
-					$retval[$action][$cat]['seconds'] = intval( $limits[$cat][1] );
+					$retval[$action][$cat]['hits'] = (int)$limits[$cat][0];
+					$retval[$action][$cat]['seconds'] = (int)$limits[$cat][1];
 				}
 			}
 		}
 
 		return $retval;
+	}
+
+	/**
+	 * @return string|null ISO 8601 timestamp of current user's last contribution or null if none
+	 */
+	protected function getLatestContributionTime() {
+		global $wgActorTableSchemaMigrationStage;
+
+		$user = $this->getUser();
+		$dbr = $this->getDB();
+
+		if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW ) {
+			if ( $user->getActorId() === null ) {
+				return null;
+			}
+			$res = $dbr->selectField( 'revision_actor_temp',
+				'MAX(revactor_timestamp)',
+				[ 'revactor_actor' => $user->getActorId() ],
+				__METHOD__
+			);
+		} else {
+			if ( $user->isLoggedIn() ) {
+				$conds = [ 'rev_user' => $user->getId() ];
+			} else {
+				$conds = [ 'rev_user_text' => $user->getName() ];
+			}
+			$res = $dbr->selectField( 'revision',
+				'MAX(rev_timestamp)',
+				$conds,
+				__METHOD__
+			);
+		}
+
+		return $res ? wfTimestamp( TS_ISO_8601, $res ) : null;
 	}
 
 	public function getAllowedParams() {
@@ -320,7 +345,6 @@ class ApiQueryUserInfo extends ApiQueryBase {
 					'rights',
 					'changeablegroups',
 					'options',
-					'preferencestoken',
 					'editcount',
 					'ratelimits',
 					'email',
@@ -329,6 +353,8 @@ class ApiQueryUserInfo extends ApiQueryBase {
 					'registrationdate',
 					'unreadcount',
 					'centralids',
+					'preferencestoken',
+					'latestcontrib',
 				],
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => [
 					'unreadcount' => [
@@ -336,6 +362,13 @@ class ApiQueryUserInfo extends ApiQueryBase {
 						self::WL_UNREAD_LIMIT - 1,
 						self::WL_UNREAD_LIMIT . '+',
 					],
+				],
+				ApiBase::PARAM_DEPRECATED_VALUES => [
+					'preferencestoken' => [
+						'apiwarn-deprecation-withreplacement',
+						$this->getModulePrefix() . "prop=preferencestoken",
+						'action=query&meta=tokens',
+					]
 				],
 			],
 			'attachedwiki' => null,

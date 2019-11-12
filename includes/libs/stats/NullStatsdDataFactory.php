@@ -2,13 +2,12 @@
 
 use Liuggio\StatsdClient\Entity\StatsdData;
 use Liuggio\StatsdClient\Entity\StatsdDataInterface;
-use Liuggio\StatsdClient\Factory\StatsdDataFactoryInterface;
 
 /**
  * @author Addshore
  * @since 1.27
  */
-class NullStatsdDataFactory implements StatsdDataFactoryInterface {
+class NullStatsdDataFactory implements IBufferingStatsdDataFactory {
 
 	/**
 	 * This function creates a 'timing' StatsdData.
@@ -40,8 +39,8 @@ class NullStatsdDataFactory implements StatsdDataFactoryInterface {
 	 * and logged in users by sending the current userId of a user
 	 * with each request with a key of "uniques" (or similar).
 	 *
-	 * @param  string|array $key The metric(s) to set.
-	 * @param  float $value The value for the stats.
+	 * @param string|array $key The metric(s) to set.
+	 * @param float $value The value for the stats.
 	 *
 	 * @return array
 	 */
@@ -53,7 +52,6 @@ class NullStatsdDataFactory implements StatsdDataFactoryInterface {
 	 * This function creates a 'increment' StatsdData object.
 	 *
 	 * @param string|array $key The metric(s) to increment.
-	 * @param float|1      $sampleRate The rate (0-1) for sampling.
 	 *
 	 * @return array
 	 */
@@ -66,7 +64,6 @@ class NullStatsdDataFactory implements StatsdDataFactoryInterface {
 	 *
 	 *
 	 * @param string|array $key The metric(s) to decrement.
-	 * @param float|1      $sampleRate The rate (0-1) for sampling.
 	 *
 	 * @return mixed
 	 */
@@ -78,7 +75,7 @@ class NullStatsdDataFactory implements StatsdDataFactoryInterface {
 	 * This function creates a 'updateCount' StatsdData object.
 	 *
 	 * @param string|array $key The metric(s) to decrement.
-	 * @param integer $delta The delta to add to the each metric
+	 * @param int $delta The delta to add to the each metric
 	 *
 	 * @return mixed
 	 */
@@ -108,4 +105,23 @@ class NullStatsdDataFactory implements StatsdDataFactoryInterface {
 		return $data;
 	}
 
+	public function hasData() {
+		return false;
+	}
+
+	public function getData() {
+		return [];
+	}
+
+	public function clearData() {
+		// Nothing to do, always empty
+	}
+
+	public function getDataCount() {
+		return 0;
+	}
+
+	public function setEnabled( $enabled ) {
+		// Nothing to do, null factory is always disabled.
+	}
 }

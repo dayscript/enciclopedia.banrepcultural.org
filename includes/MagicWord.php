@@ -21,19 +21,17 @@
  * @ingroup Parser
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * This class encapsulates "magic words" such as "#redirect", __NOTOC__, etc.
  *
  * @par Usage:
  * @code
- *     if (MagicWord::get( 'redirect' )->match( $text ) ) {
+ *     if ( $magicWordFactory->get( 'redirect' )->match( $text ) ) {
  *       // some code
  *     }
  * @endcode
- *
- * Possible future improvements:
- *   * Simultaneous searching for a number of magic words
- *   * MagicWord::$mObjects in shared memory
  *
  * Please avoid reading the data out of one of these objects and then writing
  * special case code. If possible, add another match()-like function here.
@@ -59,10 +57,10 @@
 class MagicWord {
 	/**#@-*/
 
-	/** @var int */
+	/** @var string */
 	public $mId;
 
-	/** @var array */
+	/** @var string[] */
 	public $mSynonyms;
 
 	/** @var bool */
@@ -92,245 +90,98 @@ class MagicWord {
 	/** @var bool */
 	private $mFound = false;
 
-	public static $mVariableIDsInitialised = false;
-	public static $mVariableIDs = [
-		'!',
-		'currentmonth',
-		'currentmonth1',
-		'currentmonthname',
-		'currentmonthnamegen',
-		'currentmonthabbrev',
-		'currentday',
-		'currentday2',
-		'currentdayname',
-		'currentyear',
-		'currenttime',
-		'currenthour',
-		'localmonth',
-		'localmonth1',
-		'localmonthname',
-		'localmonthnamegen',
-		'localmonthabbrev',
-		'localday',
-		'localday2',
-		'localdayname',
-		'localyear',
-		'localtime',
-		'localhour',
-		'numberofarticles',
-		'numberoffiles',
-		'numberofedits',
-		'articlepath',
-		'pageid',
-		'sitename',
-		'server',
-		'servername',
-		'scriptpath',
-		'stylepath',
-		'pagename',
-		'pagenamee',
-		'fullpagename',
-		'fullpagenamee',
-		'namespace',
-		'namespacee',
-		'namespacenumber',
-		'currentweek',
-		'currentdow',
-		'localweek',
-		'localdow',
-		'revisionid',
-		'revisionday',
-		'revisionday2',
-		'revisionmonth',
-		'revisionmonth1',
-		'revisionyear',
-		'revisiontimestamp',
-		'revisionuser',
-		'revisionsize',
-		'subpagename',
-		'subpagenamee',
-		'talkspace',
-		'talkspacee',
-		'subjectspace',
-		'subjectspacee',
-		'talkpagename',
-		'talkpagenamee',
-		'subjectpagename',
-		'subjectpagenamee',
-		'numberofusers',
-		'numberofactiveusers',
-		'numberofpages',
-		'currentversion',
-		'rootpagename',
-		'rootpagenamee',
-		'basepagename',
-		'basepagenamee',
-		'currenttimestamp',
-		'localtimestamp',
-		'directionmark',
-		'contentlanguage',
-		'pagelanguage',
-		'numberofadmins',
-		'cascadingsources',
-	];
-
-	/* Array of caching hints for ParserCache */
-	public static $mCacheTTLs = [
-		'currentmonth' => 86400,
-		'currentmonth1' => 86400,
-		'currentmonthname' => 86400,
-		'currentmonthnamegen' => 86400,
-		'currentmonthabbrev' => 86400,
-		'currentday' => 3600,
-		'currentday2' => 3600,
-		'currentdayname' => 3600,
-		'currentyear' => 86400,
-		'currenttime' => 3600,
-		'currenthour' => 3600,
-		'localmonth' => 86400,
-		'localmonth1' => 86400,
-		'localmonthname' => 86400,
-		'localmonthnamegen' => 86400,
-		'localmonthabbrev' => 86400,
-		'localday' => 3600,
-		'localday2' => 3600,
-		'localdayname' => 3600,
-		'localyear' => 86400,
-		'localtime' => 3600,
-		'localhour' => 3600,
-		'numberofarticles' => 3600,
-		'numberoffiles' => 3600,
-		'numberofedits' => 3600,
-		'currentweek' => 3600,
-		'currentdow' => 3600,
-		'localweek' => 3600,
-		'localdow' => 3600,
-		'numberofusers' => 3600,
-		'numberofactiveusers' => 3600,
-		'numberofpages' => 3600,
-		'currentversion' => 86400,
-		'currenttimestamp' => 3600,
-		'localtimestamp' => 3600,
-		'pagesinnamespace' => 3600,
-		'numberofadmins' => 3600,
-		'numberingroup' => 3600,
-	];
-
-	public static $mDoubleUnderscoreIDs = [
-		'notoc',
-		'nogallery',
-		'forcetoc',
-		'toc',
-		'noeditsection',
-		'newsectionlink',
-		'nonewsectionlink',
-		'hiddencat',
-		'index',
-		'noindex',
-		'staticredirect',
-		'notitleconvert',
-		'nocontentconvert',
-	];
-
-	public static $mSubstIDs = [
-		'subst',
-		'safesubst',
-	];
-
-	public static $mObjects = [];
-	public static $mDoubleUnderscoreArray = null;
+	/** @var Language */
+	private $contLang;
 
 	/**#@-*/
 
-	public function __construct( $id = 0, $syn = [], $cs = false ) {
+	/**
+	 * Create a new MagicWord object
+	 *
+	 * Use factory instead: MagicWordFactory::get
+	 *
+	 * @param string|null $id The internal name of the magic word
+	 * @param string[]|string $syn synonyms for the magic word
+	 * @param bool $cs If magic word is case sensitive
+	 * @param Language|null $contLang Content language
+	 */
+	public function __construct( $id = null, $syn = [], $cs = false, Language $contLang = null ) {
 		$this->mId = $id;
 		$this->mSynonyms = (array)$syn;
 		$this->mCaseSensitive = $cs;
+		$this->contLang = $contLang;
+
+		if ( !$contLang ) {
+			$this->contLang = MediaWikiServices::getInstance()->getContentLanguage();
+		}
 	}
 
 	/**
 	 * Factory: creates an object representing an ID
 	 *
-	 * @param int $id
+	 * @param string $id The internal name of the magic word
 	 *
 	 * @return MagicWord
+	 * @deprecated since 1.32, use MagicWordFactory::get
 	 */
-	public static function &get( $id ) {
-		if ( !isset( self::$mObjects[$id] ) ) {
-			$mw = new MagicWord();
-			$mw->load( $id );
-			self::$mObjects[$id] = $mw;
-		}
-		return self::$mObjects[$id];
+	public static function get( $id ) {
+		wfDeprecated( __METHOD__, '1.32' );
+		return MediaWikiServices::getInstance()->getMagicWordFactory()->get( $id );
 	}
 
 	/**
 	 * Get an array of parser variable IDs
 	 *
-	 * @return array
+	 * @return string[]
+	 * @deprecated since 1.32, use MagicWordFactory::getVariableIDs
 	 */
 	public static function getVariableIDs() {
-		if ( !self::$mVariableIDsInitialised ) {
-			# Get variable IDs
-			Hooks::run( 'MagicWordwgVariableIDs', [ &self::$mVariableIDs ] );
-			self::$mVariableIDsInitialised = true;
-		}
-		return self::$mVariableIDs;
+		wfDeprecated( __METHOD__, '1.32' );
+		return MediaWikiServices::getInstance()->getMagicWordFactory()->getVariableIDs();
 	}
 
 	/**
 	 * Get an array of parser substitution modifier IDs
-	 * @return array
+	 * @return string[]
+	 * @deprecated since 1.32, use MagicWordFactory::getSubstIDs
 	 */
 	public static function getSubstIDs() {
-		return self::$mSubstIDs;
+		wfDeprecated( __METHOD__, '1.32' );
+		return MediaWikiServices::getInstance()->getMagicWordFactory()->getSubstIDs();
 	}
 
 	/**
 	 * Allow external reads of TTL array
 	 *
-	 * @param int $id
+	 * @param string $id
 	 * @return int
+	 * @deprecated since 1.32, use MagicWordFactory::getCacheTTL
 	 */
 	public static function getCacheTTL( $id ) {
-		if ( array_key_exists( $id, self::$mCacheTTLs ) ) {
-			return self::$mCacheTTLs[$id];
-		} else {
-			return -1;
-		}
+		wfDeprecated( __METHOD__, '1.32' );
+		return MediaWikiServices::getInstance()->getMagicWordFactory()->getCacheTTL( $id );
 	}
 
 	/**
 	 * Get a MagicWordArray of double-underscore entities
 	 *
 	 * @return MagicWordArray
+	 * @deprecated since 1.32, use MagicWordFactory::getDoubleUnderscoreArray
 	 */
 	public static function getDoubleUnderscoreArray() {
-		if ( is_null( self::$mDoubleUnderscoreArray ) ) {
-			Hooks::run( 'GetDoubleUnderscoreIDs', [ &self::$mDoubleUnderscoreIDs ] );
-			self::$mDoubleUnderscoreArray = new MagicWordArray( self::$mDoubleUnderscoreIDs );
-		}
-		return self::$mDoubleUnderscoreArray;
-	}
-
-	/**
-	 * Clear the self::$mObjects variable
-	 * For use in parser tests
-	 */
-	public static function clearCache() {
-		self::$mObjects = [];
+		wfDeprecated( __METHOD__, '1.32' );
+		return MediaWikiServices::getInstance()->getMagicWordFactory()->getDoubleUnderscoreArray();
 	}
 
 	/**
 	 * Initialises this object with an ID
 	 *
-	 * @param int $id
+	 * @param string $id
 	 * @throws MWException
 	 */
 	public function load( $id ) {
-		global $wgContLang;
 		$this->mId = $id;
-		$wgContLang->getMagic( $this );
+		$this->contLang->getMagic( $this );
 		if ( !$this->mSynonyms ) {
 			$this->mSynonyms = [ 'brionmademeputthishere' ];
 			throw new MWException( "Error: invalid magic word '$id'" );
@@ -376,13 +227,7 @@ class MagicWord {
 	public function compareStringLength( $s1, $s2 ) {
 		$l1 = strlen( $s1 );
 		$l2 = strlen( $s2 );
-		if ( $l1 < $l2 ) {
-			return 1;
-		} elseif ( $l1 > $l2 ) {
-			return -1;
-		} else {
-			return 0;
-		}
+		return $l2 <=> $l1; // descending
 	}
 
 	/**
@@ -518,7 +363,7 @@ class MagicWord {
 	 * Returns true if the text matches the word, and alters the
 	 * input string, removing all instances of the word
 	 *
-	 * @param string $text
+	 * @param string &$text
 	 *
 	 * @return bool
 	 */
@@ -534,7 +379,7 @@ class MagicWord {
 	}
 
 	/**
-	 * @param string $text
+	 * @param string &$text
 	 * @return bool
 	 */
 	public function matchStartAndRemove( &$text ) {
@@ -630,7 +475,7 @@ class MagicWord {
 	}
 
 	/**
-	 * @return array
+	 * @return string[]
 	 */
 	public function getSynonyms() {
 		return $this->mSynonyms;
@@ -647,43 +492,15 @@ class MagicWord {
 	}
 
 	/**
-	 * $magicarr is an associative array of (magic word ID => replacement)
-	 * This method uses the php feature to do several replacements at the same time,
-	 * thereby gaining some efficiency. The result is placed in the out variable
-	 * $result. The return value is true if something was replaced.
-	 * @deprecated since 1.25, unused
-	 *
-	 * @param array $magicarr
-	 * @param string $subject
-	 * @param string $result
-	 *
-	 * @return bool
-	 */
-	public function replaceMultiple( $magicarr, $subject, &$result ) {
-		wfDeprecated( __METHOD__, '1.25' );
-		$search = [];
-		$replace = [];
-		foreach ( $magicarr as $id => $replacement ) {
-			$mw = MagicWord::get( $id );
-			$search[] = $mw->getRegex();
-			$replace[] = $replacement;
-		}
-
-		$result = preg_replace( $search, $replace, $subject );
-		return $result !== $subject;
-	}
-
-	/**
 	 * Adds all the synonyms of this MagicWord to an array, to allow quick
 	 * lookup in a list of magic words
 	 *
-	 * @param array $array
+	 * @param string[] &$array
 	 * @param string $value
 	 */
 	public function addToArray( &$array, $value ) {
-		global $wgContLang;
 		foreach ( $this->mSynonyms as $syn ) {
-			$array[$wgContLang->lc( $syn )] = $value;
+			$array[$this->contLang->lc( $syn )] = $value;
 		}
 	}
 
@@ -695,7 +512,7 @@ class MagicWord {
 	}
 
 	/**
-	 * @return int
+	 * @return string
 	 */
 	public function getId() {
 		return $this->mId;

@@ -1,7 +1,7 @@
 /**
  * Toolbar module for wikiEditor
  */
-( function ( $, mw ) {
+( function () {
 
 	$.wikiEditor.modules.toolbar = {
 
@@ -12,9 +12,7 @@
 			addToToolbar: function ( context, data ) {
 
 				var section, type, i, group, $group, $section, $sections,
-					$tabs, tool, $pages, $index, page, $table, $characters, actions,
-					$divSections, $visibleSection,
-					smooth = true;
+					$tabs, tool, $pages, $index, page, $table, $characters, actions;
 
 				for ( type in data ) {
 					switch ( type ) {
@@ -52,14 +50,14 @@
 									$.wikiEditor.modules.toolbar.fn.buildGroup( context, group, data[ type ][ group ] )
 								);
 							}
-							smooth = false;
 							break;
 						case 'tools':
 							if ( !( 'section' in data && 'group' in data ) ) {
 								continue;
 							}
 							$group = context.modules.toolbar.$toolbar.find(
-								'div[rel="' + data.section + '"].section ' + 'div[rel="' + data.group + '"].group'
+								'div[rel="' + data.section + '"].section ' +
+								'div[rel="' + data.group + '"].group'
 							);
 							for ( tool in data[ type ] ) {
 								// Tool
@@ -68,7 +66,6 @@
 							if ( $group.children().length ) {
 								$group.removeClass( 'empty' );
 							}
-							smooth = false;
 							break;
 						case 'pages':
 							if ( !( 'section' in data ) ) {
@@ -89,41 +86,39 @@
 								);
 							}
 							$.wikiEditor.modules.toolbar.fn.updateBookletSelection( context, data.section, $pages, $index );
-							smooth = false;
 							break;
 						case 'rows':
 							if ( !( 'section' in data && 'page' in data ) ) {
 								continue;
 							}
 							$table = context.modules.toolbar.$toolbar.find(
-								'div[rel="' + data.section + '"].section ' + 'div[rel="' + data.page + '"].page table'
+								'div[rel="' + data.section + '"].section ' +
+								'div[rel="' + data.page + '"].page table'
 							);
 							for ( i = 0; i < data.rows.length; i++ ) {
 								// Row
 								$table.append( $.wikiEditor.modules.toolbar.fn.buildRow( context, data.rows[ i ] ) );
 							}
-							smooth = false;
 							break;
 						case 'characters':
 							if ( !( 'section' in data && 'page' in data ) ) {
 								continue;
 							}
 							$characters = context.modules.toolbar.$toolbar.find(
-								'div[rel="' + data.section + '"].section ' + 'div[rel="' + data.page + '"].page div'
+								'div[rel="' + data.section + '"].section ' +
+								'div[rel="' + data.page + '"].page div'
 							);
 							actions = $characters.data( 'actions' );
 							for ( i = 0; i < data.characters.length; i++ ) {
 								// Character
-								$characters
-								.append(
+								$characters.append(
 									$( $.wikiEditor.modules.toolbar.fn.buildCharacter( data.characters[ i ], actions ) )
-										.mousedown( function ( e ) {
-											context.fn.saveCursorAndScrollTop();
+										.on( 'mousedown', function ( e ) {
 											// No dragging!
 											e.preventDefault();
 											return false;
 										} )
-										.click( function ( e ) {
+										.on( 'click', function ( e ) {
 											$.wikiEditor.modules.toolbar.fn.doAction( $( this ).parent().data( 'context' ),
 												$( this ).parent().data( 'actions' )[ $( this ).attr( 'rel' ) ] );
 											e.preventDefault();
@@ -131,21 +126,8 @@
 										} )
 								);
 							}
-							smooth = false;
 							break;
 						default: break;
-					}
-				}
-
-				// Fix div.section size after adding things; if smooth is true uses a smooth
-				// animation, otherwise just change height (breaking any ongoing animation)
-				$divSections = context.modules.toolbar.$toolbar.find( 'div.sections' );
-				$visibleSection = $divSections.find( '.section-visible' );
-				if ( $visibleSection.length ) {
-					if ( smooth ) {
-						$divSections.animate( { height: $visibleSection.outerHeight() }, 'fast' );
-					} else {
-						$divSections.height( $visibleSection.outerHeight() );
 					}
 				}
 			},
@@ -202,18 +184,6 @@
 		},
 
 		/**
-		 * Event handlers
-		 */
-		evt: {
-			/**
-			 * @param {Object} context
-			 */
-			resize: function ( context ) {
-				context.$ui.find( '.sections' ).height( context.$ui.find( '.sections .section-visible' ).outerHeight() );
-			}
-		},
-
-		/**
 		 * Internally used functions
 		 */
 		fn: {
@@ -244,6 +214,9 @@
 				switch ( action.type ) {
 					case 'replace':
 					case 'encapsulate':
+						if ( context.$textarea.prop( 'readonly' ) ) {
+							break;
+						}
 						parts = {
 							pre: $.wikiEditor.autoMsg( action.options, 'pre' ),
 							peri: $.wikiEditor.autoMsg( action.options, 'peri' ),
@@ -278,12 +251,12 @@
 			},
 			buildGroup: function ( context, id, group ) {
 				var $label, empty, tool,
-					$group = $( '<div>' ).attr( { 'class': 'group group-' + id, rel: id } ),
+					$group = $( '<div>' ).attr( { class: 'group group-' + id, rel: id } ),
 					label = $.wikiEditor.autoMsg( group, 'label' );
 				if ( label ) {
 					$label = $( '<span>' )
 						.addClass( 'label' )
-						.html( label );
+						.text( label );
 					$group.append( $label );
 				}
 				empty = true;
@@ -304,7 +277,7 @@
 				return $group;
 			},
 			buildTool: function ( context, id, tool ) {
-				var i, label, $button, offsetOrIcon, $select, $options,
+				var i, label, $button, config, icon, $select, $options, oouiButton,
 					option, optionLabel;
 				if ( 'filters' in tool ) {
 					for ( i = 0; i < tool.filters.length; i++ ) {
@@ -313,53 +286,80 @@
 						}
 					}
 				}
-				label = $.wikiEditor.autoMsg( tool, 'label' );
+				label = $.wikiEditor.autoSafeMsg( tool, 'label' );
 				switch ( tool.type ) {
 					case 'button':
-						offsetOrIcon = $.wikiEditor.autoIconOrOffset(
-							tool.icon,
-							tool.offset,
-							$.wikiEditor.imgPath + 'toolbar/'
-						);
-						$button = $( '<a>' )
-							.attr( {
-								href: '#',
-								title: label,
-								rel: id,
-								role: 'button',
-								'class': 'tool tool-button'
-							} )
-							.text( label );
-						if ( typeof offsetOrIcon === 'object' ) {
-							$button
-							.addClass( 'wikiEditor-toolbar-spritedButton' )
-							.css( 'backgroundPosition', offsetOrIcon[ 0 ] + 'px ' + offsetOrIcon[ 1 ] + 'px' );
+					case 'toggle':
+						if ( tool.oouiIcon ) {
+							config = {
+								framed: false,
+								classes: [ 'tool' ],
+								icon: tool.oouiIcon,
+								title: label
+							};
+							if ( tool.type === 'button' ) {
+								oouiButton = new OO.ui.ButtonWidget( config );
+							} else if ( tool.type === 'toggle' ) {
+								oouiButton = new OO.ui.ToggleButtonWidget( config );
+							}
+							$button = oouiButton.$element;
+							$button.attr( 'rel', id );
+							$button.data( 'ooui', oouiButton );
 						} else {
-							$button
-							.css( 'background-image', 'url(' + offsetOrIcon + ')' );
+							$button = $( '<a>' )
+								.attr( {
+									href: '#',
+									title: label,
+									rel: id,
+									role: 'button',
+									class: 'tool tool-button'
+								} )
+								.text( label );
+							if ( tool.icon ) {
+								icon = $.wikiEditor.autoIcon(
+									tool.icon,
+									$.wikiEditor.imgPath + 'toolbar/'
+								);
+								$button.css( 'background-image', 'url(' + icon + ')' );
+							}
 						}
+						$button.data( 'setActive', function ( active ) {
+							$button.toggleClass( 'tool-active', active );
+
+							// OOUI button
+							if ( $button.data( 'ooui' ) && tool.type === 'toggle' ) {
+								$button.data( 'ooui' ).setValue( active );
+							}
+						} );
 						if ( 'action' in tool ) {
 							$button
 								.data( 'action', tool.action )
 								.data( 'context', context )
-								.mousedown( function ( e ) {
-									context.fn.saveCursorAndScrollTop();
+								.on( 'mousedown', function ( e ) {
 									// No dragging!
 									e.preventDefault();
 									return false;
-								} )
-								.click( function ( e ) {
+								} );
+							if ( $button.data( 'ooui' ) ) {
+								$button.data( 'ooui' ).on( 'click', function () {
 									$.wikiEditor.modules.toolbar.fn.doAction(
-										$( this ).data( 'context' ), $( this ).data( 'action' ), $( this )
+										context, tool.action
+									);
+								} );
+							} else {
+								$button.on( 'click', function ( e ) {
+									$.wikiEditor.modules.toolbar.fn.doAction(
+										context, tool.action
 									);
 									e.preventDefault();
 									return false;
 								} );
+							}
 						}
 						return $button;
 					case 'select':
 						$select = $( '<div>' )
-							.attr( { rel: id, 'class': 'tool tool-select' } );
+							.attr( { rel: id, class: 'tool tool-select' } );
 						$options = $( '<div>' ).addClass( 'options' );
 						if ( 'list' in tool ) {
 							for ( option in tool.list ) {
@@ -368,22 +368,17 @@
 									$( '<a>' )
 										.data( 'action', tool.list[ option ].action )
 										.data( 'context', context )
-										.mousedown( function ( e ) {
-											context.fn.saveCursorAndScrollTop();
+										.on( 'mousedown', function ( e ) {
 											// No dragging!
 											e.preventDefault();
 											return false;
 										} )
-										.click( function ( e ) {
+										.on( 'click', function ( e ) {
 											$.wikiEditor.modules.toolbar.fn.doAction(
 												$( this ).data( 'context' ), $( this ).data( 'action' ), $( this )
 											);
 											// Hide the dropdown
-											// Sanity check: if this somehow gets called while the dropdown
-											// is hidden, don't show it
-											if ( $( this ).parent().is( ':visible' ) ) {
-												$( this ).parent().animate( { opacity: 'toggle' }, 'fast' );
-											}
+											$( this ).parent().removeClass( 'options-shown' );
 											e.preventDefault();
 											return false;
 										} )
@@ -393,23 +388,23 @@
 								);
 							}
 						}
-						$select.append( $( '<div>' ).addClass( 'menu' ).append( $options ) );
 						$select.append( $( '<a>' )
-								.addClass( 'label' )
-								.text( label )
-								.data( 'options', $options )
-								.attr( 'href', '#' )
-								.mousedown( function ( e ) {
-									// No dragging!
-									e.preventDefault();
-									return false;
-								} )
-								.click( function ( e ) {
-									$( this ).data( 'options' ).animate( { opacity: 'toggle' }, 'fast' );
-									e.preventDefault();
-									return false;
-								} )
+							.addClass( 'label' )
+							.text( label )
+							.data( 'options', $options )
+							.attr( 'href', '#' )
+							.on( 'mousedown', function ( e ) {
+								// No dragging!
+								e.preventDefault();
+								return false;
+							} )
+							.on( 'click', function ( e ) {
+								$( this ).data( 'options' ).toggleClass( 'options-shown' );
+								e.preventDefault();
+								return false;
+							} )
 						);
+						$select.append( $( '<div>' ).addClass( 'menu' ).append( $options ) );
 						return $select;
 					default:
 						return null;
@@ -421,13 +416,12 @@
 					.text( label )
 					.attr( 'rel', id )
 					.data( 'context', context )
-					.mousedown( function ( e ) {
-						context.fn.saveCursorAndScrollTop();
+					.on( 'mousedown', function ( e ) {
 						// No dragging!
 						e.preventDefault();
 						return false;
 					} )
-					.click( function ( event ) {
+					.on( 'click', function ( event ) {
 						var section;
 						$( this ).parent().parent().find( '.page' ).hide();
 						$( this ).parent().parent().find( '.page-' + $( this ).attr( 'rel' ) ).show().trigger( 'loadPage' );
@@ -439,7 +433,6 @@
 							$( this ).attr( 'rel' ),
 							{ expires: 30, path: '/' }
 						);
-						context.fn.restoreCursorAndScrollTop();
 						// No dragging!
 						event.preventDefault();
 						return false;
@@ -447,7 +440,7 @@
 			},
 			buildPage: function ( context, id, page, deferLoad ) {
 				var $page = $( '<div>' ).attr( {
-					'class': 'page page-' + id,
+					class: 'page page-' + id,
 					rel: id
 				} );
 				if ( deferLoad ) {
@@ -499,13 +492,12 @@
 							$characters
 								.html( html )
 								.children()
-								.mousedown( function ( e ) {
-									context.fn.saveCursorAndScrollTop();
+								.on( 'mousedown', function ( e ) {
 									// No dragging!
 									e.preventDefault();
 									return false;
 								} )
-								.click( function ( e ) {
+								.on( 'click', function ( e ) {
 									$.wikiEditor.modules.toolbar.fn.doAction(
 										$( this ).parent().data( 'context' ),
 										$( this ).parent().data( 'actions' )[ $( this ).attr( 'rel' ) ],
@@ -522,7 +514,7 @@
 			buildHeading: function ( context, headings ) {
 				var i, html = '<tr>';
 				for ( i = 0; i < headings.length; i++ ) {
-					html += '<th>' + $.wikiEditor.autoMsg( headings[ i ], [ 'html', 'text' ] ) + '</th>';
+					html += '<th>' + $.wikiEditor.autoSafeMsg( headings[ i ], [ 'html', 'text' ] ) + '</th>';
 				}
 				return html + '</tr>';
 			},
@@ -530,6 +522,8 @@
 				var cell,
 					html = '<tr>';
 				for ( cell in row ) {
+					// FIXME: This currently needs to use the "unsafe" .text() message because it embeds raw HTML
+					// in the messages (as used exclusively by the 'help' toolbar panel).
 					html += '<td class="cell cell-' + cell + '"><span>' +
 						$.wikiEditor.autoMsg( row[ cell ], [ 'html', 'text' ] ) + '</span></td>';
 				}
@@ -595,15 +589,15 @@
 						} )
 						.text( $.wikiEditor.autoMsg( section, 'label' ) )
 						.data( 'context', context )
-						.mouseup( function () {
-							$( this ).blur();
+						.on( 'mouseup', function () {
+							$( this ).trigger( 'blur' );
 						} )
-						.mousedown( function ( e ) {
+						.on( 'mousedown', function ( e ) {
 							// No dragging!
 							e.preventDefault();
 							return false;
 						} )
-						.click( function ( e ) {
+						.on( 'click', function ( e ) {
 							// We have to set aria-pressed over here, as NVDA wont recognize it
 							// if we do it in the below .each as it seems
 							$( this ).attr( 'aria-pressed', 'true' );
@@ -613,55 +607,35 @@
 								}
 							} );
 							$sections = $( this ).data( 'context' ).$ui.find( '.sections' );
-							$section =
-								$( this ).data( 'context' ).$ui.find( '.section-' + $( this ).parent().attr( 'rel' ) );
+							$section = $sections.find( '.section-' + $( this ).parent().attr( 'rel' ) );
 							show = !$section.hasClass( 'section-visible' );
-							$section.parent().find( '.section-visible' )
-								.css( 'position', 'absolute' )
+							$sections.find( '.section-visible' )
 								.attr( 'aria-expanded', 'false' )
 								.removeClass( 'section-visible' )
-								.animate( { opacity: 0 }, 'fast', 'linear', function () {
-									$( this ).addClass( 'section-hidden' ).css( 'position', 'static' );
-								} );
+								.addClass( 'section-hidden' );
 
 							$( this ).parent().parent().find( 'a' ).removeClass( 'current' );
-							$sections.css( 'overflow', 'hidden' );
 							if ( show ) {
 								$section
-									.stop()
 									.removeClass( 'section-hidden' )
 									.attr( 'aria-expanded', 'true' )
-									.animate( { opacity: 100.0 }, 'fast', 'linear', function () {
-										$( this ).addClass( 'section-visible' );
-										context.fn.trigger( 'resize' );
-									} );
-								$sections
-									.animate( { height: $section.outerHeight() }, $section.outerHeight() * 2, function () {
-										$( this ).css( 'overflow', 'visible' ).css( 'height', 'auto' );
-										context.fn.trigger( 'resize' );
-									} );
+									.addClass( 'section-visible' );
 								$( this ).addClass( 'current' );
-							} else {
-								$sections
-									.stop()
-									.css( 'height', $section.outerHeight() )
-									.animate( { height: 0 }, $section.outerHeight() * 2, function () {
-										$( this ).css( { overflow: 'visible' } );
-										context.fn.trigger( 'resize' );
-									} );
 							}
+
 							// Save the currently visible section
 							$.cookie(
 								'wikiEditor-' + $( this ).data( 'context' ).instance + '-toolbar-section',
 								show ? $section.attr( 'rel' ) : null,
 								{ expires: 30, path: '/' }
 							);
+
 							e.preventDefault();
 							return false;
 						} );
 				return $( '<span>' )
 					.attr( {
-						'class': 'tab tab-' + id,
+						class: 'tab tab-' + id,
 						rel: id
 					} )
 					.append( $link );
@@ -669,7 +643,7 @@
 			buildSection: function ( context, id, section ) {
 				var selected, show,
 					$section = $( '<div>' ).attr( {
-						'class': section.type + ' section section-' + id,
+						class: section.type + ' section section-' + id,
 						rel: id,
 						id: 'wikiEditor-section-' + id
 					} );
@@ -740,45 +714,26 @@
 				$selectedIndex.addClass( 'current' );
 			},
 			build: function ( context, config ) {
-				var section, sectionQueue,
+				var section,
 					$tabs = $( '<div>' ).addClass( 'tabs' ).appendTo( context.modules.toolbar.$toolbar ),
 					$sections = $( '<div>' ).addClass( 'sections' ).appendTo( context.modules.toolbar.$toolbar );
 				context.modules.toolbar.$toolbar.append( $( '<div>' ).css( 'clear', 'both' ) );
-				sectionQueue = [];
 				for ( section in config ) {
 					if ( section === 'main' ) {
 						context.modules.toolbar.$toolbar.prepend(
 							$.wikiEditor.modules.toolbar.fn.buildSection( context, section, config[ section ] )
 						);
 					} else {
-						sectionQueue.push( {
-							$sections: $sections,
-							context: context,
-							id: section,
-							config: config[ section ]
-						} );
+						$sections.append( $.wikiEditor.modules.toolbar.fn.buildSection( context, section, config[ section ] ) );
 						$tabs.append( $.wikiEditor.modules.toolbar.fn.buildTab( context, section, config[ section ] ) );
 					}
 				}
-				$.eachAsync( sectionQueue, {
-					bulk: 0,
-					end: function () {
-						context.$textarea.trigger( 'wikiEditor-toolbar-doneInitialSections' );
-					},
-					loop: function ( i, s ) {
-						var $section;
-						s.$sections.append( $.wikiEditor.modules.toolbar.fn.buildSection( s.context, s.id, s.config ) );
-						$section = s.$sections.find( '.section-visible' );
-						if ( $section.length ) {
-							$sections.animate( { height: $section.outerHeight() }, $section.outerHeight() * 2, function () {
-								context.fn.trigger( 'resize' );
-							} );
-						}
-					}
+				setTimeout( function () {
+					context.$textarea.trigger( 'wikiEditor-toolbar-doneInitialSections' );
 				} );
 			}
 		}
 
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

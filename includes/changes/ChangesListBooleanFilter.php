@@ -18,31 +18,17 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @license GPL 2+
  * @author Matthew Flaschen
  */
 
 use Wikimedia\Rdbms\IDatabase;
 
 /**
- * An individual filter in a boolean group
+ * Represents a hide-based boolean filter (used on ChangesListSpecialPage and descendants)
  *
  * @since 1.29
  */
 class ChangesListBooleanFilter extends ChangesListFilter {
-	/**
-	 * Name.  Used as URL parameter
-	 *
-	 * @var string $name
-	 */
-
-	// This can sometimes be different on Special:RecentChanges
-	// and Special:Watchlist, due to the double-legacy hooks
-	// (SpecialRecentChangesFilters and SpecialWatchlistFilters)
-
-	// but there will be separate sets of ChangesListFilterGroup and ChangesListFilter instances
-	// for those pages (it should work even if they're both loaded
-	// at once, but that can't happen).
 	/**
 	 * Main unstructured UI i18n key
 	 *
@@ -73,6 +59,13 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	protected $queryCallable;
 
 	/**
+	 * Value that defined when this filter is considered active
+	 *
+	 * @var bool $activeValue
+	 */
+	protected $activeValue;
+
+	/**
 	 * Create a new filter with the specified configuration.
 	 *
 	 * It infers which UI (it can be either or both) to display the filter on based on
@@ -84,32 +77,33 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	 * it's for.
 	 *
 	 * @param array $filterDefinition ChangesListFilter definition
-	 *
-	 * $filterDefinition['name'] string Name.  Used as URL parameter.
-	 * $filterDefinition['group'] ChangesListFilterGroup Group.  Filter group this
-	 *  belongs to.
-	 * $filterDefinition['label'] string i18n key of label for structured UI.
-	 * $filterDefinition['description'] string i18n key of description for structured
-	 *  UI.
-	 * $filterDefinition['showHide'] string Main i18n key used for unstructured UI.
-	 * $filterDefinition['isReplacedInStructuredUi'] bool Whether there is an
-	 *  equivalent feature available in the structured UI; this is optional, defaulting
-	 *  to true.  It does not need to be set if the exact same filter is simply visible
-	 *  on both.
-	 * $filterDefinition['default'] bool Default
-	 * $filterDefinition['priority'] int Priority integer.  Higher value means higher
-	 *  up in the group's filter list.
-	 * $filterDefinition['queryCallable'] callable Callable accepting parameters, used
-	 *  to implement filter's DB query modification.  Callback parameters:
-	 *   string $specialPageClassName Class name of current special page
-	 *   IContextSource $context Context, for e.g. user
-	 *   IDatabase $dbr Database, for addQuotes, makeList, and similar
-	 *   array &$tables Array of tables; see IDatabase::select $table
-	 *   array &$fields Array of fields; see IDatabase::select $vars
-	 *   array &$conds Array of conditions; see IDatabase::select $conds
-	 *   array &$query_options Array of query options; see IDatabase::select $options
-	 *   array &$join_conds Array of join conditions; see IDatabase::select $join_conds
-	 *   Optional only for legacy filters that still use the query hooks directly
+	 * * $filterDefinition['name'] string Name.  Used as URL parameter.
+	 * * $filterDefinition['group'] ChangesListFilterGroup Group.  Filter group this
+	 *     belongs to.
+	 * * $filterDefinition['label'] string i18n key of label for structured UI.
+	 * * $filterDefinition['description'] string i18n key of description for structured
+	 *     UI.
+	 * * $filterDefinition['showHide'] string Main i18n key used for unstructured UI.
+	 * * $filterDefinition['isReplacedInStructuredUi'] bool Whether there is an
+	 *     equivalent feature available in the structured UI; this is optional, defaulting
+	 *     to true.  It does not need to be set if the exact same filter is simply visible
+	 *     on both.
+	 * * $filterDefinition['default'] bool Default
+	 * * $filterDefinition['activeValue'] bool This filter is considered active when
+	 *     its value is equal to its activeValue. Default is true.
+	 * * $filterDefinition['priority'] int Priority integer.  Higher value means higher
+	 *     up in the group's filter list.
+	 * * $filterDefinition['queryCallable'] callable Callable accepting parameters, used
+	 *     to implement filter's DB query modification.  Required, except for legacy
+	 *     filters that still use the query hooks directly.  Callback parameters:
+	 * 	* string $specialPageClassName Class name of current special page
+	 * 	* IContextSource $context Context, for e.g. user
+	 * 	* IDatabase $dbr Database, for addQuotes, makeList, and similar
+	 * 	* array &$tables Array of tables; see IDatabase::select $table
+	 * 	* array &$fields Array of fields; see IDatabase::select $vars
+	 * 	* array &$conds Array of conditions; see IDatabase::select $conds
+	 * 	* array &$query_options Array of query options; see IDatabase::select $options
+	 * 	* array &$join_conds Array of join conditions; see IDatabase::select $join_conds
 	 */
 	public function __construct( $filterDefinition ) {
 		parent::__construct( $filterDefinition );
@@ -118,14 +112,10 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 			$this->showHide = $filterDefinition['showHide'];
 		}
 
-		if ( isset( $filterDefinition['isReplacedInStructuredUi'] ) ) {
-			$this->isReplacedInStructuredUi = $filterDefinition['isReplacedInStructuredUi'];
-		} else {
-			$this->isReplacedInStructuredUi = false;
-		}
+		$this->isReplacedInStructuredUi = $filterDefinition['isReplacedInStructuredUi'] ?? false;
 
 		if ( isset( $filterDefinition['default'] ) ) {
-			$this->defaultValue = $filterDefinition['default'];
+			$this->setDefault( $filterDefinition['default'] );
 		} else {
 			throw new MWException( 'You must set a default' );
 		}
@@ -133,6 +123,8 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 		if ( isset( $filterDefinition['queryCallable'] ) ) {
 			$this->queryCallable = $filterDefinition['queryCallable'];
 		}
+
+		$this->activeValue = $filterDefinition['activeValue'] ?? true;
 	}
 
 	/**
@@ -143,17 +135,19 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	 */
 	public function getDefault( $structuredUI = false ) {
 		return $this->isReplacedInStructuredUi && $structuredUI ?
-			false :
+			!$this->activeValue :
 			$this->defaultValue;
 	}
 
 	/**
-	 * Sets default
+	 * Sets default.  It must be a boolean.
 	 *
-	 * @param bool Default value
+	 * It will be coerced to boolean.
+	 *
+	 * @param bool $defaultValue
 	 */
 	public function setDefault( $defaultValue ) {
-		$this->defaultValue = $defaultValue;
+		$this->defaultValue = (bool)$defaultValue;
 	}
 
 	/**
@@ -164,14 +158,14 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inheritDoc
 	 */
 	public function displaysOnUnstructuredUi() {
-		return !!$this->showHide;
+		return (bool)$this->showHide;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inheritDoc
 	 */
 	public function isFeatureAvailableOnStructuredUi() {
 		return $this->isReplacedInStructuredUi ||
@@ -191,29 +185,26 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	 * @param array &$join_conds Array of join conditions; see IDatabase::select $join_conds
 	 */
 	public function modifyQuery( IDatabase $dbr, ChangesListSpecialPage $specialPage,
-		&$tables, &$fields, &$conds, &$query_options, &$join_conds ) {
-
+		&$tables, &$fields, &$conds, &$query_options, &$join_conds
+	) {
 		if ( $this->queryCallable === null ) {
 			return;
 		}
 
-		call_user_func_array(
-			$this->queryCallable,
-			[
-				get_class( $specialPage ),
-				$specialPage->getContext(),
-				$dbr,
-				&$tables,
-				&$fields,
-				&$conds,
-				&$query_options,
-				&$join_conds
-			]
+		( $this->queryCallable )(
+			get_class( $specialPage ),
+			$specialPage->getContext(),
+			$dbr,
+			$tables,
+			$fields,
+			$conds,
+			$query_options,
+			$join_conds
 		);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inheritDoc
 	 */
 	public function getJsData() {
 		$output = parent::getJsData();
@@ -224,12 +215,28 @@ class ChangesListBooleanFilter extends ChangesListFilter {
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inheritDoc
 	 */
 	public function isSelected( FormOptions $opts ) {
 		return !$opts[ $this->getName() ] &&
-			array_filter( $this->getSiblings(), function ( $sibling ) use ( $opts ) {
-				return $opts[ $sibling->getName() ];
-			} );
+			array_filter(
+				$this->getSiblings(),
+				function ( ChangesListBooleanFilter $sibling ) use ( $opts ) {
+					return $opts[ $sibling->getName() ];
+				}
+			);
+	}
+
+	/**
+	 * @param FormOptions $opts Query parameters merged with defaults
+	 * @param bool $isStructuredUI Whether the structured UI is currently enabled
+	 * @return bool Whether this filter should be considered active
+	 */
+	public function isActive( FormOptions $opts, $isStructuredUI ) {
+		if ( $this->isReplacedInStructuredUi && $isStructuredUI ) {
+			return false;
+		}
+
+		return $opts[ $this->getName() ] === $this->activeValue;
 	}
 }

@@ -2,7 +2,7 @@
 
 use Wikimedia\TestingAccessWrapper;
 
-class MWHttpRequestTestCase extends PHPUnit_Framework_TestCase {
+abstract class MWHttpRequestTestCase extends PHPUnit\Framework\TestCase {
 	protected static $httpEngine;
 	protected $oldHttpEngine;
 
@@ -105,17 +105,16 @@ class MWHttpRequestTestCase extends PHPUnit_Framework_TestCase {
 		$this->assertHasCookie( 'foo', 'bar', $request->getCookieJar() );
 
 		$this->markTestIncomplete( 'CookieJar does not handle deletion' );
-		return;
 
-		$request = MWHttpRequest::factory( 'http://httpbin.org/cookies/delete?foo' );
-		$cookieJar = new CookieJar();
-		$cookieJar->setCookie( 'foo', 'bar', [ 'domain' => 'httpbin.org' ] );
-		$cookieJar->setCookie( 'foo2', 'bar2', [ 'domain' => 'httpbin.org' ] );
-		$request->setCookieJar( $cookieJar );
-		$status = $request->execute();
-		$this->assertTrue( $status->isGood() );
-		$this->assertNotHasCookie( 'foo', $request->getCookieJar() );
-		$this->assertHasCookie( 'foo2', 'bar2', $request->getCookieJar() );
+		// $request = MWHttpRequest::factory( 'http://httpbin.org/cookies/delete?foo' );
+		// $cookieJar = new CookieJar();
+		// $cookieJar->setCookie( 'foo', 'bar', [ 'domain' => 'httpbin.org' ] );
+		// $cookieJar->setCookie( 'foo2', 'bar2', [ 'domain' => 'httpbin.org' ] );
+		// $request->setCookieJar( $cookieJar );
+		// $status = $request->execute();
+		// $this->assertTrue( $status->isGood() );
+		// $this->assertNotHasCookie( 'foo', $request->getCookieJar() );
+		// $this->assertHasCookie( 'foo2', 'bar2', $request->getCookieJar() );
 	}
 
 	public function testGetResponseHeaders() {
@@ -195,6 +194,11 @@ class MWHttpRequestTestCase extends PHPUnit_Framework_TestCase {
 		$this->assertSame( 401, $request->getStatus() );
 	}
 
+	public function testFactoryDefaults() {
+		$request = MWHttpRequest::factory( 'http://acme.test' );
+		$this->assertInstanceOf( MWHttpRequest::class, $request );
+	}
+
 	// --------------------
 
 	/**
@@ -234,7 +238,7 @@ class MWHttpRequestTestCase extends PHPUnit_Framework_TestCase {
 
 	/**
 	 * Asserts that the cookie jar does not have the given cookie.
-	 * @param string $expectedName Cookie name
+	 * @param string $name Cookie name
 	 * @param CookieJar $cookieJar
 	 */
 	protected function assertNotHasCookie( $name, CookieJar $cookieJar ) {
@@ -242,4 +246,5 @@ class MWHttpRequestTestCase extends PHPUnit_Framework_TestCase {
 		$this->assertArrayNotHasKey( strtolower( $name ),
 			array_change_key_case( $cookieJar->cookie, CASE_LOWER ) );
 	}
+
 }

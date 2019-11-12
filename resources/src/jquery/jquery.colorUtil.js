@@ -6,7 +6,7 @@
  * Mostly based on other plugins and functions (linted and optimized a little).
  * Sources cited inline.
  */
-( function ( $ ) {
+( function () {
 	/**
 	 * @class jQuery.colorUtil
 	 * @singleton
@@ -29,6 +29,9 @@
 			if ( color && Array.isArray( color ) && color.length === 3 ) {
 				return color;
 			}
+			if ( typeof color !== 'string' ) {
+				return undefined;
+			}
 
 			// Look for rgb(num,num,num)
 			// eslint-disable-next-line no-cond-assign
@@ -42,7 +45,7 @@
 
 			// Look for rgb(num%,num%,num%)
 			// eslint-disable-next-line no-cond-assign
-			if ( result = /rgb\(\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*\)/.exec( color ) ) {
+			if ( result = /rgb\(\s*([0-9]+(?:\.[0-9]+)?)%\s*,\s*([0-9]+(?:\.[0-9]+)?)%\s*,\s*([0-9]+(?:\.[0-9]+)?)%\s*\)/.exec( color ) ) {
 				return [
 					parseFloat( result[ 1 ] ) * 2.55,
 					parseFloat( result[ 2 ] ) * 2.55,
@@ -77,7 +80,7 @@
 			}
 
 			// Otherwise, we're most likely dealing with a named color
-			return $.colorUtil.colors[ $.trim( color ).toLowerCase() ];
+			return $.colorUtil.colors[ color.trim().toLowerCase() ];
 		},
 
 		/**
@@ -262,4 +265,4 @@
 
 	};
 
-}( jQuery ) );
+}() );

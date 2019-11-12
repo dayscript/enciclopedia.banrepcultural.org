@@ -4,7 +4,7 @@ namespace MediaWiki\Auth;
 
 /**
  * @group AuthManager
- * @covers MediaWiki\Auth\PasswordAuthenticationRequest
+ * @covers \MediaWiki\Auth\PasswordAuthenticationRequest
  */
 class PasswordAuthenticationRequestTest extends AuthenticationRequestTestCase {
 
@@ -129,10 +129,10 @@ class PasswordAuthenticationRequestTest extends AuthenticationRequestTestCase {
 		$ret = $req->describeCredentials();
 		$this->assertInternalType( 'array', $ret );
 		$this->assertArrayHasKey( 'provider', $ret );
-		$this->assertInstanceOf( 'Message', $ret['provider'] );
+		$this->assertInstanceOf( \Message::class, $ret['provider'] );
 		$this->assertSame( 'authmanager-provider-password', $ret['provider']->getKey() );
 		$this->assertArrayHasKey( 'account', $ret );
-		$this->assertInstanceOf( 'Message', $ret['account'] );
+		$this->assertInstanceOf( \Message::class, $ret['account'] );
 		$this->assertSame( [ 'UTSysop' ], $ret['account']->getParams() );
 	}
 }

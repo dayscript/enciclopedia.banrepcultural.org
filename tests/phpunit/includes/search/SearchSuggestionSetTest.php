@@ -19,10 +19,11 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
-class SearchSuggestionSetTest extends \PHPUnit_Framework_TestCase {
+class SearchSuggestionSetTest extends \PHPUnit\Framework\TestCase {
 	/**
 	 * Test that adding a new suggestion at the end
 	 * will keep proper score ordering
+	 * @covers SearchSuggestionSet::append
 	 */
 	public function testAppend() {
 		$set = SearchSuggestionSet::emptySuggestionSet();
@@ -43,7 +44,7 @@ class SearchSuggestionSetTest extends \PHPUnit_Framework_TestCase {
 		$this->assertEquals( 3, $set->getBestScore() );
 		$this->assertEquals( 1, $suggestion->getScore() );
 
-		$scores = $set->map( function( $s ) {
+		$scores = $set->map( function ( $s ) {
 			return $s->getScore();
 		} );
 		$sorted = $scores;
@@ -54,6 +55,9 @@ class SearchSuggestionSetTest extends \PHPUnit_Framework_TestCase {
 	/**
 	 * Test that adding a new best suggestion will keep proper score
 	 * ordering
+	 * @covers SearchSuggestionSet::getWorstScore
+	 * @covers SearchSuggestionSet::getBestScore
+	 * @covers SearchSuggestionSet::prepend
 	 */
 	public function testInsertBest() {
 		$set = SearchSuggestionSet::emptySuggestionSet();
@@ -80,7 +84,7 @@ class SearchSuggestionSetTest extends \PHPUnit_Framework_TestCase {
 		$this->assertEquals( 6, $set->getBestScore() );
 		$this->assertEquals( 6, $suggestion->getScore() );
 
-		$scores = $set->map( function( $s ) {
+		$scores = $set->map( function ( $s ) {
 			return $s->getScore();
 		} );
 		$sorted = $scores;
@@ -88,6 +92,9 @@ class SearchSuggestionSetTest extends \PHPUnit_Framework_TestCase {
 		$this->assertEquals( $sorted, $scores );
 	}
 
+	/**
+	 * @covers SearchSuggestionSet::shrink
+	 */
 	public function testShrink() {
 		$set = SearchSuggestionSet::emptySuggestionSet();
 		for ( $i = 0; $i < 100; $i++ ) {

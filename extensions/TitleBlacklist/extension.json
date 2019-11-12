@@ -7,10 +7,10 @@
 	],
 	"url": "https://www.mediawiki.org/wiki/Extension:TitleBlacklist",
 	"descriptionmsg": "titleblacklist-desc",
-	"license-name": "GPL-2.0+",
+	"license-name": "GPL-2.0-or-later",
 	"type": "antispam",
 	"requires": {
-		"MediaWiki": ">= 1.27.0"
+		"MediaWiki": ">= 1.31.0"
 	},
 	"GroupPermissions": {
 		"sysop": {
@@ -42,17 +42,18 @@
 	},
 	"MessagesDirs": {
 		"TitleBlacklist": [
-			"i18n"
+			"i18n",
+			"i18n/api"
 		]
 	},
 	"AutoloadClasses": {
-		"TitleBlacklist": "TitleBlacklist.list.php",
-		"TitleBlacklistEntry": "TitleBlacklist.list.php",
-		"TitleBlacklistHooks": "TitleBlacklist.hooks.php",
-		"TitleBlacklistAuthenticationRequest": "TitleBlacklistAuthenticationRequest.php",
-		"TitleBlacklistPreAuthenticationProvider": "TitleBlacklistPreAuthenticationProvider.php",
-		"Scribunto_LuaTitleBlacklistLibrary": "TitleBlacklist.library.php",
-		"ApiQueryTitleBlacklist": "api/ApiQueryTitleBlacklist.php"
+		"TitleBlacklist": "includes/TitleBlacklist.php",
+		"TitleBlacklistEntry": "includes/TitleBlacklistEntry.php",
+		"TitleBlacklistHooks": "includes/TitleBlacklistHooks.php",
+		"TitleBlacklistAuthenticationRequest": "includes/TitleBlacklistAuthenticationRequest.php",
+		"TitleBlacklistPreAuthenticationProvider": "includes/TitleBlacklistPreAuthenticationProvider.php",
+		"Scribunto_LuaTitleBlacklistLibrary": "includes/Scribunto_LuaTitleBlacklistLibrary.php",
+		"ApiQueryTitleBlacklist": "includes/api/ApiQueryTitleBlacklist.php"
 	},
 	"ResourceModules": {
 		"mediawiki.api.titleblacklist": {
@@ -61,13 +62,22 @@
 				"mediawiki.api"
 			],
 			"targets": [ "desktop", "mobile" ]
+		},
+		"ext.titleblacklist.visualEditor": {
+			"scripts": "ve-titleblacklist/ve.init.mw.TitleBlacklistSaveErrorHandler.js",
+			"messages": [
+				"visualeditor-saveerror-titleblacklist"
+			],
+			"targets": [ "desktop", "mobile" ]
 		}
 	},
+	"VisualEditorPluginModules": [
+		"ext.titleblacklist.visualEditor"
+	],
 	"ResourceFileModulePaths": {
 		"localBasePath": "modules",
 		"remoteExtPath": "TitleBlacklist/modules"
 	},
-	"callback": "TitleBlacklistHooks::onRegistration",
 	"Hooks": {
 		"getUserPermissionsErrorsExpensive": [
 			"TitleBlacklistHooks::userCan"
@@ -98,6 +108,13 @@
 			"warningexpiry": 600
 		},
 		"TitleBlacklistBlockAutoAccountCreation": true
+	},
+	"AuthManagerAutoConfig": {
+		"preauth": {
+			"TitleBlacklistPreAuthenticationProvider": {
+				"class": "TitleBlacklistPreAuthenticationProvider"
+			}
+		}
 	},
 	"manifest_version": 1
 }

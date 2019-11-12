@@ -69,7 +69,6 @@ class ResultWrapper implements IResultWrapper {
 
 	public function free() {
 		if ( $this->db ) {
-			$this->db->freeResult( $this );
 			$this->db = null;
 		}
 		$this->result = null;
@@ -119,4 +118,7 @@ class ResultWrapper implements IResultWrapper {
 	}
 }
 
+/**
+ * @deprecated since 1.29
+ */
 class_alias( ResultWrapper::class, 'ResultWrapper' );

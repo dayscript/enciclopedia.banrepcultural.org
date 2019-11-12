@@ -47,18 +47,18 @@ class McTest extends Maintenance {
 		$iterations = $this->getOption( 'i', 100 );
 		if ( $cache ) {
 			if ( !isset( $wgObjectCaches[$cache] ) ) {
-				$this->error( "MediaWiki isn't configured with a cache named '$cache'", 1 );
+				$this->fatalError( "MediaWiki isn't configured with a cache named '$cache'" );
 			}
 			$servers = $wgObjectCaches[$cache]['servers'];
-		} elseif ( $this->hasArg() ) {
-			$servers = [ $this->getArg() ];
+		} elseif ( $this->hasArg( 0 ) ) {
+			$servers = [ $this->getArg( 0 ) ];
 		} elseif ( $wgMainCacheType === CACHE_MEMCACHED ) {
 			global $wgMemCachedServers;
 			$servers = $wgMemCachedServers;
 		} elseif ( isset( $wgObjectCaches[$wgMainCacheType]['servers'] ) ) {
 			$servers = $wgObjectCaches[$wgMainCacheType]['servers'];
 		} else {
-			$this->error( "MediaWiki isn't configured for Memcached usage", 1 );
+			$this->fatalError( "MediaWiki isn't configured for Memcached usage" );
 		}
 
 		# find out the longest server string to nicely align output later on
@@ -102,5 +102,5 @@ class McTest extends Maintenance {
 	}
 }
 
-$maintClass = "McTest";
+$maintClass = McTest::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

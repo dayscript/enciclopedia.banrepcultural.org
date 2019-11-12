@@ -27,7 +27,7 @@
  */
 class CategoryPage extends Article {
 	# Subclasses can change this to override the viewer class.
-	protected $mCategoryViewerClass = 'CategoryViewer';
+	protected $mCategoryViewerClass = CategoryViewer::class;
 
 	/**
 	 * @var WikiCategoryPage
@@ -116,5 +116,13 @@ class CategoryPage extends Article {
 		$out = $this->getContext()->getOutput();
 		$out->addHTML( $viewer->getHTML() );
 		$this->addHelpLink( 'Help:Categories' );
+	}
+
+	function getCategoryViewerClass() {
+		return $this->mCategoryViewerClass;
+	}
+
+	function setCategoryViewerClass( $class ) {
+		$this->mCategoryViewerClass = $class;
 	}
 }

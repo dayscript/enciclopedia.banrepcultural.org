@@ -67,8 +67,8 @@ class AlterSharedConstraints extends Maintenance {
 						AND ucc.constraint_name = uc.constraint_name
 						AND uccpk.constraint_name = uc.r_constraint_name
 						AND uccpk.table_name = '$ltable'" );
-			while ( ( $row = $result->fetchRow() ) !== false ) {
 
+			while ( ( $row = $result->fetchRow() ) !== false ) {
 				$this->output( "Altering {$row['constraint_name']} ..." );
 
 				try {
@@ -93,5 +93,5 @@ class AlterSharedConstraints extends Maintenance {
 	}
 }
 
-$maintClass = "AlterSharedConstraints";
+$maintClass = AlterSharedConstraints::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

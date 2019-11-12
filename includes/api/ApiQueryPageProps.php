@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Aug 7, 2010
- *
  * Copyright © 2010 soxred93, Bryan Tong Minh
  *
  * This program is free software; you can redistribute it and/or modify
@@ -43,7 +39,7 @@ class ApiQueryPageProps extends ApiQueryBase {
 
 		$this->params = $this->extractRequestParams();
 		if ( $this->params['continue'] ) {
-			$continueValue = intval( $this->params['continue'] );
+			$continueValue = (int)$this->params['continue'];
 			$this->dieContinueUsageIf( strval( $continueValue ) !== $this->params['continue'] );
 			$filteredPages = [];
 			foreach ( $pages as $id => $page ) {
@@ -54,7 +50,7 @@ class ApiQueryPageProps extends ApiQueryBase {
 			$pages = $filteredPages;
 		}
 
-		if ( !count( $pages ) ) {
+		if ( $pages === [] ) {
 			# Nothing to do
 			return;
 		}

@@ -6,7 +6,7 @@
  * @group JobQueue
  * @group Database
  *
- * @licence GNU GPL v2+
+ * @license GPL-2.0-or-later
  * @author Addshore
  */
 class CategoryMembershipChangeJobTest extends MediaWikiTestCase {
@@ -61,13 +61,16 @@ class CategoryMembershipChangeJobTest extends MediaWikiTestCase {
 	 * @return RecentChange|null
 	 */
 	private function getCategorizeRecentChangeForRevId( $revId ) {
-		return RecentChange::newFromConds(
+		$rc = RecentChange::newFromConds(
 			[
 				'rc_type' => RC_CATEGORIZE,
 				'rc_this_oldid' => $revId,
 			],
 			__METHOD__
 		);
+
+		$this->assertNotNull( $rc, 'rev__id = ' . $revId );
+		return $rc;
 	}
 
 	public function testRun_normalCategoryAddedAndRemoved() {

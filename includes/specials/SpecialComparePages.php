@@ -43,13 +43,12 @@ class SpecialComparePages extends SpecialPage {
 	/**
 	 * Show a form for filtering namespace and username
 	 *
-	 * @param string $par
-	 * @return string
+	 * @param string|null $par
 	 */
 	public function execute( $par ) {
 		$this->setHeaders();
 		$this->outputHeader();
-		$this->getOutput()->addModuleStyles( 'mediawiki.special.comparepages.styles' );
+		$this->getOutput()->addModuleStyles( 'mediawiki.special' );
 
 		$form = HTMLForm::factory( 'ooui', [
 			'Page1' => [
@@ -59,6 +58,7 @@ class SpecialComparePages extends SpecialPage {
 				'size' => '40',
 				'section' => 'page1',
 				'validation-callback' => [ $this, 'checkExistingTitle' ],
+				'required' => false,
 			],
 			'Revision1' => [
 				'type' => 'int',
@@ -75,6 +75,7 @@ class SpecialComparePages extends SpecialPage {
 				'size' => '40',
 				'section' => 'page2',
 				'validation-callback' => [ $this, 'checkExistingTitle' ],
+				'required' => false,
 			],
 			'Revision2' => [
 				'type' => 'int',

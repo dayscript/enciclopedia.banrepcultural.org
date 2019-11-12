@@ -20,7 +20,7 @@
  * @file
  */
 class SquidPurgeClientPool {
-	/** @var array Array of SquidPurgeClient */
+	/** @var SquidPurgeClient[] */
 	protected $clients = [];
 
 	/** @var int */
@@ -46,11 +46,9 @@ class SquidPurgeClientPool {
 	public function run() {
 		$done = false;
 		$startTime = microtime( true );
+
 		while ( !$done ) {
 			$readSockets = $writeSockets = [];
-			/**
-			 * @var $client SquidPurgeClient
-			 */
 			foreach ( $this->clients as $clientIndex => $client ) {
 				$sockets = $client->getReadSocketsForSelect();
 				foreach ( $sockets as $i => $socket ) {
@@ -61,19 +59,21 @@ class SquidPurgeClientPool {
 					$writeSockets["$clientIndex/$i"] = $socket;
 				}
 			}
-			if ( !count( $readSockets ) && !count( $writeSockets ) ) {
+			if ( $readSockets === [] && $writeSockets === [] ) {
 				break;
 			}
+
 			$exceptSockets = null;
 			$timeout = min( $startTime + $this->timeout - microtime( true ), 1 );
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			$numReady = socket_select( $readSockets, $writeSockets, $exceptSockets, $timeout );
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 			if ( $numReady === false ) {
 				wfDebugLog( 'squid', __METHOD__ . ': Error in stream_select: ' .
 					socket_strerror( socket_last_error() ) . "\n" );
 				break;
 			}
+
 			// Check for timeout, use 1% tolerance since we aimed at having socket_select()
 			// exit at precisely the overall timeout
 			if ( microtime( true ) - $startTime > $this->timeout * 0.99 ) {
@@ -101,6 +101,7 @@ class SquidPurgeClientPool {
 				}
 			}
 		}
+
 		foreach ( $this->clients as $client ) {
 			$client->close();
 		}

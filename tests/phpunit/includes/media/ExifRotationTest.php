@@ -5,9 +5,12 @@
  * @group Media
  * @group medium
  *
- * @todo covers tags
+ * @covers BitmapHandler
  */
 class ExifRotationTest extends MediaWikiMediaTestCase {
+
+	/** @var BitmapHandler */
+	private $handler;
 
 	protected function setUp() {
 		parent::setUp();
@@ -186,6 +189,11 @@ class ExifRotationTest extends MediaWikiMediaTestCase {
 
 			$file = $this->dataFile( $name, $type );
 			$thumb = $file->transform( $params, File::RENDER_NOW | File::RENDER_FORCE );
+
+			if ( $thumb->isError() ) {
+				/** @var MediaTransformError $thumb */
+				$this->fail( $thumb->toText() );
+			}
 
 			$this->assertEquals(
 				$out[0],

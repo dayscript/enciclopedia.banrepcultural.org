@@ -20,6 +20,8 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Image gallery
  *
@@ -39,6 +41,11 @@ abstract class ImageGalleryBase extends ContextSource {
 	protected $mShowBytes;
 
 	/**
+	 * @var bool Whether to show the dimensions in categories
+	 */
+	protected $mShowDimensions;
+
+	/**
 	 * @var bool Whether to show the filename. Default: true
 	 */
 	protected $mShowFilename;
@@ -52,6 +59,15 @@ abstract class ImageGalleryBase extends ContextSource {
 	 * @var bool|string Gallery caption. Default: false
 	 */
 	protected $mCaption = false;
+
+	/**
+	 * Length to truncate filename to in caption when using "showfilename".
+	 * A value of 'true' will truncate the filename to one line using CSS
+	 * and will be the behaviour after deprecation.
+	 *
+	 * @var bool|int
+	 */
+	protected $mCaptionLength = true;
 
 	/**
 	 * @var bool Hide blacklisted images?
@@ -73,7 +89,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	protected $mAttribs = [];
 
 	/** @var bool */
-	static private $modeMapping = false;
+	private static $modeMapping = false;
 
 	/**
 	 * Get a new image gallery. This is the method other callers
@@ -85,7 +101,6 @@ abstract class ImageGalleryBase extends ContextSource {
 	 * @throws MWException
 	 */
 	static function factory( $mode = false, IContextSource $context = null ) {
-		global $wgContLang;
 		self::loadModes();
 		if ( !$context ) {
 			$context = RequestContext::getMainAndWarn( __METHOD__ );
@@ -95,7 +110,7 @@ abstract class ImageGalleryBase extends ContextSource {
 			$mode = $galleryOptions['mode'];
 		}
 
-		$mode = $wgContLang->lc( $mode );
+		$mode = MediaWikiServices::getInstance()->getContentLanguage()->lc( $mode );
 
 		if ( isset( self::$modeMapping[$mode] ) ) {
 			$class = self::$modeMapping[$mode];
@@ -108,12 +123,12 @@ abstract class ImageGalleryBase extends ContextSource {
 	private static function loadModes() {
 		if ( self::$modeMapping === false ) {
 			self::$modeMapping = [
-				'traditional' => 'TraditionalImageGallery',
-				'nolines' => 'NolinesImageGallery',
-				'packed' => 'PackedImageGallery',
-				'packed-hover' => 'PackedHoverImageGallery',
-				'packed-overlay' => 'PackedOverlayImageGallery',
-				'slideshow' => 'SlideshowImageGallery',
+				'traditional' => TraditionalImageGallery::class,
+				'nolines' => NolinesImageGallery::class,
+				'packed' => PackedImageGallery::class,
+				'packed-hover' => PackedHoverImageGallery::class,
+				'packed-overlay' => PackedOverlayImageGallery::class,
+				'slideshow' => SlideshowImageGallery::class,
 			];
 			// Allow extensions to make a new gallery format.
 			Hooks::run( 'GalleryGetModes', [ &self::$modeMapping ] );
@@ -136,6 +151,7 @@ abstract class ImageGalleryBase extends ContextSource {
 		$galleryOptions = $this->getConfig()->get( 'GalleryOptions' );
 		$this->mImages = [];
 		$this->mShowBytes = $galleryOptions['showBytes'];
+		$this->mShowDimensions = $galleryOptions['showDimensions'];
 		$this->mShowFilename = true;
 		$this->mParser = false;
 		$this->mHideBadImages = false;
@@ -171,7 +187,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	/**
 	 * Set the caption (as plain text)
 	 *
-	 * @param string $caption Caption
+	 * @param string $caption
 	 */
 	function setCaption( $caption ) {
 		$this->mCaption = htmlspecialchars( $caption );
@@ -180,7 +196,7 @@ abstract class ImageGalleryBase extends ContextSource {
 	/**
 	 * Set the caption (as HTML)
 	 *
-	 * @param string $caption Caption
+	 * @param string $caption
 	 */
 	public function setCaptionHtml( $caption ) {
 		$this->mCaption = $caption;
@@ -201,22 +217,26 @@ abstract class ImageGalleryBase extends ContextSource {
 	/**
 	 * Set how wide each image will be, in pixels.
 	 *
-	 * @param int $num Integer > 0; invalid numbers will be ignored
+	 * @param string $num Number. Unit other than 'px is invalid. Invalid numbers
+	 *   and those below 0 are ignored.
 	 */
 	public function setWidths( $num ) {
-		if ( $num > 0 ) {
-			$this->mWidths = (int)$num;
+		$parsed = Parser::parseWidthParam( $num, false );
+		if ( isset( $parsed['width'] ) && $parsed['width'] > 0 ) {
+			$this->mWidths = $parsed['width'];
 		}
 	}
 
 	/**
 	 * Set how high each image will be, in pixels.
 	 *
-	 * @param int $num Integer > 0; invalid numbers will be ignored
+	 * @param string $num Number. Unit other than 'px is invalid. Invalid numbers
+	 *   and those below 0 are ignored.
 	 */
 	public function setHeights( $num ) {
-		if ( $num > 0 ) {
-			$this->mHeights = (int)$num;
+		$parsed = Parser::parseWidthParam( $num, false );
+		if ( isset( $parsed['width'] ) && $parsed['width'] > 0 ) {
+			$this->mHeights = $parsed['width'];
 		}
 	}
 
@@ -281,6 +301,16 @@ abstract class ImageGalleryBase extends ContextSource {
 	 */
 	function isEmpty() {
 		return empty( $this->mImages );
+	}
+
+	/**
+	 * Enable/Disable showing of the dimensions of an image in the gallery.
+	 * Enabled by default.
+	 *
+	 * @param bool $f Set to false to disable
+	 */
+	function setShowDimensions( $f ) {
+		$this->mShowDimensions = (bool)$f;
 	}
 
 	/**

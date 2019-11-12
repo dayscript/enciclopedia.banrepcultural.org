@@ -24,7 +24,7 @@
  * @file
  * @ingroup Site
  *
- * @license GNU GPL v2+
+ * @license GPL-2.0-or-later
  * @author Daniel Kinzler
  */
 class SiteImporter {
@@ -191,7 +191,7 @@ class SiteImporter {
 
 	/**
 	 * @param DOMElement $element
-	 * @param $name
+	 * @param string $name
 	 * @param string|null|bool $default
 	 *
 	 * @return null|string

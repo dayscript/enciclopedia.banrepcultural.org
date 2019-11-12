@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Sep 7, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -44,26 +40,26 @@ class ApiQuery extends ApiBase {
 	 * @var array
 	 */
 	private static $QueryPropModules = [
-		'categories' => 'ApiQueryCategories',
-		'categoryinfo' => 'ApiQueryCategoryInfo',
-		'contributors' => 'ApiQueryContributors',
-		'deletedrevisions' => 'ApiQueryDeletedRevisions',
-		'duplicatefiles' => 'ApiQueryDuplicateFiles',
-		'extlinks' => 'ApiQueryExternalLinks',
-		'fileusage' => 'ApiQueryBacklinksprop',
-		'images' => 'ApiQueryImages',
-		'imageinfo' => 'ApiQueryImageInfo',
-		'info' => 'ApiQueryInfo',
-		'links' => 'ApiQueryLinks',
-		'linkshere' => 'ApiQueryBacklinksprop',
-		'iwlinks' => 'ApiQueryIWLinks',
-		'langlinks' => 'ApiQueryLangLinks',
-		'pageprops' => 'ApiQueryPageProps',
-		'redirects' => 'ApiQueryBacklinksprop',
-		'revisions' => 'ApiQueryRevisions',
-		'stashimageinfo' => 'ApiQueryStashImageInfo',
-		'templates' => 'ApiQueryLinks',
-		'transcludedin' => 'ApiQueryBacklinksprop',
+		'categories' => ApiQueryCategories::class,
+		'categoryinfo' => ApiQueryCategoryInfo::class,
+		'contributors' => ApiQueryContributors::class,
+		'deletedrevisions' => ApiQueryDeletedRevisions::class,
+		'duplicatefiles' => ApiQueryDuplicateFiles::class,
+		'extlinks' => ApiQueryExternalLinks::class,
+		'fileusage' => ApiQueryBacklinksprop::class,
+		'images' => ApiQueryImages::class,
+		'imageinfo' => ApiQueryImageInfo::class,
+		'info' => ApiQueryInfo::class,
+		'links' => ApiQueryLinks::class,
+		'linkshere' => ApiQueryBacklinksprop::class,
+		'iwlinks' => ApiQueryIWLinks::class,
+		'langlinks' => ApiQueryLangLinks::class,
+		'pageprops' => ApiQueryPageProps::class,
+		'redirects' => ApiQueryBacklinksprop::class,
+		'revisions' => ApiQueryRevisions::class,
+		'stashimageinfo' => ApiQueryStashImageInfo::class,
+		'templates' => ApiQueryLinks::class,
+		'transcludedin' => ApiQueryBacklinksprop::class,
 	];
 
 	/**
@@ -71,41 +67,41 @@ class ApiQuery extends ApiBase {
 	 * @var array
 	 */
 	private static $QueryListModules = [
-		'allcategories' => 'ApiQueryAllCategories',
-		'alldeletedrevisions' => 'ApiQueryAllDeletedRevisions',
-		'allfileusages' => 'ApiQueryAllLinks',
-		'allimages' => 'ApiQueryAllImages',
-		'alllinks' => 'ApiQueryAllLinks',
-		'allpages' => 'ApiQueryAllPages',
-		'allredirects' => 'ApiQueryAllLinks',
-		'allrevisions' => 'ApiQueryAllRevisions',
-		'mystashedfiles' => 'ApiQueryMyStashedFiles',
-		'alltransclusions' => 'ApiQueryAllLinks',
-		'allusers' => 'ApiQueryAllUsers',
-		'backlinks' => 'ApiQueryBacklinks',
-		'blocks' => 'ApiQueryBlocks',
-		'categorymembers' => 'ApiQueryCategoryMembers',
-		'deletedrevs' => 'ApiQueryDeletedrevs',
-		'embeddedin' => 'ApiQueryBacklinks',
-		'exturlusage' => 'ApiQueryExtLinksUsage',
-		'filearchive' => 'ApiQueryFilearchive',
-		'imageusage' => 'ApiQueryBacklinks',
-		'iwbacklinks' => 'ApiQueryIWBacklinks',
-		'langbacklinks' => 'ApiQueryLangBacklinks',
-		'logevents' => 'ApiQueryLogEvents',
-		'pageswithprop' => 'ApiQueryPagesWithProp',
-		'pagepropnames' => 'ApiQueryPagePropNames',
-		'prefixsearch' => 'ApiQueryPrefixSearch',
-		'protectedtitles' => 'ApiQueryProtectedTitles',
-		'querypage' => 'ApiQueryQueryPage',
-		'random' => 'ApiQueryRandom',
-		'recentchanges' => 'ApiQueryRecentChanges',
-		'search' => 'ApiQuerySearch',
-		'tags' => 'ApiQueryTags',
-		'usercontribs' => 'ApiQueryContributions',
-		'users' => 'ApiQueryUsers',
-		'watchlist' => 'ApiQueryWatchlist',
-		'watchlistraw' => 'ApiQueryWatchlistRaw',
+		'allcategories' => ApiQueryAllCategories::class,
+		'alldeletedrevisions' => ApiQueryAllDeletedRevisions::class,
+		'allfileusages' => ApiQueryAllLinks::class,
+		'allimages' => ApiQueryAllImages::class,
+		'alllinks' => ApiQueryAllLinks::class,
+		'allpages' => ApiQueryAllPages::class,
+		'allredirects' => ApiQueryAllLinks::class,
+		'allrevisions' => ApiQueryAllRevisions::class,
+		'mystashedfiles' => ApiQueryMyStashedFiles::class,
+		'alltransclusions' => ApiQueryAllLinks::class,
+		'allusers' => ApiQueryAllUsers::class,
+		'backlinks' => ApiQueryBacklinks::class,
+		'blocks' => ApiQueryBlocks::class,
+		'categorymembers' => ApiQueryCategoryMembers::class,
+		'deletedrevs' => ApiQueryDeletedrevs::class,
+		'embeddedin' => ApiQueryBacklinks::class,
+		'exturlusage' => ApiQueryExtLinksUsage::class,
+		'filearchive' => ApiQueryFilearchive::class,
+		'imageusage' => ApiQueryBacklinks::class,
+		'iwbacklinks' => ApiQueryIWBacklinks::class,
+		'langbacklinks' => ApiQueryLangBacklinks::class,
+		'logevents' => ApiQueryLogEvents::class,
+		'pageswithprop' => ApiQueryPagesWithProp::class,
+		'pagepropnames' => ApiQueryPagePropNames::class,
+		'prefixsearch' => ApiQueryPrefixSearch::class,
+		'protectedtitles' => ApiQueryProtectedTitles::class,
+		'querypage' => ApiQueryQueryPage::class,
+		'random' => ApiQueryRandom::class,
+		'recentchanges' => ApiQueryRecentChanges::class,
+		'search' => ApiQuerySearch::class,
+		'tags' => ApiQueryTags::class,
+		'usercontribs' => ApiQueryUserContribs::class,
+		'users' => ApiQueryUsers::class,
+		'watchlist' => ApiQueryWatchlist::class,
+		'watchlistraw' => ApiQueryWatchlistRaw::class,
 	];
 
 	/**
@@ -113,12 +109,12 @@ class ApiQuery extends ApiBase {
 	 * @var array
 	 */
 	private static $QueryMetaModules = [
-		'allmessages' => 'ApiQueryAllMessages',
-		'authmanagerinfo' => 'ApiQueryAuthManagerInfo',
-		'siteinfo' => 'ApiQuerySiteinfo',
-		'userinfo' => 'ApiQueryUserInfo',
-		'filerepoinfo' => 'ApiQueryFileRepoInfo',
-		'tokens' => 'ApiQueryTokens',
+		'allmessages' => ApiQueryAllMessages::class,
+		'authmanagerinfo' => ApiQueryAuthManagerInfo::class,
+		'siteinfo' => ApiQuerySiteinfo::class,
+		'userinfo' => ApiQueryUserInfo::class,
+		'filerepoinfo' => ApiQueryFileRepoInfo::class,
+		'tokens' => ApiQueryTokens::class,
 	];
 
 	/**
@@ -169,7 +165,7 @@ class ApiQuery extends ApiBase {
 	 * as the first, regardless of the values of $db and $groups
 	 * @param string $name Name to assign to the database connection
 	 * @param int $db One of the DB_* constants
-	 * @param array $groups Query groups
+	 * @param string|string[] $groups Query groups
 	 * @return IDatabase
 	 */
 	public function getNamedDB( $name, $db, $groups ) {
@@ -245,7 +241,7 @@ class ApiQuery extends ApiBase {
 		$cacheMode = $this->mPageSet->getCacheMode();
 
 		// Execute all unfinished modules
-		/** @var $module ApiQueryBase */
+		/** @var ApiQueryBase $module */
 		foreach ( $modules as $module ) {
 			$params = $module->extractRequestParams();
 			$cacheMode = $this->mergeCacheMode(
@@ -291,7 +287,7 @@ class ApiQuery extends ApiBase {
 			}
 		} elseif ( $modCacheMode === 'public' ) {
 			// do nothing, if it's public already it will stay public
-		} else { // private
+		} else {
 			$cacheMode = 'private';
 		}
 
@@ -381,7 +377,7 @@ class ApiQuery extends ApiBase {
 			];
 		}
 		// Report special pages
-		/** @var $title Title */
+		/** @var Title $title */
 		foreach ( $pageSet->getSpecialTitles() as $fakeId => $title ) {
 			$vals = [];
 			ApiQueryBase::addTitleInfo( $vals, $title );
@@ -434,7 +430,7 @@ class ApiQuery extends ApiBase {
 		$titles = $pageSet->getGoodTitles();
 		if ( count( $titles ) ) {
 			$user = $this->getUser();
-			/** @var $title Title */
+			/** @var Title $title */
 			foreach ( $titles as $title ) {
 				if ( $title->userCan( 'read', $user ) ) {
 					$exportTitles[] = $title;
@@ -459,6 +455,7 @@ class ApiQuery extends ApiBase {
 			// Raw formatter will handle this
 			$result->addValue( null, 'text', $sink, ApiResult::NO_SIZE_CHECK );
 			$result->addValue( null, 'mime', 'text/xml', ApiResult::NO_SIZE_CHECK );
+			$result->addValue( null, 'filename', 'export.xml', ApiResult::NO_SIZE_CHECK );
 		} else {
 			$result->addValue( 'query', 'export', $sink, ApiResult::NO_SIZE_CHECK );
 			$result->addValue( 'query', ApiResult::META_BC_SUBELEMENTS, [ 'export' ] );

@@ -21,6 +21,8 @@
  * @ingroup Change tagging
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Storage\NameTableAccessException;
 use Wikimedia\Rdbms\Database;
 
 class ChangeTags {
@@ -32,9 +34,47 @@ class ChangeTags {
 	const MAX_DELETE_USES = 5000;
 
 	/**
-	 * @var string[]
+	 * A list of tags defined and used by MediaWiki itself.
 	 */
-	private static $coreTags = [ 'mw-contentmodelchange' ];
+	private static $definedSoftwareTags = [
+		'mw-contentmodelchange',
+		'mw-new-redirect',
+		'mw-removed-redirect',
+		'mw-changed-redirect-target',
+		'mw-blank',
+		'mw-replace',
+		'mw-rollback',
+		'mw-undo',
+	];
+
+	/**
+	 * Loads defined core tags, checks for invalid types (if not array),
+	 * and filters for supported and enabled (if $all is false) tags only.
+	 *
+	 * @param bool $all If true, return all valid defined tags. Otherwise, return only enabled ones.
+	 * @return array Array of all defined/enabled tags.
+	 */
+	public static function getSoftwareTags( $all = false ) {
+		global $wgSoftwareTags;
+		$softwareTags = [];
+
+		if ( !is_array( $wgSoftwareTags ) ) {
+			wfWarn( 'wgSoftwareTags should be associative array of enabled tags.
+			Please refer to documentation for the list of tags you can enable' );
+			return $softwareTags;
+		}
+
+		$availableSoftwareTags = !$all ?
+			array_keys( array_filter( $wgSoftwareTags ) ) :
+			array_keys( $wgSoftwareTags );
+
+		$softwareTags = array_intersect(
+			$availableSoftwareTags,
+			self::$definedSoftwareTags
+		);
+
+		return $softwareTags;
+	}
 
 	/**
 	 * Creates HTML for the given tags
@@ -48,6 +88,7 @@ class ChangeTags {
 	 * @return array Array with two items: (html, classes)
 	 *   - html: String: HTML for displaying the tags (empty string when param $tags is empty)
 	 *   - classes: Array of strings: CSS classes used in the generated html, one class for each tag
+	 * @return-taint onlysafefor_htmlnoent
 	 */
 	public static function formatSummaryRow( $tags, $page, IContextSource $context = null ) {
 		if ( !$tags ) {
@@ -99,12 +140,12 @@ class ChangeTags {
 	 * exists, provided it is not disabled. If the message is disabled,
 	 * we consider the tag hidden, and return false.
 	 *
-	 * @param string $tag Tag
-	 * @param IContextSource $context
+	 * @param string $tag
+	 * @param MessageLocalizer $context
 	 * @return string|bool Tag description or false if tag is to be hidden.
 	 * @since 1.25 Returns false if tag is to be hidden.
 	 */
-	public static function tagDescription( $tag, IContextSource $context ) {
+	public static function tagDescription( $tag, MessageLocalizer $context ) {
 		$msg = $context->msg( "tag-$tag" );
 		if ( !$msg->exists() ) {
 			// No such message, so return the HTML-escaped tag name.
@@ -120,13 +161,62 @@ class ChangeTags {
 	}
 
 	/**
+	 * Get the message object for the tag's long description.
+	 *
+	 * Checks if message key "mediawiki:tag-$tag-description" exists. If it does not,
+	 * or if message is disabled, returns false. Otherwise, returns the message object
+	 * for the long description.
+	 *
+	 * @param string $tag
+	 * @param MessageLocalizer $context
+	 * @return Message|bool Message object of the tag long description or false if
+	 *  there is no description.
+	 */
+	public static function tagLongDescriptionMessage( $tag, MessageLocalizer $context ) {
+		$msg = $context->msg( "tag-$tag-description" );
+		if ( !$msg->exists() ) {
+			return false;
+		}
+		if ( $msg->isDisabled() ) {
+			// The message exists but is disabled, hide the description.
+			return false;
+		}
+
+		// Message exists and isn't disabled, use it.
+		return $msg;
+	}
+
+	/**
+	 * Get truncated message for the tag's long description.
+	 *
+	 * @param string $tag Tag name.
+	 * @param int $length Maximum length of truncated message, including ellipsis.
+	 * @param IContextSource $context
+	 *
+	 * @return string Truncated long tag description.
+	 */
+	public static function truncateTagDescription( $tag, $length, IContextSource $context ) {
+		// FIXME: Make this accept MessageLocalizer and Language instead of IContextSource
+
+		$originalDesc = self::tagLongDescriptionMessage( $tag, $context );
+		// If there is no tag description, return empty string
+		if ( !$originalDesc ) {
+			return '';
+		}
+
+		$taglessDesc = Sanitizer::stripAllTags( $originalDesc->parse() );
+
+		return $context->getLanguage()->truncateForVisual( $taglessDesc, $length );
+	}
+
+	/**
 	 * Add tags to a change given its rc_id, rev_id and/or log_id
 	 *
 	 * @param string|string[] $tags Tags to add to the change
 	 * @param int|null $rc_id The rc_id of the change to add the tags to
 	 * @param int|null $rev_id The rev_id of the change to add the tags to
 	 * @param int|null $log_id The log_id of the change to add the tags to
-	 * @param string $params Params to put in the ct_params field of table 'change_tag'
+	 * @param string|null $params Params to put in the ct_params field of table 'change_tag'
 	 * @param RecentChange|null $rc Recent change, in case the tagging accompanies the action
 	 * (this should normally be the case)
 	 *
@@ -157,7 +247,7 @@ class ChangeTags {
 	 * Pass a variable whose value is null if the rev_id is not relevant or unknown.
 	 * @param int|null &$log_id The log_id of the change to add the tags to.
 	 * Pass a variable whose value is null if the log_id is not relevant or unknown.
-	 * @param string $params Params to put in the ct_params field of table
+	 * @param string|null $params Params to put in the ct_params field of table
 	 * 'change_tag' when adding tags
 	 * @param RecentChange|null $rc Recent change being tagged, in case the tagging accompanies
 	 * the action
@@ -174,7 +264,6 @@ class ChangeTags {
 		&$rev_id = null, &$log_id = null, $params = null, RecentChange $rc = null,
 		User $user = null
 	) {
-
 		$tagsToAdd = array_filter( (array)$tagsToAdd ); // Make sure we're submitting all tags...
 		$tagsToRemove = array_filter( (array)$tagsToRemove );
 
@@ -245,96 +334,7 @@ class ChangeTags {
 			);
 		}
 
-		// update the tag_summary row
-		$prevTags = [];
-		if ( !self::updateTagSummaryRow( $tagsToAdd, $tagsToRemove, $rc_id, $rev_id,
-			$log_id, $prevTags ) ) {
-
-			// nothing to do
-			return [ [], [], $prevTags ];
-		}
-
-		// insert a row into change_tag for each new tag
-		if ( count( $tagsToAdd ) ) {
-			$tagsRows = [];
-			foreach ( $tagsToAdd as $tag ) {
-				// Filter so we don't insert NULLs as zero accidentally.
-				// Keep in mind that $rc_id === null means "I don't care/know about the
-				// rc_id, just delete $tag on this revision/log entry". It doesn't
-				// mean "only delete tags on this revision/log WHERE rc_id IS NULL".
-				$tagsRows[] = array_filter(
-					[
-						'ct_tag' => $tag,
-						'ct_rc_id' => $rc_id,
-						'ct_log_id' => $log_id,
-						'ct_rev_id' => $rev_id,
-						'ct_params' => $params
-					]
-				);
-			}
-
-			$dbw->insert( 'change_tag', $tagsRows, __METHOD__, [ 'IGNORE' ] );
-		}
-
-		// delete from change_tag
-		if ( count( $tagsToRemove ) ) {
-			foreach ( $tagsToRemove as $tag ) {
-				$conds = array_filter(
-					[
-						'ct_tag' => $tag,
-						'ct_rc_id' => $rc_id,
-						'ct_log_id' => $log_id,
-						'ct_rev_id' => $rev_id
-					]
-				);
-				$dbw->delete( 'change_tag', $conds, __METHOD__ );
-			}
-		}
-
-		self::purgeTagUsageCache();
-
-		Hooks::run( 'ChangeTagsAfterUpdateTags', [ $tagsToAdd, $tagsToRemove, $prevTags,
-			$rc_id, $rev_id, $log_id, $params, $rc, $user ] );
-
-		return [ $tagsToAdd, $tagsToRemove, $prevTags ];
-	}
-
-	/**
-	 * Adds or removes a given set of tags to/from the relevant row of the
-	 * tag_summary table. Modifies the tagsToAdd and tagsToRemove arrays to
-	 * reflect the tags that were actually added and/or removed.
-	 *
-	 * @param array &$tagsToAdd
-	 * @param array &$tagsToRemove If a tag is present in both $tagsToAdd and
-	 * $tagsToRemove, it will be removed
-	 * @param int|null $rc_id Null if not known or not applicable
-	 * @param int|null $rev_id Null if not known or not applicable
-	 * @param int|null $log_id Null if not known or not applicable
-	 * @param array &$prevTags Optionally outputs a list of the tags that were
-	 * in the tag_summary row to begin with
-	 * @return bool True if any modifications were made, otherwise false
-	 * @since 1.25
-	 */
-	protected static function updateTagSummaryRow( &$tagsToAdd, &$tagsToRemove,
-		$rc_id, $rev_id, $log_id, &$prevTags = [] ) {
-
-		$dbw = wfGetDB( DB_MASTER );
-
-		$tsConds = array_filter( [
-			'ts_rc_id' => $rc_id,
-			'ts_rev_id' => $rev_id,
-			'ts_log_id' => $log_id
-		] );
-
-		// Can't both add and remove a tag at the same time...
-		$tagsToAdd = array_diff( $tagsToAdd, $tagsToRemove );
-
-		// Update the summary row.
-		// $prevTags can be out of date on replica DBs, especially when addTags is called consecutively,
-		// causing loss of tags added recently in tag_summary table.
-		$prevTags = $dbw->selectField( 'tag_summary', 'ts_tags', $tsConds, __METHOD__ );
-		$prevTags = $prevTags ? $prevTags : '';
-		$prevTags = array_filter( explode( ',', $prevTags ) );
+		$prevTags = self::getPrevTags( $rc_id, $log_id, $rev_id );
 
 		// add tags
 		$tagsToAdd = array_values( array_diff( $tagsToAdd, $prevTags ) );
@@ -347,22 +347,105 @@ class ChangeTags {
 		sort( $prevTags );
 		sort( $newTags );
 		if ( $prevTags == $newTags ) {
-			// No change.
-			return false;
+			return [ [], [], $prevTags ];
 		}
 
-		if ( !$newTags ) {
-			// no tags left, so delete the row altogether
-			$dbw->delete( 'tag_summary', $tsConds, __METHOD__ );
-		} else {
-			$dbw->replace( 'tag_summary',
-				[ 'ts_rev_id', 'ts_rc_id', 'ts_log_id' ],
-				array_filter( array_merge( $tsConds, [ 'ts_tags' => implode( ',', $newTags ) ] ) ),
-				__METHOD__
-			);
+		// insert a row into change_tag for each new tag
+		$changeTagDefStore = MediaWikiServices::getInstance()->getChangeTagDefStore();
+		if ( count( $tagsToAdd ) ) {
+			$changeTagMapping = [];
+			foreach ( $tagsToAdd as $tag ) {
+				$changeTagMapping[$tag] = $changeTagDefStore->acquireId( $tag );
+			}
+			$fname = __METHOD__;
+			// T207881: update the counts at the end of the transaction
+			$dbw->onTransactionPreCommitOrIdle( function () use ( $dbw, $tagsToAdd, $fname ) {
+				$dbw->update(
+					'change_tag_def',
+					[ 'ctd_count = ctd_count + 1' ],
+					[ 'ctd_name' => $tagsToAdd ],
+					$fname
+				);
+			} );
+
+			$tagsRows = [];
+			foreach ( $tagsToAdd as $tag ) {
+				// Filter so we don't insert NULLs as zero accidentally.
+				// Keep in mind that $rc_id === null means "I don't care/know about the
+				// rc_id, just delete $tag on this revision/log entry". It doesn't
+				// mean "only delete tags on this revision/log WHERE rc_id IS NULL".
+				$tagsRows[] = array_filter(
+					[
+						'ct_rc_id' => $rc_id,
+						'ct_log_id' => $log_id,
+						'ct_rev_id' => $rev_id,
+						'ct_params' => $params,
+						'ct_tag_id' => $changeTagMapping[$tag] ?? null,
+					]
+				);
+
+			}
+
+			$dbw->insert( 'change_tag', $tagsRows, __METHOD__, [ 'IGNORE' ] );
 		}
 
-		return true;
+		// delete from change_tag
+		if ( count( $tagsToRemove ) ) {
+			$fname = __METHOD__;
+			foreach ( $tagsToRemove as $tag ) {
+				$conds = array_filter(
+					[
+						'ct_rc_id' => $rc_id,
+						'ct_log_id' => $log_id,
+						'ct_rev_id' => $rev_id,
+						'ct_tag_id' => $changeTagDefStore->getId( $tag ),
+					]
+				);
+				$dbw->delete( 'change_tag', $conds, __METHOD__ );
+				if ( $dbw->affectedRows() ) {
+					// T207881: update the counts at the end of the transaction
+					$dbw->onTransactionPreCommitOrIdle( function () use ( $dbw, $tag, $fname ) {
+						$dbw->update(
+							'change_tag_def',
+							[ 'ctd_count = ctd_count - 1' ],
+							[ 'ctd_name' => $tag ],
+							$fname
+						);
+
+						$dbw->delete(
+							'change_tag_def',
+							[ 'ctd_name' => $tag, 'ctd_count' => 0, 'ctd_user_defined' => 0 ],
+							$fname
+						);
+					} );
+				}
+			}
+		}
+
+		Hooks::run( 'ChangeTagsAfterUpdateTags', [ $tagsToAdd, $tagsToRemove, $prevTags,
+			$rc_id, $rev_id, $log_id, $params, $rc, $user ] );
+
+		return [ $tagsToAdd, $tagsToRemove, $prevTags ];
+	}
+
+	private static function getPrevTags( $rc_id = null, $log_id = null, $rev_id = null ) {
+		$conds = array_filter(
+			[
+				'ct_rc_id' => $rc_id,
+				'ct_log_id' => $log_id,
+				'ct_rev_id' => $rev_id,
+			]
+		);
+
+		$dbw = wfGetDB( DB_MASTER );
+		$tagIds = $dbw->selectFieldValues( 'change_tag', 'ct_tag_id', $conds, __METHOD__ );
+
+		$tags = [];
+		foreach ( $tagIds as $tagId ) {
+			$tags[] = MediaWikiServices::getInstance()->getChangeTagDefStore()->getName( (int)$tagId );
+		}
+
+		return $tags;
 	}
 
 	/**
@@ -386,15 +469,16 @@ class ChangeTags {
 	 * Is it OK to allow the user to apply all the specified tags at the same time
 	 * as they edit/make the change?
 	 *
+	 * Extensions should not use this function, unless directly handling a user
+	 * request to add a tag to a revision or log entry that the user is making.
+	 *
 	 * @param array $tags Tags that you are interested in applying
-	 * @param User|null $user User whose permission you wish to check, or null if
-	 * you don't care (e.g. maintenance scripts)
+	 * @param User|null $user User whose permission you wish to check, or null to
+	 * check for a generic non-blocked user with the relevant rights
 	 * @return Status
 	 * @since 1.25
 	 */
-	public static function canAddTagsAccompanyingChange( array $tags,
-		User $user = null ) {
-
+	public static function canAddTagsAccompanyingChange( array $tags, User $user = null ) {
 		if ( !is_null( $user ) ) {
 			if ( !$user->isAllowed( 'applychangetags' ) ) {
 				return Status::newFatal( 'tags-apply-no-permission' );
@@ -404,8 +488,8 @@ class ChangeTags {
 		}
 
 		// to be applied, a tag has to be explicitly defined
-		// @todo Allow extensions to define tags that can be applied by users...
 		$allowedTags = self::listExplicitlyDefinedTags();
+		Hooks::run( 'ChangeTagsAllowedAdd', [ &$allowedTags, $tags, $user ] );
 		$disallowedTags = array_diff( $tags, $allowedTags );
 		if ( $disallowedTags ) {
 			return self::restrictedTagError( 'tags-apply-not-allowed-one',
@@ -438,7 +522,6 @@ class ChangeTags {
 	public static function addTagsAccompanyingChangeWithChecks(
 		array $tags, $rc_id, $rev_id, $log_id, $params, User $user
 	) {
-
 		// are we allowed to do this?
 		$result = self::canAddTagsAccompanyingChange( $tags, $user );
 		if ( !$result->isOK() ) {
@@ -456,16 +539,19 @@ class ChangeTags {
 	 * Is it OK to allow the user to adds and remove the given tags tags to/from a
 	 * change?
 	 *
+	 * Extensions should not use this function, unless directly handling a user
+	 * request to add or remove tags from an existing revision or log entry.
+	 *
 	 * @param array $tagsToAdd Tags that you are interested in adding
 	 * @param array $tagsToRemove Tags that you are interested in removing
-	 * @param User|null $user User whose permission you wish to check, or null if
-	 * you don't care (e.g. maintenance scripts)
+	 * @param User|null $user User whose permission you wish to check, or null to
+	 * check for a generic non-blocked user with the relevant rights
 	 * @return Status
 	 * @since 1.25
 	 */
 	public static function canUpdateTags( array $tagsToAdd, array $tagsToRemove,
-		User $user = null ) {
-
+		User $user = null
+	) {
 		if ( !is_null( $user ) ) {
 			if ( !$user->isAllowed( 'changetags' ) ) {
 				return Status::newFatal( 'tags-update-no-permission' );
@@ -504,10 +590,14 @@ class ChangeTags {
 	 * Adds and/or removes tags to/from a given change, checking whether it is
 	 * allowed first, and adding a log entry afterwards.
 	 *
-	 * Includes a call to ChangeTag::canUpdateTags(), so your code doesn't need
+	 * Includes a call to ChangeTags::canUpdateTags(), so your code doesn't need
 	 * to do that. However, it doesn't check whether the *_id parameters are a
 	 * valid combination. That is up to you to enforce. See ApiTag::execute() for
 	 * an example.
+	 *
+	 * Extensions should generally avoid this function. Call
+	 * ChangeTags::updateTags() instead, unless directly handling a user request
+	 * to add or remove tags from an existing revision or log entry.
 	 *
 	 * @param array|null $tagsToAdd If none, pass array() or null
 	 * @param array|null $tagsToRemove If none, pass array() or null
@@ -527,8 +617,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function updateTagsWithChecks( $tagsToAdd, $tagsToRemove,
-		$rc_id, $rev_id, $log_id, $params, $reason, User $user ) {
-
+		$rc_id, $rev_id, $log_id, $params, $reason, User $user
+	) {
 		if ( is_null( $tagsToAdd ) ) {
 			$tagsToAdd = [];
 		}
@@ -620,24 +710,35 @@ class ChangeTags {
 	 * Handles selecting tags, and filtering.
 	 * Needs $tables to be set up properly, so we can figure out which join conditions to use.
 	 *
-	 * @param string|array $tables Table names, see Database::select
-	 * @param string|array $fields Fields used in query, see Database::select
-	 * @param string|array $conds Conditions used in query, see Database::select
-	 * @param array $join_conds Join conditions, see Database::select
-	 * @param array $options Options, see Database::select
-	 * @param bool|string $filter_tag Tag to select on
+	 * WARNING: If $filter_tag contains more than one tag, this function will add DISTINCT,
+	 * which may cause performance problems for your query unless you put the ID field of your
+	 * table at the end of the ORDER BY, and set a GROUP BY equal to the ORDER BY. For example,
+	 * if you had ORDER BY foo_timestamp DESC, you will now need GROUP BY foo_timestamp, foo_id
+	 * ORDER BY foo_timestamp DESC, foo_id DESC.
+	 *
+	 * @param string|array &$tables Table names, see Database::select
+	 * @param string|array &$fields Fields used in query, see Database::select
+	 * @param string|array &$conds Conditions used in query, see Database::select
+	 * @param array &$join_conds Join conditions, see Database::select
+	 * @param string|array &$options Options, see Database::select
+	 * @param string|array $filter_tag Tag(s) to select on
 	 *
 	 * @throws MWException When unable to determine appropriate JOIN condition for tagging
 	 */
 	public static function modifyDisplayQuery( &$tables, &$fields, &$conds,
-										&$join_conds, &$options, $filter_tag = false ) {
-		global $wgRequest, $wgUseTagFilter;
+		&$join_conds, &$options, $filter_tag = ''
+	) {
+		global $wgUseTagFilter;
 
-		if ( $filter_tag === false ) {
-			$filter_tag = $wgRequest->getVal( 'tagfilter' );
-		}
+		// Normalize to arrays
+		$tables = (array)$tables;
+		$fields = (array)$fields;
+		$conds = (array)$conds;
+		$options = (array)$options;
 
-		// Figure out which conditions can be done.
+		$fields['ts_tags'] = self::makeTagSummarySubquery( $tables );
+
+		// Figure out which ID field to use
 		if ( in_array( 'recentchanges', $tables ) ) {
 			$join_cond = 'ct_rc_id=rc_id';
 		} elseif ( in_array( 'logging', $tables ) ) {
@@ -650,18 +751,69 @@ class ChangeTags {
 			throw new MWException( 'Unable to determine appropriate JOIN condition for tagging.' );
 		}
 
-		$fields['ts_tags'] = wfGetDB( DB_REPLICA )->buildGroupConcatField(
-			',', 'change_tag', 'ct_tag', $join_cond
-		);
-
 		if ( $wgUseTagFilter && $filter_tag ) {
 			// Somebody wants to filter on a tag.
 			// Add an INNER JOIN on change_tag
 
 			$tables[] = 'change_tag';
-			$join_conds['change_tag'] = [ 'INNER JOIN', $join_cond ];
-			$conds['ct_tag'] = $filter_tag;
+			$join_conds['change_tag'] = [ 'JOIN', $join_cond ];
+			$filterTagIds = [];
+			$changeTagDefStore = MediaWikiServices::getInstance()->getChangeTagDefStore();
+			foreach ( (array)$filter_tag as $filterTagName ) {
+				try {
+					$filterTagIds[] = $changeTagDefStore->getId( $filterTagName );
+				} catch ( NameTableAccessException $exception ) {
+					// Return nothing.
+					$conds[] = '0';
+					break;
+				}
+			}
+
+			if ( $filterTagIds !== [] ) {
+				$conds['ct_tag_id'] = $filterTagIds;
+			}
+
+			if (
+				is_array( $filter_tag ) && count( $filter_tag ) > 1 &&
+				!in_array( 'DISTINCT', $options )
+			) {
+				$options[] = 'DISTINCT';
+			}
 		}
+	}
+
+	/**
+	 * Make the tag summary subquery based on the given tables and return it.
+	 *
+	 * @param string|array $tables Table names, see Database::select
+	 *
+	 * @return string tag summary subqeury
+	 * @throws MWException When unable to determine appropriate JOIN condition for tagging
+	 */
+	public static function makeTagSummarySubquery( $tables ) {
+		// Normalize to arrays
+		$tables = (array)$tables;
+
+		// Figure out which ID field to use
+		if ( in_array( 'recentchanges', $tables ) ) {
+			$join_cond = 'ct_rc_id=rc_id';
+		} elseif ( in_array( 'logging', $tables ) ) {
+			$join_cond = 'ct_log_id=log_id';
+		} elseif ( in_array( 'revision', $tables ) ) {
+			$join_cond = 'ct_rev_id=rev_id';
+		} elseif ( in_array( 'archive', $tables ) ) {
+			$join_cond = 'ct_rev_id=ar_rev_id';
+		} else {
+			throw new MWException( 'Unable to determine appropriate JOIN condition for tagging.' );
+		}
+
+		$tagTables = [ 'change_tag', 'change_tag_def' ];
+		$join_cond_ts_tags = [ 'change_tag_def' => [ 'JOIN', 'ct_tag_id=ctd_id' ] ];
+		$field = 'ctd_name';
+
+		return wfGetDB( DB_REPLICA )->buildGroupConcatField(
+			',', $tagTables, $field, $join_cond, $join_cond_ts_tags
+		);
 	}
 
 	/**
@@ -715,8 +867,7 @@ class ChangeTags {
 	}
 
 	/**
-	 * Defines a tag in the valid_tag table, without checking that the tag name
-	 * is valid.
+	 * Set ctd_user_defined = 1 in change_tag_def without checking that the tag name is valid.
 	 * Extensions should NOT use this function; they can use the ListDefinedTags
 	 * hook instead.
 	 *
@@ -725,26 +876,46 @@ class ChangeTags {
 	 */
 	public static function defineTag( $tag ) {
 		$dbw = wfGetDB( DB_MASTER );
-		$dbw->replace( 'valid_tag',
-			[ 'vt_tag' ],
-			[ 'vt_tag' => $tag ],
-			__METHOD__ );
+		$tagDef = [
+			'ctd_name' => $tag,
+			'ctd_user_defined' => 1,
+			'ctd_count' => 0
+		];
+		$dbw->upsert(
+			'change_tag_def',
+			$tagDef,
+			[ 'ctd_name' ],
+			[ 'ctd_user_defined' => 1 ],
+			__METHOD__
+		);
 
 		// clear the memcache of defined tags
 		self::purgeTagCacheAll();
 	}
 
 	/**
-	 * Removes a tag from the valid_tag table. The tag may remain in use by
-	 * extensions, and may still show up as 'defined' if an extension is setting
-	 * it from the ListDefinedTags hook.
+	 * Update ctd_user_defined = 0 field in change_tag_def.
+	 * The tag may remain in use by extensions, and may still show up as 'defined'
+	 * if an extension is setting it from the ListDefinedTags hook.
 	 *
 	 * @param string $tag Tag to remove
 	 * @since 1.25
 	 */
 	public static function undefineTag( $tag ) {
 		$dbw = wfGetDB( DB_MASTER );
-		$dbw->delete( 'valid_tag', [ 'vt_tag' => $tag ], __METHOD__ );
+
+		$dbw->update(
+			'change_tag_def',
+			[ 'ctd_user_defined' => 0 ],
+			[ 'ctd_name' => $tag ],
+			__METHOD__
+		);
+
+		$dbw->delete(
+			'change_tag_def',
+			[ 'ctd_name' => $tag, 'ctd_count' => 0 ],
+			__METHOD__
+		);
 
 		// clear the memcache of defined tags
 		self::purgeTagCacheAll();
@@ -757,7 +928,7 @@ class ChangeTags {
 	 * @param string $tag
 	 * @param string $reason
 	 * @param User $user Who to attribute the action to
-	 * @param int $tagCount For deletion only, how many usages the tag had before
+	 * @param int|null $tagCount For deletion only, how many usages the tag had before
 	 * it was deleted.
 	 * @param array $logEntryTags Change tags to apply to the entry
 	 * that will be created in the tag management log
@@ -765,8 +936,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	protected static function logTagManagementAction( $action, $tag, $reason,
-		User $user, $tagCount = null, array $logEntryTags = [] ) {
-
+		User $user, $tagCount = null, array $logEntryTags = []
+	) {
 		$dbw = wfGetDB( DB_MASTER );
 
 		$logEntry = new ManualLogEntry( 'managetags', $action );
@@ -842,8 +1013,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function activateTagWithChecks( $tag, $reason, User $user,
-		$ignoreWarnings = false, array $logEntryTags = [] ) {
-
+		$ignoreWarnings = false, array $logEntryTags = []
+	) {
 		// are we allowed to do this?
 		$result = self::canActivateTag( $tag, $user );
 		if ( $ignoreWarnings ? !$result->isOK() : !$result->isGood() ) {
@@ -905,8 +1076,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function deactivateTagWithChecks( $tag, $reason, User $user,
-		$ignoreWarnings = false, array $logEntryTags = [] ) {
-
+		$ignoreWarnings = false, array $logEntryTags = []
+	) {
 		// are we allowed to do this?
 		$result = self::canDeactivateTag( $tag, $user );
 		if ( $ignoreWarnings ? !$result->isOK() : !$result->isGood() ) {
@@ -925,7 +1096,41 @@ class ChangeTags {
 	}
 
 	/**
+	 * Is the tag name valid?
+	 *
+	 * @param string $tag Tag that you are interested in creating
+	 * @return Status
+	 * @since 1.30
+	 */
+	public static function isTagNameValid( $tag ) {
+		// no empty tags
+		if ( $tag === '' ) {
+			return Status::newFatal( 'tags-create-no-name' );
+		}
+
+		// tags cannot contain commas (used to be used as a delimiter in tag_summary table),
+		// pipe (used as a delimiter between multiple tags in
+		// SpecialRecentchanges and friends), or slashes (would break tag description messages in
+		// MediaWiki namespace)
+		if ( strpos( $tag, ',' ) !== false || strpos( $tag, '|' ) !== false
+			|| strpos( $tag, '/' ) !== false ) {
+			return Status::newFatal( 'tags-create-invalid-chars' );
+		}
+
+		// could the MediaWiki namespace description messages be created?
+		$title = Title::makeTitleSafe( NS_MEDIAWIKI, "Tag-$tag-description" );
+		if ( is_null( $title ) ) {
+			return Status::newFatal( 'tags-create-invalid-title-chars' );
+		}
+
+		return Status::newGood();
+	}
+
+	/**
 	 * Is it OK to allow the user to create this tag?
+	 *
+	 * Extensions should NOT use this function. In most cases, a tag can be
+	 * defined using the ListDefinedTags hook without any checking.
 	 *
 	 * @param string $tag Tag that you are interested in creating
 	 * @param User|null $user User whose permission you wish to check, or null if
@@ -942,21 +1147,9 @@ class ChangeTags {
 			}
 		}
 
-		// no empty tags
-		if ( $tag === '' ) {
-			return Status::newFatal( 'tags-create-no-name' );
-		}
-
-		// tags cannot contain commas (used as a delimiter in tag_summary table) or
-		// slashes (would break tag description messages in MediaWiki namespace)
-		if ( strpos( $tag, ',' ) !== false || strpos( $tag, '/' ) !== false ) {
-			return Status::newFatal( 'tags-create-invalid-chars' );
-		}
-
-		// could the MediaWiki namespace description messages be created?
-		$title = Title::makeTitleSafe( NS_MEDIAWIKI, "Tag-$tag-description" );
-		if ( is_null( $title ) ) {
-			return Status::newFatal( 'tags-create-invalid-title-chars' );
+		$status = self::isTagNameValid( $tag );
+		if ( !$status->isGood() ) {
+			return $status;
 		}
 
 		// does the tag already exist?
@@ -972,9 +1165,12 @@ class ChangeTags {
 	}
 
 	/**
-	 * Creates a tag by adding a row to the `valid_tag` table.
+	 * Creates a tag by adding it to `change_tag_def` table.
 	 *
-	 * Includes a call to ChangeTag::canDeleteTag(), so your code doesn't need to
+	 * Extensions should NOT use this function; they can use the ListDefinedTags
+	 * hook instead.
+	 *
+	 * Includes a call to ChangeTag::canCreateTag(), so your code doesn't need to
 	 * do that.
 	 *
 	 * @param string $tag
@@ -988,8 +1184,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function createTagWithChecks( $tag, $reason, User $user,
-		$ignoreWarnings = false, array $logEntryTags = [] ) {
-
+		$ignoreWarnings = false, array $logEntryTags = []
+	) {
 		// are we allowed to do this?
 		$result = self::canCreateTag( $tag, $user );
 		if ( $ignoreWarnings ? !$result->isOK() : !$result->isGood() ) {
@@ -1023,25 +1219,15 @@ class ChangeTags {
 		$dbw = wfGetDB( DB_MASTER );
 		$dbw->startAtomic( __METHOD__ );
 
-		// delete from valid_tag
+		// fetch tag id, this must be done before calling undefineTag(), see T225564
+		$tagId = MediaWikiServices::getInstance()->getChangeTagDefStore()->getId( $tag );
+
+		// set ctd_user_defined = 0
 		self::undefineTag( $tag );
 
-		// find out which revisions use this tag, so we can delete from tag_summary
-		$result = $dbw->select( 'change_tag',
-			[ 'ct_rc_id', 'ct_log_id', 'ct_rev_id', 'ct_tag' ],
-			[ 'ct_tag' => $tag ],
-			__METHOD__ );
-		foreach ( $result as $row ) {
-			// remove the tag from the relevant row of tag_summary
-			$tagsToAdd = [];
-			$tagsToRemove = [ $tag ];
-			self::updateTagSummaryRow( $tagsToAdd, $tagsToRemove, $row->ct_rc_id,
-				$row->ct_rev_id, $row->ct_log_id );
-		}
-
 		// delete from change_tag
-		$dbw->delete( 'change_tag', [ 'ct_tag' => $tag ], __METHOD__ );
-
+		$dbw->delete( 'change_tag', [ 'ct_tag_id' => $tagId ], __METHOD__ );
+		$dbw->delete( 'change_tag_def', [ 'ctd_name' => $tag ], __METHOD__ );
 		$dbw->endAtomic( __METHOD__ );
 
 		// give extensions a chance
@@ -1119,8 +1305,8 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function deleteTagWithChecks( $tag, $reason, User $user,
-		$ignoreWarnings = false, array $logEntryTags = [] ) {
-
+		$ignoreWarnings = false, array $logEntryTags = []
+	) {
 		// are we allowed to do this?
 		$result = self::canDeleteTag( $tag, $user );
 		if ( $ignoreWarnings ? !$result->isOK() : !$result->isGood() ) {
@@ -1130,7 +1316,7 @@ class ChangeTags {
 
 		// store the tag usage statistics
 		$tagUsage = self::tagUsageStatistics();
-		$hitcount = isset( $tagUsage[$tag] ) ? $tagUsage[$tag] : 0;
+		$hitcount = $tagUsage[$tag] ?? 0;
 
 		// do it!
 		$deleteResult = self::deleteTagEverywhere( $tag );
@@ -1154,12 +1340,13 @@ class ChangeTags {
 	 */
 	public static function listSoftwareActivatedTags() {
 		// core active tags
-		$tags = self::$coreTags;
+		$tags = self::getSoftwareTags();
 		if ( !Hooks::isRegistered( 'ChangeTagsListActive' ) ) {
 			return $tags;
 		}
-		return ObjectCache::getMainWANInstance()->getWithSetCallback(
-			wfMemcKey( 'active-tags' ),
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		return $cache->getWithSetCallback(
+			$cache->makeKey( 'active-tags' ),
 			WANObjectCache::TTL_MINUTE * 5,
 			function ( $oldValue, &$ttl, array &$setOpts ) use ( $tags ) {
 				$setOpts += Database::getCacheSetOptions( wfGetDB( DB_REPLICA ) );
@@ -1169,7 +1356,7 @@ class ChangeTags {
 				return $tags;
 			},
 			[
-				'checkKeys' => [ wfMemcKey( 'active-tags' ) ],
+				'checkKeys' => [ $cache->makeKey( 'active-tags' ) ],
 				'lockTSE' => WANObjectCache::TTL_MINUTE * 5,
 				'pcTTL' => WANObjectCache::TTL_PROC_LONG
 			]
@@ -1177,19 +1364,8 @@ class ChangeTags {
 	}
 
 	/**
-	 * @see listSoftwareActivatedTags
-	 * @deprecated since 1.28 call listSoftwareActivatedTags directly
-	 * @return array
-	 */
-	public static function listExtensionActivatedTags() {
-		wfDeprecated( __METHOD__, '1.28' );
-		return self::listSoftwareActivatedTags();
-	}
-
-	/**
 	 * Basically lists defined tags which count even if they aren't applied to anything.
-	 * It returns a union of the results of listExplicitlyDefinedTags() and
-	 * listExtensionDefinedTags().
+	 * It returns a union of the results of listExplicitlyDefinedTags()
 	 *
 	 * @return string[] Array of strings: tags
 	 */
@@ -1200,9 +1376,7 @@ class ChangeTags {
 	}
 
 	/**
-	 * Lists tags explicitly defined in the `valid_tag` table of the database.
-	 * Tags in table 'change_tag' which are not in table 'valid_tag' are not
-	 * included.
+	 * Lists tags explicitly defined in the `change_tag_def` table of the database.
 	 *
 	 * Tries memcached first.
 	 *
@@ -1212,20 +1386,26 @@ class ChangeTags {
 	public static function listExplicitlyDefinedTags() {
 		$fname = __METHOD__;
 
-		return ObjectCache::getMainWANInstance()->getWithSetCallback(
-			wfMemcKey( 'valid-tags-db' ),
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		return $cache->getWithSetCallback(
+			$cache->makeKey( 'valid-tags-db' ),
 			WANObjectCache::TTL_MINUTE * 5,
 			function ( $oldValue, &$ttl, array &$setOpts ) use ( $fname ) {
 				$dbr = wfGetDB( DB_REPLICA );
 
 				$setOpts += Database::getCacheSetOptions( $dbr );
 
-				$tags = $dbr->selectFieldValues( 'valid_tag', 'vt_tag', [], $fname );
+				$tags = $dbr->selectFieldValues(
+					'change_tag_def',
+					'ctd_name',
+					[ 'ctd_user_defined' => 1 ],
+					$fname
+				);
 
 				return array_filter( array_unique( $tags ) );
 			},
 			[
-				'checkKeys' => [ wfMemcKey( 'valid-tags-db' ) ],
+				'checkKeys' => [ $cache->makeKey( 'valid-tags-db' ) ],
 				'lockTSE' => WANObjectCache::TTL_MINUTE * 5,
 				'pcTTL' => WANObjectCache::TTL_PROC_LONG
 			]
@@ -1243,12 +1423,13 @@ class ChangeTags {
 	 */
 	public static function listSoftwareDefinedTags() {
 		// core defined tags
-		$tags = self::$coreTags;
+		$tags = self::getSoftwareTags( true );
 		if ( !Hooks::isRegistered( 'ListDefinedTags' ) ) {
 			return $tags;
 		}
-		return ObjectCache::getMainWANInstance()->getWithSetCallback(
-			wfMemcKey( 'valid-tags-hook' ),
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		return $cache->getWithSetCallback(
+			$cache->makeKey( 'valid-tags-hook' ),
 			WANObjectCache::TTL_MINUTE * 5,
 			function ( $oldValue, &$ttl, array &$setOpts ) use ( $tags ) {
 				$setOpts += Database::getCacheSetOptions( wfGetDB( DB_REPLICA ) );
@@ -1257,22 +1438,11 @@ class ChangeTags {
 				return array_filter( array_unique( $tags ) );
 			},
 			[
-				'checkKeys' => [ wfMemcKey( 'valid-tags-hook' ) ],
+				'checkKeys' => [ $cache->makeKey( 'valid-tags-hook' ) ],
 				'lockTSE' => WANObjectCache::TTL_MINUTE * 5,
 				'pcTTL' => WANObjectCache::TTL_PROC_LONG
 			]
 		);
-	}
-
-	/**
-	 * Call listSoftwareDefinedTags directly
-	 *
-	 * @see listSoftwareDefinedTags
-	 * @deprecated since 1.28
-	 */
-	public static function listExtensionDefinedTags() {
-		wfDeprecated( __METHOD__, '1.28' );
-		return self::listSoftwareDefinedTags();
 	}
 
 	/**
@@ -1281,66 +1451,46 @@ class ChangeTags {
 	 * @since 1.25
 	 */
 	public static function purgeTagCacheAll() {
-		$cache = ObjectCache::getMainWANInstance();
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
 
-		$cache->touchCheckKey( wfMemcKey( 'active-tags' ) );
-		$cache->touchCheckKey( wfMemcKey( 'valid-tags-db' ) );
-		$cache->touchCheckKey( wfMemcKey( 'valid-tags-hook' ) );
+		$cache->touchCheckKey( $cache->makeKey( 'active-tags' ) );
+		$cache->touchCheckKey( $cache->makeKey( 'valid-tags-db' ) );
+		$cache->touchCheckKey( $cache->makeKey( 'valid-tags-hook' ) );
 
-		self::purgeTagUsageCache();
+		MediaWikiServices::getInstance()->getChangeTagDefStore()->reloadMap();
 	}
 
 	/**
 	 * Invalidates the tag statistics cache only.
 	 * @since 1.25
+	 * @deprecated since 1.33 the cache this purges no longer exists
 	 */
 	public static function purgeTagUsageCache() {
-		$cache = ObjectCache::getMainWANInstance();
-
-		$cache->touchCheckKey( wfMemcKey( 'change-tag-statistics' ) );
+		wfDeprecated( __METHOD__, '1.33' );
 	}
 
 	/**
 	 * Returns a map of any tags used on the wiki to number of edits
 	 * tagged with them, ordered descending by the hitcount.
 	 * This does not include tags defined somewhere that have never been applied.
-	 *
-	 * Keeps a short-term cache in memory, so calling this multiple times in the
-	 * same request should be fine.
-	 *
 	 * @return array Array of string => int
 	 */
 	public static function tagUsageStatistics() {
-		$fname = __METHOD__;
-		return ObjectCache::getMainWANInstance()->getWithSetCallback(
-			wfMemcKey( 'change-tag-statistics' ),
-			WANObjectCache::TTL_MINUTE * 5,
-			function ( $oldValue, &$ttl, array &$setOpts ) use ( $fname ) {
-				$dbr = wfGetDB( DB_REPLICA, 'vslow' );
-
-				$setOpts += Database::getCacheSetOptions( $dbr );
-
-				$res = $dbr->select(
-					'change_tag',
-					[ 'ct_tag', 'hitcount' => 'count(*)' ],
-					[],
-					$fname,
-					[ 'GROUP BY' => 'ct_tag', 'ORDER BY' => 'hitcount DESC' ]
-				);
-
-				$out = [];
-				foreach ( $res as $row ) {
-					$out[$row->ct_tag] = $row->hitcount;
-				}
-
-				return $out;
-			},
-			[
-				'checkKeys' => [ wfMemcKey( 'change-tag-statistics' ) ],
-				'lockTSE' => WANObjectCache::TTL_MINUTE * 5,
-				'pcTTL' => WANObjectCache::TTL_PROC_LONG
-			]
+		$dbr = wfGetDB( DB_REPLICA );
+		$res = $dbr->select(
+			'change_tag_def',
+			[ 'ctd_name', 'ctd_count' ],
+			[],
+			__METHOD__,
+			[ 'ORDER BY' => 'ctd_count DESC' ]
 		);
+
+		$out = [];
+		foreach ( $res as $row ) {
+			$out[$row->ctd_name] = $row->ctd_count;
+		}
+
+		return $out;
 	}
 
 	/**

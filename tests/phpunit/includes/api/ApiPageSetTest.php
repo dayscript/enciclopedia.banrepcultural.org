@@ -4,6 +4,7 @@
  * @group API
  * @group medium
  * @group Database
+ * @covers ApiPageSet
  */
 class ApiPageSetTest extends ApiTestCase {
 	public static function provideRedirectMergePolicy() {
@@ -14,7 +15,7 @@ class ApiPageSetTest extends ApiTestCase {
 			],
 
 			'A simple merge policy adds the redirect data in' => [
-				function( $current, $new ) {
+				function ( $current, $new ) {
 					if ( !isset( $current['index'] ) || $new['index'] < $current['index'] ) {
 						$current['index'] = $new['index'];
 					}
@@ -107,7 +108,7 @@ class ApiPageSetTest extends ApiTestCase {
 		$userName = $user->getName();
 		$userDbkey = str_replace( ' ', '_', $userName );
 		$request = new FauxRequest( [
-			'titles' => join( '|', [
+			'titles' => implode( '|', [
 				'Special:MyContributions',
 				'Special:MyPage',
 				'Special:MyTalk/subpage',

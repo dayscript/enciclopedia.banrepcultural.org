@@ -195,21 +195,11 @@ EOT;
 		$this->typeFile = $params['typeFile'];
 		$this->infoFile = $params['infoFile'];
 		$this->xmlTypes = $params['xmlTypes'];
-		$this->initCallback = isset( $params['initCallback'] )
-			? $params['initCallback']
-			: null;
-		$this->detectCallback = isset( $params['detectCallback'] )
-			? $params['detectCallback']
-			: null;
-		$this->guessCallback = isset( $params['guessCallback'] )
-			? $params['guessCallback']
-			: null;
-		$this->extCallback = isset( $params['extCallback'] )
-			? $params['extCallback']
-			: null;
-		$this->logger = isset( $params['logger'] )
-			? $params['logger']
-			: new \Psr\Log\NullLogger();
+		$this->initCallback = $params['initCallback'] ?? null;
+		$this->detectCallback = $params['detectCallback'] ?? null;
+		$this->guessCallback = $params['guessCallback'] ?? null;
+		$this->extCallback = $params['extCallback'] ?? null;
+		$this->logger = $params['logger'] ?? new \Psr\Log\NullLogger();
 
 		$this->loadFiles();
 	}
@@ -437,7 +427,7 @@ EOT;
 	public function getTypesForExtension( $ext ) {
 		$ext = strtolower( $ext );
 
-		$r = isset( $this->mExtToMime[$ext] ) ? $this->mExtToMime[$ext] : null;
+		$r = $this->mExtToMime[$ext] ?? null;
 		return $r;
 	}
 
@@ -529,10 +519,13 @@ EOT;
 			// Formats we recognize magic numbers for
 			'djvu', 'ogx', 'ogg', 'ogv', 'oga', 'spx', 'opus',
 			'mid', 'pdf', 'wmf', 'xcf', 'webm', 'mkv', 'mka',
-			'webp',
+			'webp', 'mp3',
 
 			// XML formats we sure hope we recognize reliably
 			'svg',
+
+			// 3D formats
+			'stl',
 		];
 		return in_array( strtolower( $extension ), $types );
 	}
@@ -640,9 +633,9 @@ EOT;
 	 */
 	private function doGuessMimeType( $file, $ext ) {
 		// Read a chunk of the file
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$f = fopen( $file, 'rb' );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 
 		if ( !$f ) {
 			return 'unknown/unknown';
@@ -660,7 +653,6 @@ EOT;
 				"Seeking $tailLength bytes from EOF failed in " . __METHOD__ );
 		}
 		$tail = $tailLength ? fread( $f, $tailLength ) : '';
-		fclose( $f );
 
 		$this->logger->info( __METHOD__ .
 			": analyzing head and tail of $file for magic numbers.\n" );
@@ -670,6 +662,10 @@ EOT;
 			// Multimedia...
 			'MThd'             => 'audio/midi',
 			'OggS'             => 'application/ogg',
+			'ID3'              => 'audio/mpeg',
+			"\xff\xfb"         => 'audio/mpeg', // MPEG-1 layer 3
+			"\xff\xf3"         => 'audio/mpeg', // MPEG-2 layer 3 (lower sample rates)
+			"\xff\xe3"         => 'audio/mpeg', // MPEG-2.5 layer 3 (very low sample rates)
 
 			// Image formats...
 			// Note that WMF may have a bare header, no magic number.
@@ -702,8 +698,17 @@ EOT;
 					$this->logger->info( __METHOD__ . ": recognized file as video/x-matroska\n" );
 					return "video/x-matroska";
 				} elseif ( strncmp( $data, "webm", 4 ) == 0 ) {
-					$this->logger->info( __METHOD__ . ": recognized file as video/webm\n" );
-					return "video/webm";
+					// XXX HACK look for a video track, if we don't find it, this is an audio file
+					$videotrack = strpos( $head, "\x86\x85V_VP" );
+
+					if ( $videotrack ) {
+						// There is a video track, so this is a video file.
+						$this->logger->info( __METHOD__ . ": recognized file as video/webm\n" );
+						return "video/webm";
+					}
+
+					$this->logger->info( __METHOD__ . ": recognized file as audio/webm\n" );
+					return "audio/webm";
 				}
 			}
 			$this->logger->info( __METHOD__ . ": unknown EBML file\n" );
@@ -716,6 +721,12 @@ EOT;
 		) {
 			$this->logger->info( __METHOD__ . ": recognized file as image/webp\n" );
 			return "image/webp";
+		}
+
+		/* Look for MS Compound Binary (OLE) files */
+		if ( strncmp( $head, "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 8 ) == 0 ) {
+			$this->logger->info( __METHOD__ . ': recognized MS CFB (OLE) file' );
+			return $this->detectMicrosoftBinaryType( $f );
 		}
 
 		/**
@@ -735,8 +746,8 @@ EOT;
 			( strpos( $head, "<\x00?\x00 " ) !== false ) ||
 			( strpos( $head, "<\x00?\x00\n" ) !== false ) ||
 			( strpos( $head, "<\x00?\x00\t" ) !== false ) ||
-			( strpos( $head, "<\x00?\x00=" ) !== false ) ) {
-
+			( strpos( $head, "<\x00?\x00=" ) !== false )
+		) {
 			$this->logger->info( __METHOD__ . ": recognized $file as application/x-php\n" );
 			return 'application/x-php';
 		}
@@ -747,11 +758,7 @@ EOT;
 		$xml = new XmlTypeCheck( $file );
 		if ( $xml->wellFormed ) {
 			$xmlTypes = $this->xmlTypes;
-			if ( isset( $xmlTypes[$xml->getRootElement()] ) ) {
-				return $xmlTypes[$xml->getRootElement()];
-			} else {
-				return 'application/xml';
-			}
+			return $xmlTypes[$xml->getRootElement()] ?? 'application/xml';
 		}
 
 		/**
@@ -795,14 +802,38 @@ EOT;
 		}
 
 		// Check for ZIP variants (before getimagesize)
-		if ( strpos( $tail, "PK\x05\x06" ) !== false ) {
-			$this->logger->info( __METHOD__ . ": ZIP header present in $file\n" );
-			return $this->detectZipType( $head, $tail, $ext );
+		$eocdrPos = strpos( $tail, "PK\x05\x06" );
+		if ( $eocdrPos !== false ) {
+			$this->logger->info( __METHOD__ . ": ZIP signature present in $file\n" );
+			// Check if it really is a ZIP file, make sure the EOCDR is at the end (T40432)
+			$commentLength = unpack( "n", substr( $tail, $eocdrPos + 20 ) )[0];
+			if ( $eocdrPos + 22 + $commentLength !== strlen( $tail ) ) {
+				$this->logger->info( __METHOD__ . ": ZIP EOCDR not at end. Not a ZIP file." );
+			} else {
+				return $this->detectZipType( $head, $tail, $ext );
+			}
 		}
 
-		MediaWiki\suppressWarnings();
+		// Check for STL (3D) files
+		// @see https://en.wikipedia.org/wiki/STL_(file_format)
+		if ( $fsize >= 15 &&
+			stripos( $head, 'SOLID ' ) === 0 &&
+			preg_match( '/\RENDSOLID .*$/i', $tail ) ) {
+			// ASCII STL file
+			return 'application/sla';
+		} elseif ( $fsize > 84 ) {
+			// binary STL file
+			$triangles = substr( $head, 80, 4 );
+			$triangles = unpack( 'V', $triangles );
+			$triangles = reset( $triangles );
+			if ( $triangles !== false && $fsize === 84 + ( $triangles * 50 ) ) {
+				return 'application/sla';
+			}
+		}
+
+		Wikimedia\suppressWarnings();
 		$gis = getimagesize( $file );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 
 		if ( $gis && isset( $gis['mime'] ) ) {
 			$mime = $gis['mime'];
@@ -927,6 +958,26 @@ EOT;
 	}
 
 	/**
+	 * Detect the type of a Microsoft Compound Binary a.k.a. OLE file.
+	 * These are old style pre-ODF files such as .doc and .xls
+	 *
+	 * @param resource $handle An opened seekable file handle
+	 * @return string The detected MIME type
+	 */
+	function detectMicrosoftBinaryType( $handle ) {
+		$info = MSCompoundFileReader::readHandle( $handle );
+		if ( !$info['valid'] ) {
+			$this->logger->info( __METHOD__ . ': invalid file format' );
+			return 'unknown/unknown';
+		}
+		if ( !$info['mime'] ) {
+			$this->logger->info( __METHOD__ . ": unrecognised document subtype" );
+			return 'unknown/unknown';
+		}
+		return $info['mime'];
+	}
+
+	/**
 	 * Internal MIME type detection. Detection is done using the fileinfo
 	 * extension if it is available. It can be overriden by callback, which could
 	 * use an external program, for example. If detection fails and $ext is not false,
@@ -955,18 +1006,8 @@ EOT;
 		$m = null;
 		if ( $callback ) {
 			$m = $callback( $file );
-		} elseif ( function_exists( "finfo_open" ) && function_exists( "finfo_file" ) ) {
-			$mime_magic_resource = finfo_open( FILEINFO_MIME );
-
-			if ( $mime_magic_resource ) {
-				$m = finfo_file( $mime_magic_resource, $file );
-				finfo_close( $mime_magic_resource );
-			} else {
-				$this->logger->info( __METHOD__ .
-					": finfo_open failed on " . FILEINFO_MIME . "!\n" );
-			}
 		} else {
-			$this->logger->info( __METHOD__ . ": no magic mime detector found!\n" );
+			$m = mime_content_type( $file );
 		}
 
 		if ( $m ) {
@@ -1016,9 +1057,9 @@ EOT;
 	 * @todo analyse file if need be
 	 * @todo look at multiple extension, separately and together.
 	 *
-	 * @param string $path Full path to the image file, in case we have to look at the contents
+	 * @param string|null $path Full path to the image file, in case we have to look at the contents
 	 *        (if null, only the MIME type is used to determine the media type code).
-	 * @param string $mime MIME type. If null it will be guessed using guessMimeType.
+	 * @param string|null $mime MIME type. If null it will be guessed using guessMimeType.
 	 *
 	 * @return string A value to be used with the MEDIATYPE_xxx constants.
 	 */
@@ -1035,7 +1076,6 @@ EOT;
 		// Special code for ogg - detect if it's video (theora),
 		// else label it as sound.
 		if ( $mime == 'application/ogg' && file_exists( $path ) ) {
-
 			// Read a chunk of the file
 			$f = fopen( $path, "rt" );
 			if ( !$f ) {
@@ -1108,7 +1148,7 @@ EOT;
 	 * distinguish them from MIME types.
 	 *
 	 * This function relies on the mapping defined by $this->mMediaTypes
-	 * @access private
+	 * @private
 	 * @param string $extMime
 	 * @return int|string
 	 */
@@ -1139,6 +1179,15 @@ EOT;
 		}
 
 		return MEDIATYPE_UNKNOWN;
+	}
+
+	/**
+	 * Returns an array of media types (MEDIATYPE_xxx constants)
+	 *
+	 * @return array
+	 */
+	public function getMediaTypes() {
+		return array_keys( $this->mediaTypes );
 	}
 
 	/**

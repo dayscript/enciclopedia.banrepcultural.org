@@ -1,4 +1,5 @@
 <?php
+use Wikimedia\Rdbms\DatabaseDomain;
 
 /**
  * @covers WikiMap
@@ -16,6 +17,7 @@ class WikiMapTest extends MediaWikiLangTestCase {
 				'enwiki' => 'http://en.example.org',
 				'ruwiki' => '//ru.example.org',
 				'nopathwiki' => '//nopath.example.org',
+				'thiswiki' => '//this.wiki.org'
 			],
 			'wgArticlePath' => [
 				'enwiki' => '/w/$1',
@@ -25,6 +27,10 @@ class WikiMapTest extends MediaWikiLangTestCase {
 		$conf->suffixes = [ 'wiki' ];
 		$this->setMwGlobals( [
 			'wgConf' => $conf,
+			'wgLocalDatabases' => [ 'enwiki', 'ruwiki', 'nopathwiki' ],
+			'wgCanonicalServer' => '//this.wiki.org',
+			'wgDBname' => 'thiswiki',
+			'wgDBprefix' => ''
 		] );
 
 		TestSites::insertIntoDb();
@@ -175,4 +181,130 @@ class WikiMapTest extends MediaWikiLangTestCase {
 		$this->assertEquals( $expected, WikiMap::getForeignURL( $wikiId, $page, $fragment ) );
 	}
 
+	/**
+	 * @covers WikiMap::getCanonicalServerInfoForAllWikis()
+	 */
+	public function testGetCanonicalServerInfoForAllWikis() {
+		$expected = [
+			'thiswiki' => [
+				'url' => '//this.wiki.org',
+				'parts' => [ 'scheme' => '', 'host' => 'this.wiki.org', 'delimiter' => '//' ]
+			],
+			'enwiki' => [
+				'url' => 'http://en.example.org',
+				'parts' => [
+					'scheme' => 'http', 'host' => 'en.example.org', 'delimiter' => '://' ]
+			],
+			'ruwiki' => [
+				'url' => '//ru.example.org',
+				'parts' => [ 'scheme' => '', 'host' => 'ru.example.org', 'delimiter' => '//' ]
+			]
+		];
+
+		$this->assertArrayEquals(
+			$expected,
+			WikiMap::getCanonicalServerInfoForAllWikis(),
+			true,
+			true
+		);
+	}
+
+	public function provideGetWikiFromUrl() {
+		return [
+			[ 'http://this.wiki.org', 'thiswiki' ],
+			[ 'https://this.wiki.org', 'thiswiki' ],
+			[ 'http://this.wiki.org/$1', 'thiswiki' ],
+			[ 'https://this.wiki.org/$2', 'thiswiki' ],
+			[ 'http://en.example.org', 'enwiki' ],
+			[ 'https://en.example.org', 'enwiki' ],
+			[ 'http://en.example.org/$1', 'enwiki' ],
+			[ 'https://en.example.org/$2', 'enwiki' ],
+			[ 'http://ru.example.org', 'ruwiki' ],
+			[ 'https://ru.example.org', 'ruwiki' ],
+			[ 'http://ru.example.org/$1', 'ruwiki' ],
+			[ 'https://ru.example.org/$2', 'ruwiki' ],
+			[ 'http://not.defined.org', false ]
+		];
+	}
+
+	/**
+	 * @dataProvider provideGetWikiFromUrl
+	 * @covers WikiMap::getWikiFromUrl()
+	 */
+	public function testGetWikiFromUrl( $url, $wiki ) {
+		$this->assertEquals( $wiki, WikiMap::getWikiFromUrl( $url ) );
+	}
+
+	public function provideGetWikiIdFromDomain() {
+		return [
+			[ 'db-prefix_', 'db-prefix_' ],
+			[ wfWikiID(), wfWikiID() ],
+			[ new DatabaseDomain( 'db-dash', null, 'prefix_' ), 'db-dash-prefix_' ],
+			[ wfWikiID(), wfWikiID() ],
+			[ new DatabaseDomain( 'db-dash', null, 'prefix_' ), 'db-dash-prefix_' ],
+			[ new DatabaseDomain( 'db', 'mediawiki', 'prefix_' ), 'db-prefix_' ], // schema ignored
+			[ new DatabaseDomain( 'db', 'custom', 'prefix_' ), 'db-custom-prefix_' ],
+		];
+	}
+
+	/**
+	 * @dataProvider provideGetWikiIdFromDomain
+	 * @covers WikiMap::getWikiIdFromDbDomain()
+	 */
+	public function testGetWikiIdFromDomain( $domain, $wikiId ) {
+		$this->assertEquals( $wikiId, WikiMap::getWikiIdFromDbDomain( $domain ) );
+	}
+
+	/**
+	 * @covers WikiMap::isCurrentWikiDbDomain()
+	 * @covers WikiMap::getCurrentWikiDbDomain()
+	 */
+	public function testIsCurrentWikiDomain() {
+		$this->setMwGlobals( 'wgDBmwschema', 'mediawiki' );
+
+		$localDomain = WikiMap::getCurrentWikiDbDomain()->getId();
+		$this->assertTrue( WikiMap::isCurrentWikiDbDomain( $localDomain ) );
+
+		$localDomain = DatabaseDomain::newFromId( $localDomain );
+		$domain1 = new DatabaseDomain(
+			$localDomain->getDatabase(), 'someschema', $localDomain->getTablePrefix() );
+		$domain2 = new DatabaseDomain(
+			$localDomain->getDatabase(), null, $localDomain->getTablePrefix() );
+
+		$this->assertFalse( WikiMap::isCurrentWikiDbDomain( $domain1 ), 'Schema not ignored' );
+		$this->assertFalse( WikiMap::isCurrentWikiDbDomain( $domain2 ), 'Null schema not ignored' );
+
+		$this->assertTrue( WikiMap::isCurrentWikiDbDomain( WikiMap::getCurrentWikiDbDomain() ) );
+	}
+
+	public function provideIsCurrentWikiId() {
+		return [
+			[ 'db', 'db', null, '' ],
+			[ 'db-schema-','db', 'schema', '' ],
+			[ 'db','db', 'mediawiki', '' ], // common b/c case
+			[ 'db-prefix_', 'db', null, 'prefix_' ],
+			[ 'db-schema-prefix_', 'db', 'schema', 'prefix_' ],
+			[ 'db-prefix_', 'db', 'mediawiki', 'prefix_' ], // common b/c case
+			// Bad hyphen cases (best effort support)
+			[ 'db-stuff', 'db-stuff', null, '' ],
+			[ 'db-stuff-prefix_', 'db-stuff', null, 'prefix_' ],
+			[ 'db-stuff-schema-', 'db-stuff', 'schema', '' ],
+			[ 'db-stuff-schema-prefix_', 'db-stuff', 'schema', 'prefix_' ],
+			[ 'db-stuff-prefix_', 'db-stuff', 'mediawiki', 'prefix_' ] // common b/c case
+		];
+	}
+
+	/**
+	 * @dataProvider provideIsCurrentWikiId
+	 * @covers WikiMap::isCurrentWikiId()
+	 * @covers WikiMap::getCurrentWikiDbDomain()
+	 * @covers WikiMap::getWikiIdFromDbDomain()
+	 */
+	public function testIsCurrentWikiId( $wikiId, $db, $schema, $prefix ) {
+		$this->setMwGlobals(
+			[ 'wgDBname' => $db, 'wgDBmwschema' => $schema, 'wgDBprefix' => $prefix ] );
+
+		$this->assertTrue( WikiMap::isCurrentWikiId( $wikiId ), "ID matches" );
+		$this->assertNotTrue( WikiMap::isCurrentWikiId( $wikiId . '-more' ), "Bogus ID" );
+	}
 }

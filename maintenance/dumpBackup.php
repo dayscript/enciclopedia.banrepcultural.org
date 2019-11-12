@@ -22,10 +22,11 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Dump Maintenance
+ * @ingroup Dump
+ * @ingroup Maintenance
  */
 
-require_once __DIR__ . '/backup.inc';
+require_once __DIR__ . '/includes/BackupDumper.php';
 
 class DumpBackup extends BackupDumper {
 	function __construct( $args = null ) {
@@ -87,7 +88,7 @@ TEXT
 		} elseif ( $this->hasOption( 'revrange' ) ) {
 			$this->dump( WikiExporter::RANGE, $textMode );
 		} else {
-			$this->error( 'No valid action specified.', 1 );
+			$this->fatalError( 'No valid action specified.' );
 		}
 	}
 
@@ -133,5 +134,5 @@ TEXT
 	}
 }
 
-$maintClass = 'DumpBackup';
+$maintClass = DumpBackup::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

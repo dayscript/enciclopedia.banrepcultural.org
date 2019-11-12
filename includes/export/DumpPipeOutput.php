@@ -25,6 +25,8 @@
  * @file
  */
 
+use MediaWiki\Shell\Shell;
+
 /**
  * @ingroup Dump
  */
@@ -34,11 +36,11 @@ class DumpPipeOutput extends DumpFileOutput {
 
 	/**
 	 * @param string $command
-	 * @param string $file
+	 * @param string|null $file
 	 */
 	function __construct( $command, $file = null ) {
 		if ( !is_null( $file ) ) {
-			$command .= " > " . wfEscapeShellArg( $file );
+			$command .= " > " . Shell::escape( $file );
 		}
 
 		$this->startCommand( $command );
@@ -94,7 +96,7 @@ class DumpPipeOutput extends DumpFileOutput {
 			$this->renameOrException( $newname );
 			if ( $open ) {
 				$command = $this->command;
-				$command .= " > " . wfEscapeShellArg( $this->filename );
+				$command .= " > " . Shell::escape( $this->filename );
 				$this->startCommand( $command );
 			}
 		}

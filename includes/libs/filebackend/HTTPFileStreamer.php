@@ -40,6 +40,27 @@ class HTTPFileStreamer {
 	const STREAM_ALLOW_OB = 2;
 
 	/**
+	 * Takes HTTP headers in a name => value format and converts them to the weird format
+	 * expected by stream().
+	 * @param string[] $headers
+	 * @return array[] [ $headers, $optHeaders ]
+	 * @since 1.34
+	 */
+	public static function preprocessHeaders( $headers ) {
+		$rawHeaders = [];
+		$optHeaders = [];
+		foreach ( $headers as $name => $header ) {
+			$nameLower = strtolower( $name );
+			if ( in_array( $nameLower, [ 'range', 'if-modified-since' ], true ) ) {
+				$optHeaders[$nameLower] = $header;
+			} else {
+				$rawHeaders[] = "$name: $header";
+			}
+		}
+		return [ $rawHeaders, $optHeaders ];
+	}
+
+	/**
 	 * @param string $path Local filesystem path to a file
 	 * @param array $params Options map, which includes:
 	 *   - obResetFunc : alternative callback to clear the output buffer
@@ -47,12 +68,8 @@ class HTTPFileStreamer {
 	 */
 	public function __construct( $path, array $params = [] ) {
 		$this->path = $path;
-		$this->obResetFunc = isset( $params['obResetFunc'] )
-			? $params['obResetFunc']
-			: [ __CLASS__, 'resetOutputBuffers' ];
-		$this->streamMimeFunc = isset( $params['streamMimeFunc'] )
-			? $params['streamMimeFunc']
-			: [ __CLASS__, 'contentTypeFromPath' ];
+		$this->obResetFunc = $params['obResetFunc'] ?? [ __CLASS__, 'resetOutputBuffers' ];
+		$this->streamMimeFunc = $params['streamMimeFunc'] ?? [ __CLASS__, 'contentTypeFromPath' ];
 	}
 
 	/**
@@ -63,8 +80,7 @@ class HTTPFileStreamer {
 	 * @param array $headers Any additional headers to send if the file exists
 	 * @param bool $sendErrors Send error messages if errors occur (like 404)
 	 * @param array $optHeaders HTTP request header map (e.g. "range") (use lowercase keys)
-	 * @param integer $flags Bitfield of STREAM_* constants
-	 * @throws MWException
+	 * @param int $flags Bitfield of STREAM_* constants
 	 * @return bool Success
 	 */
 	public function stream(
@@ -84,9 +100,9 @@ class HTTPFileStreamer {
 				is_int( $header ) ? HttpStatus::header( $header ) : header( $header );
 			};
 
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$info = stat( $this->path );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 
 		if ( !is_array( $info ) ) {
 			if ( $sendErrors ) {
@@ -179,7 +195,7 @@ class HTTPFileStreamer {
 	 * Send out a standard 404 message for a file
 	 *
 	 * @param string $fname Full name and path of the file to stream
-	 * @param integer $flags Bitfield of STREAM_* constants
+	 * @param int $flags Bitfield of STREAM_* constants
 	 * @since 1.24
 	 */
 	public static function send404Message( $fname, $flags = 0 ) {
@@ -202,7 +218,7 @@ class HTTPFileStreamer {
 	 * Convert a Range header value to an absolute (start, end) range tuple
 	 *
 	 * @param string $range Range header value
-	 * @param integer $size File size
+	 * @param int $size File size
 	 * @return array|string Returns error string on failure (start, end, length)
 	 * @since 1.24
 	 */

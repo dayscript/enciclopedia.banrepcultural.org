@@ -24,7 +24,7 @@
  */
 use MediaWiki\MediaWikiServices;
 
-class NewFilesPager extends ReverseChronologicalPager {
+class NewFilesPager extends RangeChronologicalPager {
 
 	/**
 	 * @var ImageGalleryBase
@@ -40,29 +40,50 @@ class NewFilesPager extends ReverseChronologicalPager {
 	 * @param IContextSource $context
 	 * @param FormOptions $opts
 	 */
-	function __construct( IContextSource $context, FormOptions $opts ) {
-		$this->opts = $opts;
+	public function __construct( IContextSource $context, FormOptions $opts ) {
+		parent::__construct( $context );
 
+		$this->opts = $opts;
 		$this->setLimit( $opts->getValue( 'limit' ) );
 
-		parent::__construct( $context );
+		$startTimestamp = '';
+		$endTimestamp = '';
+		if ( $opts->getValue( 'start' ) ) {
+			$startTimestamp = $opts->getValue( 'start' ) . ' 00:00:00';
+		}
+		if ( $opts->getValue( 'end' ) ) {
+			$endTimestamp = $opts->getValue( 'end' ) . ' 23:59:59';
+		}
+		$this->getDateRangeCond( $startTimestamp, $endTimestamp );
 	}
 
 	function getQueryInfo() {
 		$opts = $this->opts;
-		$conds = $jconds = [];
-		$tables = [ 'image' ];
-		$fields = [ 'img_name', 'img_user', 'img_timestamp' ];
+		$conds = [];
+		$imgQuery = LocalFile::getQueryInfo();
+		$tables = $imgQuery['tables'];
+		$fields = [ 'img_name', 'img_timestamp' ] + $imgQuery['fields'];
 		$options = [];
+		$jconds = $imgQuery['joins'];
 
 		$user = $opts->getValue( 'user' );
 		if ( $user !== '' ) {
-			$userId = User::idFromName( $user );
-			if ( $userId ) {
-				$conds['img_user'] = $userId;
-			} else {
-				$conds['img_user_text'] = $user;
-			}
+			$conds[] = ActorMigration::newMigration()
+				->getWhere( wfGetDB( DB_REPLICA ), 'img_user', User::newFromName( $user, false ) )['conds'];
+		}
+
+		if ( $opts->getValue( 'newbies' ) ) {
+			// newbie = most recent 1% of users
+			$dbr = wfGetDB( DB_REPLICA );
+			$max = $dbr->selectField( 'user', 'max(user_id)', '', __METHOD__ );
+			$conds[] = $imgQuery['fields']['img_user'] . ' >' . (int)( $max - $max / 100 );
+
+			// there's no point in looking for new user activity in a far past;
+			// beyond a certain point, we'd just end up scanning the rest of the
+			// table even though the users we're looking for didn't yet exist...
+			// see T140537, (for ContribsPages, but similar to this)
+			$conds[] = 'img_timestamp > ' .
+				$dbr->addQuotes( $dbr->timestamp( wfTimestamp() - 30 * 24 * 60 * 60 ) );
 		}
 
 		if ( !$opts->getValue( 'showbots' ) ) {
@@ -76,7 +97,7 @@ class NewFilesPager extends ReverseChronologicalPager {
 					'LEFT JOIN',
 					[
 						'ug_group' => $groupsWithBotPermission,
-						'ug_user = img_user',
+						'ug_user = ' . $imgQuery['fields']['img_user'],
 						'ug_expiry IS NULL OR ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() )
 					]
 				];
@@ -84,16 +105,27 @@ class NewFilesPager extends ReverseChronologicalPager {
 		}
 
 		if ( $opts->getValue( 'hidepatrolled' ) ) {
+			global $wgActorTableSchemaMigrationStage;
+
 			$tables[] = 'recentchanges';
 			$conds['rc_type'] = RC_LOG;
 			$conds['rc_log_type'] = 'upload';
-			$conds['rc_patrolled'] = 0;
+			$conds['rc_patrolled'] = RecentChange::PRC_UNPATROLLED;
 			$conds['rc_namespace'] = NS_FILE;
+
+			if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW ) {
+				$jcond = 'rc_actor = ' . $imgQuery['fields']['img_actor'];
+			} else {
+				$rcQuery = ActorMigration::newMigration()->getJoin( 'rc_user' );
+				$tables += $rcQuery['tables'];
+				$jconds += $rcQuery['joins'];
+				$jcond = $rcQuery['fields']['rc_user'] . ' = ' . $imgQuery['fields']['img_user'];
+			}
 			$jconds['recentchanges'] = [
-				'INNER JOIN',
+				'JOIN',
 				[
 					'rc_title = img_name',
-					'rc_user = img_user',
+					$jcond,
 					'rc_timestamp = img_timestamp'
 				]
 			];
@@ -101,6 +133,10 @@ class NewFilesPager extends ReverseChronologicalPager {
 			// It sometimes decides to query `recentchanges` first and filesort the result set later
 			// to get the right ordering. T124205 / https://mariadb.atlassian.net/browse/MDEV-8880
 			$options[] = 'STRAIGHT_JOIN';
+		}
+
+		if ( $opts->getValue( 'mediatype' ) ) {
+			$conds['img_media_type'] = $opts->getValue( 'mediatype' );
 		}
 
 		$likeVal = $opts->getValue( 'like' );
@@ -132,7 +168,7 @@ class NewFilesPager extends ReverseChronologicalPager {
 		return 'img_timestamp';
 	}
 
-	function getStartBody() {
+	protected function getStartBody() {
 		if ( !$this->gallery ) {
 			// Note that null for mode is taken to mean use default.
 			$mode = $this->getRequest()->getVal( 'gallerymode', null );
@@ -147,7 +183,7 @@ class NewFilesPager extends ReverseChronologicalPager {
 		return '';
 	}
 
-	function getEndBody() {
+	protected function getEndBody() {
 		return $this->gallery->toHTML();
 	}
 
@@ -168,5 +204,6 @@ class NewFilesPager extends ReverseChronologicalPager {
 			. htmlspecialchars( $time )
 			. "</i><br />\n"
 		);
+		return '';
 	}
 }

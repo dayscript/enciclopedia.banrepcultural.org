@@ -1,13 +1,15 @@
 <?php
 
 /**
+ * @covers PageProps
+ *
  * @group Database
  *	^--- tell jenkins this test needs the database
  *
  * @group medium
  *	^--- tell phpunit that these test cases may take longer than 2 seconds.
  */
-class TestPageProps extends MediaWikiLangTestCase {
+class PagePropsTest extends MediaWikiLangTestCase {
 
 	/**
 	 * @var Title $title1
@@ -25,18 +27,20 @@ class TestPageProps extends MediaWikiLangTestCase {
 	private $the_properties;
 
 	protected function setUp() {
-		global $wgExtraNamespaces, $wgNamespaceContentModels, $wgContentHandlers, $wgContLang;
-
 		parent::setUp();
 
-		$wgExtraNamespaces[12312] = 'Dummy';
-		$wgExtraNamespaces[12313] = 'Dummy_talk';
+		$this->setMwGlobals( [
+			'wgExtraNamespaces' => [
+				12312 => 'Dummy',
+				12313 => 'Dummy_talk',
+			],
+			'wgNamespaceContentModels' => [ 12312 => 'DUMMY' ],
+		] );
 
-		$wgNamespaceContentModels[12312] = 'DUMMY';
-		$wgContentHandlers['DUMMY'] = 'DummyContentHandlerForTesting';
-
-		MWNamespace::getCanonicalNamespaces( true ); # reset namespace cache
-		$wgContLang->resetNamespaces(); # reset namespace cache
+		$this->mergeMwGlobalArrayValue(
+			'wgContentHandlers',
+			[ 'DUMMY' => 'DummyContentHandlerForTesting' ]
+		);
 
 		if ( !$this->the_properties ) {
 			$this->the_properties = [
@@ -68,21 +72,6 @@ class TestPageProps extends MediaWikiLangTestCase {
 			$page2ID = $this->title2->getArticleID();
 			$this->setProperties( $page2ID, $this->the_properties );
 		}
-	}
-
-	protected function tearDown() {
-		global $wgExtraNamespaces, $wgNamespaceContentModels, $wgContentHandlers, $wgContLang;
-
-		parent::tearDown();
-
-		unset( $wgExtraNamespaces[12312] );
-		unset( $wgExtraNamespaces[12313] );
-
-		unset( $wgNamespaceContentModels[12312] );
-		unset( $wgContentHandlers['DUMMY'] );
-
-		MWNamespace::getCanonicalNamespaces( true ); # reset namespace cache
-		$wgContLang->resetNamespaces(); # reset namespace cache
 	}
 
 	/**

@@ -17,6 +17,7 @@ abstract class ResourceLoaderTestCase extends MediaWikiTestCase {
 	 * - string 'modules' Pipe-separated list of module names
 	 * - string|null 'only' "scripts" (unwrapped script), "styles" (stylesheet), or null
 	 *    (mw.loader.implement).
+	 * @param ResourceLoader|null $rl
 	 * @return ResourceLoaderContext
 	 */
 	protected function getResourceLoaderContext( $options = [], ResourceLoader $rl = null ) {
@@ -25,21 +26,25 @@ abstract class ResourceLoaderTestCase extends MediaWikiTestCase {
 			$options = [ 'lang' => $options ];
 		}
 		$options += [
+			'debug' => 'true',
 			'lang' => 'en',
 			'dir' => 'ltr',
 			'skin' => 'vector',
 			'modules' => 'startup',
 			'only' => 'scripts',
+			'safemode' => null,
 		];
 		$resourceLoader = $rl ?: new ResourceLoader();
 		$request = new FauxRequest( [
+				'debug' => $options['debug'],
 				'lang' => $options['lang'],
 				'modules' => $options['modules'],
 				'only' => $options['only'],
+				'safemode' => $options['safemode'],
 				'skin' => $options['skin'],
 				'target' => 'phpunit',
 		] );
-		$ctx = $this->getMockBuilder( 'ResourceLoaderContext' )
+		$ctx = $this->getMockBuilder( ResourceLoaderContext::class )
 			->setConstructorArgs( [ $resourceLoader, $request ] )
 			->setMethods( [ 'getDirection' ] )
 			->getMock();
@@ -55,12 +60,8 @@ abstract class ResourceLoaderTestCase extends MediaWikiTestCase {
 			// Avoid influence from wgInvalidateCacheOnLocalSettingsChange
 			'CacheEpoch' => '20140101000000',
 
-			// For ResourceLoader::__construct()
-			'ResourceLoaderSources' => [],
-
 			// For wfScript()
 			'ScriptPath' => '/w',
-			'ScriptExtension' => '.php',
 			'Script' => '/w/index.php',
 			'LoadScript' => '/w/load.php',
 		];
@@ -86,7 +87,6 @@ class ResourceLoaderTestModule extends ResourceLoaderModule {
 	protected $dependencies = [];
 	protected $group = null;
 	protected $source = 'local';
-	protected $position = 'bottom';
 	protected $script = '';
 	protected $styles = '';
 	protected $skipFunction = null;
@@ -94,6 +94,7 @@ class ResourceLoaderTestModule extends ResourceLoaderModule {
 	protected $isKnownEmpty = false;
 	protected $type = ResourceLoaderModule::LOAD_GENERAL;
 	protected $targets = [ 'phpunit' ];
+	protected $shouldEmbed = null;
 
 	public function __construct( $options = [] ) {
 		foreach ( $options as $key => $value ) {
@@ -124,9 +125,6 @@ class ResourceLoaderTestModule extends ResourceLoaderModule {
 	public function getSource() {
 		return $this->source;
 	}
-	public function getPosition() {
-		return $this->position;
-	}
 
 	public function getType() {
 		return $this->type;
@@ -143,8 +141,28 @@ class ResourceLoaderTestModule extends ResourceLoaderModule {
 		return $this->isKnownEmpty;
 	}
 
+	public function shouldEmbedModule( ResourceLoaderContext $context ) {
+		return $this->shouldEmbed ?? parent::shouldEmbedModule( $context );
+	}
+
 	public function enableModuleContentVersion() {
 		return true;
+	}
+}
+
+class ResourceLoaderFileTestModule extends ResourceLoaderFileModule {
+	protected $lessVars = [];
+
+	public function __construct( $options = [], $test = [] ) {
+		parent::__construct( $options );
+
+		foreach ( $test as $key => $value ) {
+			$this->$key = $value;
+		}
+	}
+
+	public function getLessVars( ResourceLoaderContext $context ) {
+		return $this->lessVars;
 	}
 }
 

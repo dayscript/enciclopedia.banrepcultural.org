@@ -7,6 +7,19 @@
 
 class LocalFileTest extends MediaWikiTestCase {
 
+	/** @var LocalRepo */
+	private $repo_hl0;
+	/** @var LocalRepo */
+	private $repo_hl2;
+	/** @var LocalRepo */
+	private $repo_lc;
+	/** @var File */
+	private $file_hl0;
+	/** @var File */
+	private $file_hl2;
+	/** @var File */
+	private $file_lc;
+
 	protected function setUp() {
 		parent::setUp();
 
@@ -176,7 +189,7 @@ class LocalFileTest extends MediaWikiTestCase {
 		$file = wfLocalFile( "File:Some_file_that_probably_doesn't exist.png" );
 		$this->assertThat(
 			$file,
-			$this->isInstanceOf( 'LocalFile' ),
+			$this->isInstanceOf( LocalFile::class ),
 			'wfLocalFile() returns LocalFile for valid Titles'
 		);
 	}

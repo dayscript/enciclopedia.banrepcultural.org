@@ -1,6 +1,7 @@
 <?php
 
 /**
+ * @covers LinksUpdate
  * @group LinksUpdate
  * @group Database
  * ^--- make sure temporary tables are used.
@@ -117,6 +118,8 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 	/**
 	 * @covers ParserOutput::addExternalLink
+	 * @covers LinksUpdate::getAddedExternalLinks
+	 * @covers LinksUpdate::getRemovedExternalLinks
 	 */
 	public function testUpdate_externallinks() {
 		/** @var ParserOutput $po */
@@ -124,7 +127,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$po->addExternalLink( "http://testing.com/wiki/Foo" );
 
-		$this->assertLinksUpdate(
+		$update = $this->assertLinksUpdate(
 			$t,
 			$po,
 			'externallinks',
@@ -134,6 +137,31 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 				[ 'http://testing.com/wiki/Foo', 'http://com.testing./wiki/Foo' ],
 			]
 		);
+
+		$this->assertArrayEquals( [
+			"http://testing.com/wiki/Foo"
+		], $update->getAddedExternalLinks() );
+
+		$po = new ParserOutput();
+		$po->setTitleText( $t->getPrefixedText() );
+		$po->addExternalLink( 'http://testing.com/wiki/Bar' );
+		$update = $this->assertLinksUpdate(
+			$t,
+			$po,
+			'externallinks',
+			'el_to, el_index',
+			'el_from = ' . self::$testingPageId,
+			[
+				[ 'http://testing.com/wiki/Bar', 'http://com.testing./wiki/Bar' ],
+			]
+		);
+
+		$this->assertArrayEquals( [
+			"http://testing.com/wiki/Bar"
+		], $update->getAddedExternalLinks() );
+		$this->assertArrayEquals( [
+			"http://testing.com/wiki/Foo"
+		], $update->getRemovedExternalLinks() );
 	}
 
 	/**
@@ -167,7 +195,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$this->assertRecentChangeByCategorization(
 			$title,
-			$wikiPage->getParserOutput( new ParserOptions() ),
+			$wikiPage->getParserOutput( ParserOptions::newCanonical() ),
 			Title::newFromText( 'Category:Foo' ),
 			[ [ 'Foo', '[[:Testing]] added to category' ] ]
 		);
@@ -177,7 +205,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$this->assertRecentChangeByCategorization(
 			$title,
-			$wikiPage->getParserOutput( new ParserOptions() ),
+			$wikiPage->getParserOutput( ParserOptions::newCanonical() ),
 			Title::newFromText( 'Category:Foo' ),
 			[
 				[ 'Foo', '[[:Testing]] added to category' ],
@@ -187,7 +215,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$this->assertRecentChangeByCategorization(
 			$title,
-			$wikiPage->getParserOutput( new ParserOptions() ),
+			$wikiPage->getParserOutput( ParserOptions::newCanonical() ),
 			Title::newFromText( 'Category:Bar' ),
 			[
 				[ 'Bar', '[[:Testing]] added to category' ],
@@ -211,7 +239,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$this->assertRecentChangeByCategorization(
 			$templateTitle,
-			$templatePage->getParserOutput( new ParserOptions() ),
+			$templatePage->getParserOutput( ParserOptions::newCanonical() ),
 			Title::newFromText( 'Baz' ),
 			[]
 		);
@@ -221,7 +249,7 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 
 		$this->assertRecentChangeByCategorization(
 			$templateTitle,
-			$templatePage->getParserOutput( new ParserOptions() ),
+			$templatePage->getParserOutput( ParserOptions::newCanonical() ),
 			Title::newFromText( 'Baz' ),
 			[ [
 				'Baz',
@@ -379,12 +407,13 @@ class LinksUpdateTest extends MediaWikiLangTestCase {
 		Title $pageTitle, ParserOutput $parserOutput, Title $categoryTitle, $expectedRows
 	) {
 		$this->assertSelect(
-			'recentchanges',
-			'rc_title, rc_comment',
+			[ 'recentchanges', 'comment' ],
+			'rc_title, comment_text',
 			[
 				'rc_type' => RC_CATEGORIZE,
 				'rc_namespace' => NS_CATEGORY,
-				'rc_title' => $categoryTitle->getDBkey()
+				'rc_title' => $categoryTitle->getDBkey(),
+				'comment_id = rc_comment_id',
 			],
 			$expectedRows
 		);

@@ -22,20 +22,10 @@ class JsonContent extends TextContent {
 
 	/**
 	 * @param string $text JSON
+	 * @param string $modelId
 	 */
 	public function __construct( $text, $modelId = CONTENT_MODEL_JSON ) {
 		parent::__construct( $text, $modelId );
-	}
-
-	/**
-	 * Decodes the JSON into a PHP associative array.
-	 *
-	 * @deprecated since 1.25 Use getData instead.
-	 * @return array|null
-	 */
-	public function getJsonData() {
-		wfDeprecated( __METHOD__, '1.25' );
-		return FormatJson::decode( $this->getNativeData(), true );
 	}
 
 	/**
@@ -48,7 +38,7 @@ class JsonContent extends TextContent {
 	 */
 	public function getData() {
 		if ( $this->jsonParse === null ) {
-			$this->jsonParse = FormatJson::parse( $this->getNativeData() );
+			$this->jsonParse = FormatJson::parse( $this->getText() );
 		}
 		return $this->jsonParse;
 	}
@@ -74,8 +64,8 @@ class JsonContent extends TextContent {
 	/**
 	 * Beautifies JSON prior to save.
 	 *
-	 * @param Title $title Title
-	 * @param User $user User
+	 * @param Title $title
+	 * @param User $user
 	 * @param ParserOptions $popts
 	 * @return JsonContent
 	 */
@@ -96,7 +86,7 @@ class JsonContent extends TextContent {
 	 * @param int $revId
 	 * @param ParserOptions $options
 	 * @param bool $generateHtml
-	 * @param ParserOutput $output
+	 * @param ParserOutput &$output
 	 */
 	protected function fillParserOutput( Title $title, $revId,
 		ParserOptions $options, $generateHtml, ParserOutput &$output

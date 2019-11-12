@@ -27,12 +27,26 @@
  */
 use Wikimedia\Rdbms\IDatabase;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Tidy\TidyDriverBase;
 use Wikimedia\ScopedCallback;
+use Wikimedia\TestingAccessWrapper;
 
 /**
  * @ingroup Testing
  */
 class ParserTestRunner {
+
+	/**
+	 * MediaWiki core parser test files, paths
+	 * will be prefixed with __DIR__ . '/'
+	 *
+	 * @var array
+	 */
+	private static $coreTestFiles = [
+		'parserTests.txt',
+		'extraParserTests.txt',
+	];
+
 	/**
 	 * @var bool $useTemporaryTables Use temporary tables for the temporary database
 	 */
@@ -60,11 +74,6 @@ class ParserTestRunner {
 	 * @var CloneDatabase
 	 */
 	private $dbClone;
-
-	/**
-	 * @var TidySupport
-	 */
-	private $tidySupport;
 
 	/**
 	 * @var TidyDriverBase
@@ -103,6 +112,24 @@ class ParserTestRunner {
 	private $normalizationFunctions = [];
 
 	/**
+	 * Run disabled parser tests
+	 * @var bool
+	 */
+	private $runDisabled;
+
+	/**
+	 * Disable parse on article insertion
+	 * @var bool
+	 */
+	private $disableSaveParse;
+
+	/**
+	 * Reuse upload directory
+	 * @var bool
+	 */
+	private $keepUploads;
+
+	/**
 	 * @param TestRecorder $recorder
 	 * @param array $options
 	 */
@@ -129,21 +156,57 @@ class ParserTestRunner {
 
 		$this->keepUploads = !empty( $options['keep-uploads'] );
 
-		$this->fileBackendName = isset( $options['file-backend'] ) ?
-			$options['file-backend'] : false;
+		$this->fileBackendName = $options['file-backend'] ?? false;
 
 		$this->runDisabled = !empty( $options['run-disabled'] );
-		$this->runParsoid = !empty( $options['run-parsoid'] );
 
-		$this->tidySupport = new TidySupport( !empty( $options['use-tidy-config'] ) );
-		if ( !$this->tidySupport->isEnabled() ) {
-			$this->recorder->warning(
-				"Warning: tidy is not installed, skipping some tests\n" );
-		}
+		$this->disableSaveParse = !empty( $options['disable-save-parse'] );
 
 		if ( isset( $options['upload-dir'] ) ) {
 			$this->uploadDir = $options['upload-dir'];
 		}
+	}
+
+	/**
+	 * Get list of filenames to extension and core parser tests
+	 *
+	 * @return array
+	 */
+	public static function getParserTestFiles() {
+		global $wgParserTestFiles;
+
+		// Add core test files
+		$files = array_map( function ( $item ) {
+			return __DIR__ . "/$item";
+		}, self::$coreTestFiles );
+
+		// Plus legacy global files
+		$files = array_merge( $files, $wgParserTestFiles );
+
+		// Auto-discover extension parser tests
+		$registry = ExtensionRegistry::getInstance();
+		foreach ( $registry->getAllThings() as $info ) {
+			$dir = dirname( $info['path'] ) . '/tests/parser';
+			if ( !file_exists( $dir ) ) {
+				continue;
+			}
+			$counter = 1;
+			$dirIterator = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $dir )
+			);
+			foreach ( $dirIterator as $fileInfo ) {
+				/** @var SplFileInfo $fileInfo */
+				if ( substr( $fileInfo->getFilename(), -4 ) === '.txt' ) {
+					$name = $info['name'] . $counter;
+					while ( isset( $files[$name] ) ) {
+						$name = $info['name'] . '_' . $counter++;
+					}
+					$files[$name] = $fileInfo->getPathname();
+				}
+			}
+		}
+
+		return array_unique( $files );
 	}
 
 	public function getRecorder() {
@@ -215,7 +278,6 @@ class ParserTestRunner {
 		$setup['wgNoFollowLinks'] = true;
 		$setup['wgNoFollowDomainExceptions'] = [ 'no-nofollow.org' ];
 		$setup['wgExternalLinkTarget'] = false;
-		$setup['wgExperimentalHtmlIds'] = false;
 		$setup['wgLocaltimezone'] = 'UTC';
 		$setup['wgHtml5'] = true;
 		$setup['wgDisableLangConversion'] = false;
@@ -235,12 +297,12 @@ class ParserTestRunner {
 		// Set up null lock managers
 		$setup['wgLockManagers'] = [ [
 			'name' => 'fsLockManager',
-			'class' => 'NullLockManager',
+			'class' => NullLockManager::class,
 		], [
 			'name' => 'nullLockManager',
-			'class' => 'NullLockManager',
+			'class' => NullLockManager::class,
 		] ];
-		$reset = function() {
+		$reset = function () {
 			LockManagerGroup::destroySingletons();
 		};
 		$setup[] = $reset;
@@ -265,7 +327,10 @@ class ParserTestRunner {
 		$setup['wgSVGConverters'] = [ 'null' => 'echo "1">$output' ];
 
 		// Fake constant timestamp
-		Hooks::register( 'ParserGetVariableValueTs', 'ParserTestRunner::getFakeTimestamp' );
+		Hooks::register( 'ParserGetVariableValueTs', function ( &$parser, &$ts ) {
+			$ts = $this->getFakeTimestamp();
+			return true;
+		} );
 		$teardown[] = function () {
 			Hooks::clear( 'ParserGetVariableValueTs' );
 		};
@@ -288,8 +353,9 @@ class ParserTestRunner {
 		MediaWikiServices::getInstance()->disableService( 'MediaHandlerFactory' );
 		MediaWikiServices::getInstance()->redefineService(
 			'MediaHandlerFactory',
-			function() {
-				return new MockMediaHandlerFactory();
+			function ( MediaWikiServices $services ) {
+				$handlers = $services->getMainConfig()->get( 'ParserTestMediaHandlers' );
+				return new MediaHandlerFactory( $handlers );
 			}
 		);
 		$teardown[] = function () {
@@ -325,8 +391,8 @@ class ParserTestRunner {
 		// Changing wgExtraNamespaces invalidates caches in MWNamespace and
 		// any live Language object, both on setup and teardown
 		$reset = function () {
-			MWNamespace::getCanonicalNamespaces( true );
-			$GLOBALS['wgContLang']->resetNamespaces();
+			MWNamespace::clearCaches();
+			MediaWikiServices::getInstance()->getContentLanguage()->resetNamespaces();
 		};
 		$setup[] = $reset;
 		$teardown[] = $reset;
@@ -376,7 +442,7 @@ class ParserTestRunner {
 
 		return new RepoGroup(
 			[
-				'class' => 'MockLocalRepo',
+				'class' => MockLocalRepo::class,
 				'name' => 'local',
 				'url' => 'http://example.com/images',
 				'hashLevels' => 2,
@@ -406,7 +472,7 @@ class ParserTestRunner {
 			if ( is_int( $name ) ) {
 				$value();
 			} else {
-				$saved[$name] = isset( $GLOBALS[$name] ) ? $GLOBALS[$name] : null;
+				$saved[$name] = $GLOBALS[$name] ?? null;
 				$GLOBALS[$name] = $value;
 			}
 		}
@@ -424,11 +490,11 @@ class ParserTestRunner {
 	 * @see staticSetup
 	 *
 	 * @param array $teardown The snippet array
-	 * @param ScopedCallback|null A ScopedCallback to consume
+	 * @param ScopedCallback|null $nextTeardown A ScopedCallback to consume
 	 * @return ScopedCallback
 	 */
 	protected function createTeardownObject( $teardown, $nextTeardown = null ) {
-		return new ScopedCallback( function() use ( $teardown, $nextTeardown ) {
+		return new ScopedCallback( function () use ( $teardown, $nextTeardown ) {
 			// Schedule teardown snippets in reverse order
 			$teardown = array_reverse( $teardown );
 
@@ -459,6 +525,8 @@ class ParserTestRunner {
 	/**
 	 * Ensure a given setup stage has been done, throw an exception if it has
 	 * not.
+	 * @param string $funcName
+	 * @param string|null $funcName2
 	 */
 	protected function checkSetupDone( $funcName, $funcName2 = null ) {
 		if ( !$this->setupDone[$funcName]
@@ -473,10 +541,10 @@ class ParserTestRunner {
 	 * Determine whether a particular setup function has been run
 	 *
 	 * @param string $funcName
-	 * @return boolean
+	 * @return bool
 	 */
 	public function isSetupDone( $funcName ) {
-		return isset( $this->setupDone[$funcName] ) ? $this->setupDone[$funcName] : false;
+		return $this->setupDone[$funcName] ?? false;
 	}
 
 	/**
@@ -554,9 +622,13 @@ class ParserTestRunner {
 			return false;
 		} );// hooks::register
 
+		// Reset the service in case any other tests already cached some prefixes.
+		MediaWikiServices::getInstance()->resetServiceForTesting( 'InterwikiLookup' );
+
 		return function () {
 			// Tear down
 			Hooks::clear( 'InterwikiLoadPrefix' );
+			MediaWikiServices::getInstance()->resetServiceForTesting( 'InterwikiLookup' );
 		};
 	}
 
@@ -575,7 +647,6 @@ class ParserTestRunner {
 
 	/**
 	 * Remove last character if it is a newline
-	 * @group utility
 	 * @param string $s
 	 * @return string
 	 */
@@ -614,7 +685,6 @@ class ParserTestRunner {
 			foreach ( $filenames as $filename ) {
 				$testFileInfo = TestFileReader::read( $filename, [
 					'runDisabled' => $this->runDisabled,
-					'runParsoid' => $this->runParsoid,
 					'regex' => $this->regex ] );
 
 				// Don't start the suite if there are no enabled tests in the file
@@ -641,19 +711,21 @@ class ParserTestRunner {
 	/**
 	 * Determine whether the current parser has the hooks registered in it
 	 * that are required by a file read by TestFileReader.
+	 * @param array $requirements
+	 * @return bool
 	 */
 	public function meetsRequirements( $requirements ) {
 		foreach ( $requirements as $requirement ) {
 			switch ( $requirement['type'] ) {
-			case 'hook':
-				$ok = $this->requireHook( $requirement['name'] );
-				break;
-			case 'functionHook':
-				$ok = $this->requireFunctionHook( $requirement['name'] );
-				break;
-			case 'transparentHook':
-				$ok = $this->requireTransparentHook( $requirement['name'] );
-				break;
+				case 'hook':
+					$ok = $this->requireHook( $requirement['name'] );
+					break;
+				case 'functionHook':
+					$ok = $this->requireFunctionHook( $requirement['name'] );
+					break;
+				case 'transparentHook':
+					$ok = $this->requireTransparentHook( $requirement['name'] );
+					break;
 			}
 			if ( !$ok ) {
 				return false;
@@ -708,7 +780,7 @@ class ParserTestRunner {
 	/**
 	 * Get a Parser object
 	 *
-	 * @param string $preprocessor
+	 * @param string|null $preprocessor
 	 * @return Parser
 	 */
 	function getParser( $preprocessor = null ) {
@@ -736,24 +808,20 @@ class ParserTestRunner {
 	 *  - options: Array of test options
 	 *  - config: Overrides for global variables, one per line
 	 *
-	 * @return ParserTestResult or false if skipped
+	 * @return ParserTestResult|false false if skipped
 	 */
 	public function runTest( $test ) {
-		wfDebug( __METHOD__.": running {$test['desc']}" );
+		wfDebug( __METHOD__ . ": running {$test['desc']}" );
 		$opts = $this->parseOptions( $test['options'] );
 		$teardownGuard = $this->perTestSetup( $test );
 
 		$context = RequestContext::getMain();
 		$user = $context->getUser();
 		$options = ParserOptions::newFromContext( $context );
+		$options->setTimestamp( $this->getFakeTimestamp() );
 
 		if ( isset( $opts['tidy'] ) ) {
-			if ( !$this->tidySupport->isEnabled() ) {
-				$this->recorder->skipped( $test, 'tidy extension is not installed' );
-				return false;
-			} else {
-				$options->setTidy( true );
-			}
+			$options->setTidy( true );
 		}
 
 		if ( isset( $opts['title'] ) ) {
@@ -762,13 +830,34 @@ class ParserTestRunner {
 			$titleText = 'Parser test';
 		}
 
+		if ( isset( $opts['maxincludesize'] ) ) {
+			$options->setMaxIncludeSize( $opts['maxincludesize'] );
+		}
+		if ( isset( $opts['maxtemplatedepth'] ) ) {
+			$options->setMaxTemplateDepth( $opts['maxtemplatedepth'] );
+		}
+
 		$local = isset( $opts['local'] );
-		$preprocessor = isset( $opts['preprocessor'] ) ? $opts['preprocessor'] : null;
+		$preprocessor = $opts['preprocessor'] ?? null;
 		$parser = $this->getParser( $preprocessor );
 		$title = Title::newFromText( $titleText );
 
+		if ( isset( $opts['styletag'] ) ) {
+			// For testing the behavior of <style> (including those deduplicated
+			// into <link> tags), add tag hooks to allow them to be generated.
+			$parser->setHook( 'style', function ( $content, $attributes, $parser ) {
+				$marker = Parser::MARKER_PREFIX . '-style-' . md5( $content ) . Parser::MARKER_SUFFIX;
+				$parser->mStripState->addNoWiki( $marker, $content );
+				return Html::inlineStyle( $marker, 'all', $attributes );
+			} );
+			$parser->setHook( 'link', function ( $content, $attributes, $parser ) {
+				return Html::element( 'link', $attributes );
+			} );
+		}
+
 		if ( isset( $opts['pst'] ) ) {
 			$out = $parser->preSaveTransform( $test['input'], $title, $user, $options );
+			$output = $parser->getOutput();
 		} elseif ( isset( $opts['msg'] ) ) {
 			$out = $parser->transformMsg( $test['input'], $options, $title );
 		} elseif ( isset( $opts['section'] ) ) {
@@ -784,8 +873,10 @@ class ParserTestRunner {
 			$out = $parser->getPreloadText( $test['input'], $title, $options );
 		} else {
 			$output = $parser->parse( $test['input'], $title, $options, true, true, 1337 );
-			$output->setTOCEnabled( !isset( $opts['notoc'] ) );
-			$out = $output->getText();
+			$out = $output->getText( [
+				'allowTOC' => !isset( $opts['notoc'] ),
+				'unwrap' => !isset( $opts['wrap'] ),
+			] );
 			if ( isset( $opts['tidy'] ) ) {
 				$out = preg_replace( '/\s+$/', '', $out );
 			}
@@ -819,6 +910,12 @@ class ParserTestRunner {
 			}
 		}
 
+		if ( isset( $output ) && isset( $opts['showflags'] ) ) {
+			$actualFlags = array_keys( TestingAccessWrapper::newFromObject( $output )->mFlags );
+			sort( $actualFlags );
+			$out .= "\nflags=" . implode( ', ', $actualFlags );
+		}
+
 		ScopedCallback::consume( $teardownGuard );
 
 		$expected = $test['result'];
@@ -841,12 +938,7 @@ class ParserTestRunner {
 	 */
 	private static function getOptionValue( $key, $opts, $default ) {
 		$key = strtolower( $key );
-
-		if ( isset( $opts[$key] ) ) {
-			return $opts[$key];
-		} else {
-			return $default;
-		}
+		return $opts[$key] ?? $default;
 	}
 
 	/**
@@ -971,6 +1063,9 @@ class ParserTestRunner {
 		$linkHolderBatchSize =
 			self::getOptionValue( 'wgLinkHolderBatchSize', $opts, 1000 );
 
+		// Default to fallback skin, but allow it to be overridden
+		$skin = self::getOptionValue( 'skin', $opts, 'fallback' );
+
 		$setup = [
 			'wgEnableUploads' => self::getOptionValue( 'wgEnableUploads', $opts, true ),
 			'wgLanguageCode' => $langCode,
@@ -987,7 +1082,14 @@ class ParserTestRunner {
 			// wgEnableMagicLinks={"ISBN":false, "PMID":false, "RFC":false}
 			'wgEnableMagicLinks' => self::getOptionValue( 'wgEnableMagicLinks', $opts, [] )
 				+ [ 'ISBN' => true, 'PMID' => true, 'RFC' => true ],
+			// Test with legacy encoding by default until HTML5 is very stable and default
+			'wgFragmentMode' => [ 'legacy' ],
 		];
+
+		$nonIncludable = self::getOptionValue( 'wgNonincludableNamespaces', $opts, false );
+		if ( $nonIncludable !== false ) {
+			$setup['wgNonincludableNamespaces'] = [ $nonIncludable ];
+		}
 
 		if ( $config ) {
 			$configLines = explode( "\n", $config );
@@ -1005,12 +1107,19 @@ class ParserTestRunner {
 		if ( isset( $opts['tidy'] ) ) {
 			// Cache a driver instance
 			if ( $this->tidyDriver === null ) {
-				$this->tidyDriver = MWTidy::factory( $this->tidySupport->getConfig() );
+				$this->tidyDriver = MWTidy::factory();
 			}
 			$tidy = $this->tidyDriver;
 		} else {
 			$tidy = false;
 		}
+
+		# Suppress warnings about running tests without tidy
+		Wikimedia\suppressWarnings();
+		wfDeprecated( 'disabling tidy' );
+		wfDeprecated( 'MWTidy::setInstance' );
+		Wikimedia\restoreWarnings();
+
 		MWTidy::setInstance( $tidy );
 		$teardown[] = function () {
 			MWTidy::destroySingleton();
@@ -1018,9 +1127,22 @@ class ParserTestRunner {
 
 		// Set content language. This invalidates the magic word cache and title services
 		$lang = Language::factory( $langCode );
+		$lang->resetNamespaces();
 		$setup['wgContLang'] = $lang;
+		$setup[] = function () use ( $lang ) {
+			MediaWikiServices::getInstance()->disableService( 'ContentLanguage' );
+			MediaWikiServices::getInstance()->redefineService(
+				'ContentLanguage',
+				function () use ( $lang ) {
+					return $lang;
+				}
+			);
+		};
+		$teardown[] = function () {
+			MediaWikiServices::getInstance()->resetServiceForTesting( 'ContentLanguage' );
+		};
 		$reset = function () {
-			MagicWord::clearCache();
+			MediaWikiServices::getInstance()->resetServiceForTesting( 'MagicWordFactory' );
 			$this->resetTitleServices();
 		};
 		$setup[] = $reset;
@@ -1040,10 +1162,23 @@ class ParserTestRunner {
 		$context = RequestContext::getMain();
 		$context->setUser( $user );
 		$context->setLanguage( $lang );
-		$teardown[] = function () use ( $context ) {
+		// And the skin!
+		$oldSkin = $context->getSkin();
+		$skinFactory = MediaWikiServices::getInstance()->getSkinFactory();
+		$context->setSkin( $skinFactory->makeSkin( $skin ) );
+		$context->setOutput( new OutputPage( $context ) );
+		$setup['wgOut'] = $context->getOutput();
+		$teardown[] = function () use ( $context, $oldSkin ) {
+			// Clear language conversion tables
+			$wrapper = TestingAccessWrapper::newFromObject(
+				$context->getLanguage()->getConverter()
+			);
+			$wrapper->reloadTables();
 			// Reset context to the restored globals
 			$context->setUser( $GLOBALS['wgUser'] );
 			$context->setLanguage( $GLOBALS['wgContLang'] );
+			$context->setSkin( $oldSkin );
+			$context->setOutput( $GLOBALS['wgOut'] );
 		};
 
 		$teardown[] = $this->executeSetupSnippets( $setup );
@@ -1057,14 +1192,24 @@ class ParserTestRunner {
 	 * @return array
 	 */
 	private function listTables() {
+		global $wgActorTableSchemaMigrationStage;
+
 		$tables = [ 'user', 'user_properties', 'user_former_groups', 'page', 'page_restrictions',
-			'protected_titles', 'revision', 'text', 'pagelinks', 'imagelinks',
+			'protected_titles', 'revision', 'ip_changes', 'text', 'pagelinks', 'imagelinks',
 			'categorylinks', 'templatelinks', 'externallinks', 'langlinks', 'iwlinks',
 			'site_stats', 'ipblocks', 'image', 'oldimage',
 			'recentchanges', 'watchlist', 'interwiki', 'logging', 'log_search',
 			'querycache', 'objectcache', 'job', 'l10n_cache', 'redirect', 'querycachetwo',
-			'archive', 'user_groups', 'page_props', 'category'
+			'archive', 'user_groups', 'page_props', 'category',
+			'slots', 'content', 'slot_roles', 'content_models',
+			'comment', 'revision_comment_temp',
 		];
+
+		if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_WRITE_NEW ) {
+			// The new tables for actors are in use
+			$tables[] = 'actor';
+			$tables[] = 'revision_actor_temp';
+		}
 
 		if ( in_array( $this->db->getType(), [ 'mysql', 'sqlite', 'oracle' ] ) ) {
 			array_push( $tables, 'searchindex' );
@@ -1089,7 +1234,7 @@ class ParserTestRunner {
 	 * For best performance, call this once only for all tests. However, it can
 	 * be called at the start of each test if more isolation is desired.
 	 *
-	 * @todo: This is basically an unrefactored copy of
+	 * @todo This is basically an unrefactored copy of
 	 * MediaWikiTestCase::setupAllTestDBs. They should be factored out somehow.
 	 *
 	 * Do not call this function from a MediaWikiTestCase subclass, since
@@ -1120,7 +1265,7 @@ class ParserTestRunner {
 		$teardown[] = $this->markSetupDone( 'setupDatabase' );
 
 		# CREATE TEMPORARY TABLE breaks if there is more than one server
-		if ( wfGetLB()->getServerCount() != 1 ) {
+		if ( MediaWikiServices::getInstance()->getDBLoadBalancer()->getServerCount() != 1 ) {
 			$this->useTemporaryTables = false;
 		}
 
@@ -1130,6 +1275,7 @@ class ParserTestRunner {
 		$this->dbClone = new CloneDatabase( $this->db, $this->listTables(), $prefix );
 		$this->dbClone->useTemporaryTables( $temporary );
 		$this->dbClone->cloneTableStructure();
+		CloneDatabase::changePrefix( $prefix );
 
 		if ( $dbType == 'oracle' ) {
 			$this->db->query( 'BEGIN FILL_WIKI_INFO; END;' );
@@ -1147,7 +1293,7 @@ class ParserTestRunner {
 
 		// Wipe some DB query result caches on setup and teardown
 		$reset = function () {
-			LinkCache::singleton()->clear();
+			MediaWikiServices::getInstance()->getLinkCache()->clear();
 
 			// Clear the message cache
 			MessageCache::singleton()->clear();
@@ -1219,7 +1365,17 @@ class ParserTestRunner {
 				'bits'        => 0,
 				'media_type'  => MEDIATYPE_DRAWING,
 				'mime'        => 'image/svg+xml',
-				'metadata'    => serialize( [] ),
+				'metadata'    => serialize( [
+					'version'        => SvgHandler::SVG_METADATA_VERSION,
+					'width'          => 240,
+					'height'         => 180,
+					'originalWidth'  => '100%',
+					'originalHeight' => '100%',
+					'translations'   => [
+						'en' => SVGReader::LANG_FULL_MATCH,
+						'ru' => SVGReader::LANG_FULL_MATCH,
+					],
+				] ),
 				'sha1'        => Wikimedia\base_convert( '', 16, 36, 31 ),
 				'fileExists'  => true
 		], $this->db->timestamp( '20010115123500' ), $user );
@@ -1316,7 +1472,6 @@ class ParserTestRunner {
 		$this->checkSetupDone( 'setupDatabase' );
 
 		$this->dbClone->destroy();
-		$this->databaseSetupDone = false;
 
 		if ( $this->useTemporaryTables ) {
 			if ( $this->db->getType() == 'sqlite' ) {
@@ -1446,18 +1601,28 @@ class ParserTestRunner {
 	/**
 	 * Add articles to the test DB.
 	 *
-	 * @param $articles Article info array from TestFileReader
+	 * @param array $articles Article info array from TestFileReader
 	 */
 	public function addArticles( $articles ) {
-		global $wgContLang;
 		$setup = [];
 		$teardown = [];
 
 		// Be sure ParserTestRunner::addArticle has correct language set,
 		// so that system messages get into the right language cache
-		if ( $wgContLang->getCode() !== 'en' ) {
+		if ( MediaWikiServices::getInstance()->getContentLanguage()->getCode() !== 'en' ) {
 			$setup['wgLanguageCode'] = 'en';
-			$setup['wgContLang'] = Language::factory( 'en' );
+			$lang = Language::factory( 'en' );
+			$setup['wgContLang'] = $lang;
+			$setup[] = function () use ( $lang ) {
+				$services = MediaWikiServices::getInstance();
+				$services->disableService( 'ContentLanguage' );
+				$services->redefineService( 'ContentLanguage', function () use ( $lang ) {
+					return $lang;
+				} );
+			};
+			$teardown[] = function () {
+				MediaWikiServices::getInstance()->resetServiceForTesting( 'ContentLanguage' );
+			};
 		}
 
 		// Add special namespaces, in case that hasn't been done by staticSetup() yet
@@ -1499,24 +1664,43 @@ class ParserTestRunner {
 			throw new MWException( "invalid title '$name' at $file:$line\n" );
 		}
 
+		$newContent = ContentHandler::makeContent( $text, $title );
+
 		$page = WikiPage::factory( $title );
 		$page->loadPageData( 'fromdbmaster' );
 
 		if ( $page->exists() ) {
-			throw new MWException( "duplicate article '$name' at $file:$line\n" );
+			$content = $page->getContent( Revision::RAW );
+			// Only reject the title, if the content/content model is different.
+			// This makes it easier to create Template:(( or Template:)) in different extensions
+			if ( $newContent->equals( $content ) ) {
+				return;
+			}
+			throw new MWException(
+				"duplicate article '$name' with different content at $file:$line\n"
+			);
 		}
 
-		// Use mock parser, to make debugging of actual parser tests simpler.
+		// Optionally use mock parser, to make debugging of actual parser tests simpler.
 		// But initialise the MessageCache clone first, don't let MessageCache
 		// get a reference to the mock object.
-		MessageCache::singleton()->getParser();
-		$restore = $this->executeSetupSnippets( [ 'wgParser' => new ParserTestMockParser ] );
-		$status = $page->doEditContent(
-			ContentHandler::makeContent( $text, $title ),
-			'',
-			EDIT_NEW | EDIT_INTERNAL
-		);
-		$restore();
+		if ( $this->disableSaveParse ) {
+			MessageCache::singleton()->getParser();
+			$restore = $this->executeSetupSnippets( [ 'wgParser' => new ParserTestMockParser ] );
+		} else {
+			$restore = false;
+		}
+		try {
+			$status = $page->doEditContent(
+				$newContent,
+				'',
+				EDIT_NEW | EDIT_INTERNAL
+			);
+		} finally {
+			if ( $restore ) {
+				$restore();
+			}
+		}
 
 		if ( !$status->isOK() ) {
 			throw new MWException( $status->getWikiText( false, false, 'en' ) );
@@ -1588,11 +1772,14 @@ class ParserTestRunner {
 	}
 
 	/**
-	 * The ParserGetVariableValueTs hook, used to make sure time-related parser
+	 * Fake constant timestamp to make sure time-related parser
 	 * functions give a persistent value.
+	 *
+	 * - Parser::getVariableValue (via ParserGetVariableValueTs hook)
+	 * - Parser::preSaveTransform (via ParserOptions)
 	 */
-	static function getFakeTimestamp( &$parser, &$ts ) {
-		$ts = 123; // parsed as '1970-01-01T00:02:03Z'
-		return true;
+	private function getFakeTimestamp() {
+		// parsed as '1970-01-01T00:02:03Z'
+		return 123;
 	}
 }

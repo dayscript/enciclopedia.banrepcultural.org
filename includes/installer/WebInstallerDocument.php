@@ -29,9 +29,10 @@ abstract class WebInstallerDocument extends WebInstallerPage {
 	public function execute() {
 		$text = $this->getFileContents();
 		$text = InstallDocFormatter::format( $text );
-		$this->parent->output->addWikiText( $text );
+		$this->parent->output->addWikiTextAsInterface( $text );
 		$this->startForm();
 		$this->endForm( false );
+		return '';
 	}
 
 	/**

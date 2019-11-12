@@ -20,13 +20,15 @@
  * @file
  */
 
-use Wikimedia\Rdbms\LoadBalancer;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\DBConnRef;
 use Wikimedia\Rdbms\MaintainableDBConnRef;
+use Wikimedia\Rdbms\DatabaseDomain;
 
 /**
- * DB accessable external objects.
+ * DB accessible external objects.
  *
  * In this system, each store "location" maps to a database "cluster".
  * The clusters must be defined in the normal LBFactory configuration.
@@ -92,9 +94,8 @@ class ExternalStoreDB extends ExternalStoreMedium {
 
 	public function store( $location, $data ) {
 		$dbw = $this->getMaster( $location );
-		$id = $dbw->nextSequenceValue( 'blob_blob_id_seq' );
 		$dbw->insert( $this->getTable( $dbw ),
-			[ 'blob_id' => $id, 'blob_text' => $data ],
+			[ 'blob_text' => $data ],
 			__METHOD__ );
 		$id = $dbw->insertId();
 		if ( !$id ) {
@@ -104,14 +105,21 @@ class ExternalStoreDB extends ExternalStoreMedium {
 		return "DB://$location/$id";
 	}
 
+	public function isReadOnly( $location ) {
+		$lb = $this->getLoadBalancer( $location );
+		$domainId = $this->getDomainId( $lb->getServerInfo( $lb->getWriterIndex() ) );
+		return ( $lb->getReadOnlyReason( $domainId ) !== false );
+	}
+
 	/**
 	 * Get a LoadBalancer for the specified cluster
 	 *
 	 * @param string $cluster Cluster name
-	 * @return LoadBalancer
+	 * @return ILoadBalancer
 	 */
 	private function getLoadBalancer( $cluster ) {
-		return wfGetLBFactory()->getExternalLB( $cluster );
+		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
+		return $lbFactory->getExternalLB( $cluster );
 	}
 
 	/**
@@ -123,8 +131,8 @@ class ExternalStoreDB extends ExternalStoreMedium {
 	public function getSlave( $cluster ) {
 		global $wgDefaultExternalStore;
 
-		$wiki = isset( $this->params['wiki'] ) ? $this->params['wiki'] : false;
 		$lb = $this->getLoadBalancer( $cluster );
+		$domainId = $this->getDomainId( $lb->getServerInfo( $lb->getWriterIndex() ) );
 
 		if ( !in_array( "DB://" . $cluster, (array)$wgDefaultExternalStore ) ) {
 			wfDebug( "read only external store\n" );
@@ -133,7 +141,7 @@ class ExternalStoreDB extends ExternalStoreMedium {
 			wfDebug( "writable external store\n" );
 		}
 
-		$db = $lb->getConnectionRef( DB_REPLICA, [], $wiki );
+		$db = $lb->getConnectionRef( DB_REPLICA, [], $domainId );
 		$db->clearFlag( DBO_TRX ); // sanity
 
 		return $db;
@@ -146,13 +154,40 @@ class ExternalStoreDB extends ExternalStoreMedium {
 	 * @return MaintainableDBConnRef
 	 */
 	public function getMaster( $cluster ) {
-		$wiki = isset( $this->params['wiki'] ) ? $this->params['wiki'] : false;
 		$lb = $this->getLoadBalancer( $cluster );
+		$domainId = $this->getDomainId( $lb->getServerInfo( $lb->getWriterIndex() ) );
 
-		$db = $lb->getMaintenanceConnectionRef( DB_MASTER, [], $wiki );
+		$db = $lb->getMaintenanceConnectionRef( DB_MASTER, [], $domainId );
 		$db->clearFlag( DBO_TRX ); // sanity
 
 		return $db;
+	}
+
+	/**
+	 * @param array $server Master DB server configuration array for LoadBalancer
+	 * @return string|bool Database domain ID or false
+	 */
+	private function getDomainId( array $server ) {
+		if ( isset( $this->params['wiki'] ) && $this->params['wiki'] !== false ) {
+			return $this->params['wiki']; // explicit domain
+		}
+
+		if ( isset( $server['dbname'] ) ) {
+			// T200471: for b/c, treat any "dbname" field as forcing which database to use.
+			// MediaWiki/LoadBalancer previously did not enforce any concept of a local DB
+			// domain, but rather assumed that the LB server configuration matched $wgDBname.
+			// This check is useful when the external storage DB for this cluster does not use
+			// the same name as the corresponding "main" DB(s) for wikis.
+			$domain = new DatabaseDomain(
+				$server['dbname'],
+				$server['schema'] ?? null,
+				$server['tablePrefix'] ?? ''
+			);
+
+			return $domain->getId();
+		}
+
+		return false; // local LB domain
 	}
 
 	/**
@@ -189,6 +224,10 @@ class ExternalStoreDB extends ExternalStoreMedium {
 		static $externalBlobCache = [];
 
 		$cacheID = ( $itemID === false ) ? "$cluster/$id" : "$cluster/$id/";
+
+		$wiki = $this->params['wiki'] ?? false;
+		$cacheID = ( $wiki === false ) ? $cacheID : "$cacheID@$wiki";
+
 		if ( isset( $externalBlobCache[$cacheID] ) ) {
 			wfDebugLog( 'ExternalStoreDB-cache',
 				"ExternalStoreDB::fetchBlob cache hit on $cacheID" );
@@ -296,7 +335,7 @@ class ExternalStoreDB extends ExternalStoreMedium {
 		return [
 			$path[2], // cluster
 			$path[3], // id
-			isset( $path[4] ) ? $path[4] : false // itemID
+			$path[4] ?? false // itemID
 		];
 	}
 }

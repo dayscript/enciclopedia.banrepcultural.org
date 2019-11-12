@@ -13,7 +13,7 @@ class CssContentHandlerTest extends MediaWikiLangTestCase {
 		] );
 		$ch = new CssContentHandler();
 		$content = $ch->makeRedirectContent( Title::newFromText( $title ) );
-		$this->assertInstanceOf( 'CssContent', $content );
+		$this->assertInstanceOf( CssContent::class, $content );
 		$this->assertEquals( $expected, $content->serialize( CONTENT_FORMAT_CSS ) );
 	}
 
@@ -21,7 +21,7 @@ class CssContentHandlerTest extends MediaWikiLangTestCase {
 	 * Keep this in sync with CssContentTest::provideGetRedirectTarget()
 	 */
 	public static function provideMakeRedirectContent() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'MediaWiki:MonoBook.css',
@@ -35,7 +35,11 @@ class CssContentHandlerTest extends MediaWikiLangTestCase {
 				'Gadget:FooBaz.css',
 				"/* #REDIRECT */@import url(//example.org/w/index.php?title=Gadget:FooBaz.css&action=raw&ctype=text/css);"
 			],
+			[
+				'User:😂/unicode.css',
+				'/* #REDIRECT */@import url(//example.org/w/index.php?title=User:%F0%9F%98%82/unicode.css&action=raw&ctype=text/css);'
+			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 }

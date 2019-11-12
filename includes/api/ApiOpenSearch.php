@@ -1,10 +1,8 @@
 <?php
 /**
- * Created on Oct 13, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  * Copyright © 2008 Brion Vibber <brion@wikimedia.org>
- * Copyright © 2014 Brad Jorsch <bjorsch@wikimedia.org>
+ * Copyright © 2014 Wikimedia Foundation and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +23,6 @@
  */
 
 use MediaWiki\MediaWikiServices;
-use Wikimedia\Rdbms\Database;
 
 /**
  * @ingroup API
@@ -233,7 +230,7 @@ class ApiOpenSearch extends ApiBase {
 				break;
 
 			case 'xml':
-				// http://msdn.microsoft.com/en-us/library/cc891508%28v=vs.85%29.aspx
+				// https://msdn.microsoft.com/en-us/library/cc891508(v=vs.85).aspx
 				$imageKeys = [
 					'source' => true,
 					'alt' => true,
@@ -383,6 +380,9 @@ class ApiOpenSearch extends ApiBase {
 	}
 }
 
+/**
+ * @ingroup API
+ */
 class ApiOpenSearchFormatJson extends ApiFormatJson {
 	private $warningsAsError = false;
 

@@ -5,7 +5,7 @@
  * @license The MIT License (MIT); see LICENSE.txt
  */
 /* global moment */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Creates an mw.widgets.CalendarWidget object.
@@ -229,14 +229,20 @@
 					);
 					currentMonth.add( 1, 'month' );
 				}
-				// Shuffle the array to display months in columns rather than rows.
+				// Shuffle the array to display months in columns rather than rows:
+				// | Jan | Jul |
+				// | Feb | Aug |
+				// | Mar | Sep |
+				// | Apr | Oct |
+				// | May | Nov |
+				// | Jun | Dec |
 				items = [
-					items[ 0 ], items[ 6 ],      //  | January  | July      |
-					items[ 1 ], items[ 7 ],      //  | February | August    |
-					items[ 2 ], items[ 8 ],      //  | March    | September |
-					items[ 3 ], items[ 9 ],      //  | April    | October   |
-					items[ 4 ], items[ 10 ],     //  | May      | November  |
-					items[ 5 ], items[ 11 ]      //  | June     | December  |
+					items[ 0 ], items[ 6 ],
+					items[ 1 ], items[ 7 ],
+					items[ 2 ], items[ 8 ],
+					items[ 3 ], items[ 9 ],
+					items[ 4 ], items[ 10 ],
+					items[ 5 ], items[ 11 ]
 				];
 				break;
 
@@ -288,7 +294,7 @@
 			}
 			setTimeout( function () {
 				$bodyWrapper.addClass( 'mw-widget-calendarWidget-body-wrapper-fade-' + fade );
-			}.bind( this ), 0 );
+			} );
 		} else {
 			this.$oldBody.replaceWith( this.$body );
 		}
@@ -582,4 +588,4 @@
 		return this;
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

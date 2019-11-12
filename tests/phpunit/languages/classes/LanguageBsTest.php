@@ -5,7 +5,11 @@
  * @file
  */
 
-/** Tests for Croatian (hrvatski) */
+/**
+ * Tests for Bosnian (bosanski)
+ *
+ * @covers LanguageBs
+ */
 class LanguageBsTest extends LanguageClassesTestCase {
 	/**
 	 * @dataProvider providePlural

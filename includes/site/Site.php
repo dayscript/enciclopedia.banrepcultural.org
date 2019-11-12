@@ -23,7 +23,7 @@
  * @file
  * @ingroup Site
  *
- * @license GNU GPL v2+
+ * @license GPL-2.0-or-later
  * @author Jeroen De Dauw < jeroendedauw@gmail.com >
  */
 class Site implements Serializable {
@@ -122,8 +122,6 @@ class Site implements Serializable {
 	protected $internalId = null;
 
 	/**
-	 * Constructor.
-	 *
 	 * @since 1.21
 	 *
 	 * @param string $type
@@ -335,7 +333,7 @@ class Site implements Serializable {
 	 */
 	public function getLinkPath() {
 		$type = $this->getLinkPathType();
-		return $type === null ? null: $this->getPath( $type );
+		return $type === null ? null : $this->getPath( $type );
 	}
 
 	/**
@@ -384,8 +382,10 @@ class Site implements Serializable {
 	}
 
 	/**
-	 * Returns $pageName without changes.
-	 * Subclasses may override this to apply some kind of normalization.
+	 * Attempt to normalize the page name in some fashion.
+	 * May return false to indicate various kinds of failure.
+	 *
+	 * This implementation returns $pageName without changes.
 	 *
 	 * @see Site::normalizePageName
 	 *
@@ -393,7 +393,7 @@ class Site implements Serializable {
 	 *
 	 * @param string $pageName
 	 *
-	 * @return string
+	 * @return string|false
 	 */
 	public function normalizePageName( $pageName ) {
 		return $pageName;
@@ -460,10 +460,10 @@ class Site implements Serializable {
 	 *
 	 * @since 1.21
 	 *
-	 * @param string $languageCode
+	 * @param string|null $languageCode
 	 */
 	public function setLanguageCode( $languageCode ) {
-		if ( !Language::isValidCode( $languageCode ) ) {
+		if ( $languageCode !== null && !Language::isValidCode( $languageCode ) ) {
 			throw new InvalidArgumentException( "$languageCode is not a valid language code." );
 		}
 		$this->languageCode = $languageCode;

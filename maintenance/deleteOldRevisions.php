@@ -43,7 +43,6 @@ class DeleteOldRevisions extends Maintenance {
 	}
 
 	function doDelete( $delete = false, $args = [] ) {
-
 		# Data should come off the master, wrapped in a transaction
 		$dbw = $this->getDB( DB_MASTER );
 		$this->beginTransaction( $dbw, __METHOD__ );
@@ -87,10 +86,10 @@ class DeleteOldRevisions extends Maintenance {
 		if ( $delete && $count ) {
 			$this->output( "Deleting..." );
 			$dbw->delete( 'revision', [ 'rev_id' => $oldRevs ], __METHOD__ );
+			$dbw->delete( 'ip_changes', [ 'ipc_rev_id' => $oldRevs ], __METHOD__ );
 			$this->output( "done.\n" );
 		}
 
-		# This bit's done
 		# Purge redundant text records
 		$this->commitTransaction( $dbw, __METHOD__ );
 		if ( $delete ) {
@@ -99,5 +98,5 @@ class DeleteOldRevisions extends Maintenance {
 	}
 }
 
-$maintClass = "DeleteOldRevisions";
+$maintClass = DeleteOldRevisions::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

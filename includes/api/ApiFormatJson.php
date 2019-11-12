@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Sep 19, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -85,13 +81,22 @@ class ApiFormatJson extends ApiFormatBase {
 
 				default:
 					// Should have been caught during parameter validation
+					// @codeCoverageIgnoreStart
 					$this->dieDebug( __METHOD__, 'Unknown value for \'formatversion\'' );
+					// @codeCoverageIgnoreEnd
 			}
 		}
 		$data = $this->getResult()->getResultData( null, $transform );
 		$json = FormatJson::encode( $data, $this->getIsHtml(), $opt );
+		if ( $json === false ) {
+			// This should never happen, but it's a bug which could crop up
+			// if you use ApiResult::NO_VALIDATE for instance.
+			// @codeCoverageIgnoreStart
+			$this->dieDebug( __METHOD__, 'Unable to encode API result as JSON' );
+			// @codeCoverageIgnoreEnd
+		}
 
-		// T68776: wfMangleFlashPolicy() is needed to avoid a nasty bug in
+		// T68776: OutputHandler::mangleFlashPolicy() avoids a nasty bug in
 		// Flash, but what it does isn't friendly for the API, so we need to
 		// work around it.
 		if ( preg_match( '/\<\s*cross-domain-policy(?=\s|\>)/i', $json ) ) {
@@ -128,8 +133,8 @@ class ApiFormatJson extends ApiFormatBase {
 				ApiBase::PARAM_HELP_MSG => 'apihelp-json-param-ascii',
 			],
 			'formatversion' => [
-				ApiBase::PARAM_TYPE => [ 1, 2, 'latest' ],
-				ApiBase::PARAM_DFLT => 1,
+				ApiBase::PARAM_TYPE => [ '1', '2', 'latest' ],
+				ApiBase::PARAM_DFLT => '1',
 				ApiBase::PARAM_HELP_MSG => 'apihelp-json-param-formatversion',
 			],
 		];

@@ -21,6 +21,8 @@
  * @ingroup Deployment
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Output class modelled on OutputPage.
  *
@@ -31,6 +33,7 @@
  *
  * @ingroup Deployment
  * @since 1.17
+ * @private
  */
 class WebInstallerOutput {
 
@@ -89,8 +92,18 @@ class WebInstallerOutput {
 
 	/**
 	 * @param string $text
+	 * @deprecated since 1.32; use addWikiTextAsInterface instead
 	 */
 	public function addWikiText( $text ) {
+		wfDeprecated( __METHOD__, '1.32' );
+		$this->addWikiTextAsInterface( $text );
+	}
+
+	/**
+	 * @param string $text
+	 * @since 1.32
+	 */
+	public function addWikiTextAsInterface( $text ) {
 		$this->addHTML( $this->parent->parse( $text ) );
 	}
 
@@ -130,13 +143,13 @@ class WebInstallerOutput {
 		global $wgStyleDirectory;
 
 		$moduleNames = [
-			// See SkinTemplate::setupSkinUserCss
+			// Based on Skin::getDefaultModules
 			'mediawiki.legacy.shared',
-			// See Vector::setupSkinUserCss
+			// Based on Vector::setupSkinUserCss
 			'mediawiki.skinning.interface',
 		];
 
-		$resourceLoader = new ResourceLoader();
+		$resourceLoader = MediaWikiServices::getInstance()->getResourceLoader();
 
 		if ( file_exists( "$wgStyleDirectory/Vector/skin.json" ) ) {
 			// Force loading Vector skin if available as a fallback skin
@@ -156,7 +169,7 @@ class WebInstallerOutput {
 
 		$rlContext = new ResourceLoaderContext( $resourceLoader, new FauxRequest( [
 				'debug' => 'true',
-				'lang' => $this->getLanguageCode(),
+				'lang' => $this->getLanguage()->getCode(),
 				'only' => 'styles',
 		] ) );
 
@@ -187,7 +200,7 @@ class WebInstallerOutput {
 	 * @return string
 	 */
 	private function getCssUrl() {
-		return Html::linkedStyle( $_SERVER['PHP_SELF'] . '?css=1' );
+		return Html::linkedStyle( $this->parent->getUrl( [ 'css' => 1 ] ) );
 	}
 
 	public function useShortHeader( $use = true ) {
@@ -210,21 +223,13 @@ class WebInstallerOutput {
 	}
 
 	/**
-	 * @return string
+	 * @since 1.33
+	 * @return Language
 	 */
-	public function getDir() {
+	private function getLanguage() {
 		global $wgLang;
 
-		return is_object( $wgLang ) ? $wgLang->getDir() : 'ltr';
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getLanguageCode() {
-		global $wgLang;
-
-		return is_object( $wgLang ) ? $wgLang->getCode() : 'en';
+		return is_object( $wgLang ) ? $wgLang : Language::factory( 'en' );
 	}
 
 	/**
@@ -232,8 +237,8 @@ class WebInstallerOutput {
 	 */
 	public function getHeadAttribs() {
 		return [
-			'dir' => $this->getDir(),
-			'lang' => wfBCP47( $this->getLanguageCode() ),
+			'dir' => $this->getLanguage()->getDir(),
+			'lang' => $this->getLanguage()->getHtmlCode(),
 		];
 	}
 
@@ -277,7 +282,7 @@ class WebInstallerOutput {
 	<?php echo Html::linkedScript( 'config.js' ) . "\n"; ?>
 </head>
 
-<?php echo Html::openElement( 'body', [ 'class' => $this->getDir() ] ) . "\n"; ?>
+<?php echo Html::openElement( 'body', [ 'class' => $this->getLanguage()->getDir() ] ) . "\n"; ?>
 <div id="mw-page-base"></div>
 <div id="mw-head-base"></div>
 <div id="content" class="mw-body">

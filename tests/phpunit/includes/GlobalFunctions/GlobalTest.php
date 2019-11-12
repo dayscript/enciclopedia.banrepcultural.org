@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\Logger\LegacyLogger;
+
 /**
  * @group Database
  * @group GlobalFunctions
@@ -12,6 +14,7 @@ class GlobalTest extends MediaWikiTestCase {
 		unlink( $readOnlyFile );
 
 		$this->setMwGlobals( [
+			'wgReadOnly' => null,
 			'wgReadOnlyFile' => $readOnlyFile,
 			'wgUrlProtocols' => [
 				'http://',
@@ -106,10 +109,6 @@ class GlobalTest extends MediaWikiTestCase {
 	 * @covers ::wfReadOnly
 	 */
 	public function testReadOnlyEmpty() {
-		global $wgReadOnly;
-		$wgReadOnly = null;
-
-		MediaWiki\MediaWikiServices::getInstance()->getReadOnlyMode()->clearCache();
 		$this->assertFalse( wfReadOnly() );
 		$this->assertFalse( wfReadOnly() );
 	}
@@ -119,23 +118,17 @@ class GlobalTest extends MediaWikiTestCase {
 	 * @covers ::wfReadOnly
 	 */
 	public function testReadOnlySet() {
-		global $wgReadOnly, $wgReadOnlyFile;
-
-		$readOnlyMode = MediaWiki\MediaWikiServices::getInstance()->getReadOnlyMode();
-		$readOnlyMode->clearCache();
+		global $wgReadOnlyFile;
 
 		$f = fopen( $wgReadOnlyFile, "wt" );
 		fwrite( $f, 'Message' );
 		fclose( $f );
-		$wgReadOnly = null; # Check on $wgReadOnlyFile
+
+		// Reset the service to avoid cached results
+		$this->overrideMwServices();
 
 		$this->assertTrue( wfReadOnly() );
 		$this->assertTrue( wfReadOnly() ); # Check cached
-
-		unlink( $wgReadOnlyFile );
-		$readOnlyMode->clearCache();
-		$this->assertFalse( wfReadOnly() );
-		$this->assertFalse( wfReadOnly() );
 	}
 
 	/**
@@ -144,9 +137,12 @@ class GlobalTest extends MediaWikiTestCase {
 	 */
 	public function testReadOnlyGlobalChange() {
 		$this->assertFalse( wfReadOnlyReason() );
+
 		$this->setMwGlobals( [
 			'wgReadOnly' => 'reason'
 		] );
+		$this->overrideMwServices();
+
 		$this->assertSame( 'reason', wfReadOnlyReason() );
 	}
 
@@ -325,8 +321,9 @@ class GlobalTest extends MediaWikiTestCase {
 		$this->setMwGlobals( [
 			'wgDebugLogFile' => $debugLogFile,
 			#  @todo FIXME: $wgDebugTimestamps should be tested
-			'wgDebugTimestamps' => false
+			'wgDebugTimestamps' => false,
 		] );
+		$this->setLogger( 'wfDebug', new LegacyLogger( 'wfDebug' ) );
 
 		wfDebug( "This is a normal string" );
 		$this->assertEquals( "This is a normal string\n", file_get_contents( $debugLogFile ) );
@@ -362,7 +359,6 @@ class GlobalTest extends MediaWikiTestCase {
 	 * @covers ::wfClientAcceptsGzip
 	 */
 	public function testClientAcceptsGzipTest() {
-
 		$settings = [
 			'gzip' => true,
 			'bzip' => false,
@@ -396,7 +392,6 @@ class GlobalTest extends MediaWikiTestCase {
 	 * @covers ::wfPercent
 	 */
 	public function testWfPercentTest() {
-
 		$pcts = [
 			[ 6 / 7, '0.86%', 2, false ],
 			[ 3 / 3, '1%' ],
@@ -476,25 +471,45 @@ class GlobalTest extends MediaWikiTestCase {
 	}
 
 	/**
+	 * @covers ::wfMerge
+	 */
+	public function testMerge_worksWithLessParameters() {
+		$this->markTestSkippedIfNoDiff3();
+
+		$mergedText = null;
+		$successfulMerge = wfMerge( "old1\n\nold2", "old1\n\nnew2", "new1\n\nold2", $mergedText );
+
+		$mergedText = null;
+		$conflictingMerge = wfMerge( 'old', 'old and mine', 'old and yours', $mergedText );
+
+		$this->assertEquals( true, $successfulMerge );
+		$this->assertEquals( false, $conflictingMerge );
+	}
+
+	/**
 	 * @param string $old Text as it was in the database
 	 * @param string $mine Text submitted while user was editing
 	 * @param string $yours Text submitted by the user
 	 * @param bool $expectedMergeResult Whether the merge should be a success
 	 * @param string $expectedText Text after merge has been completed
+	 * @param string $expectedMergeAttemptResult Diff3 output if conflicts occur
 	 *
 	 * @dataProvider provideMerge()
 	 * @group medium
 	 * @covers ::wfMerge
 	 */
-	public function testMerge( $old, $mine, $yours, $expectedMergeResult, $expectedText ) {
+	public function testMerge( $old, $mine, $yours, $expectedMergeResult, $expectedText,
+							   $expectedMergeAttemptResult ) {
 		$this->markTestSkippedIfNoDiff3();
 
 		$mergedText = null;
-		$isMerged = wfMerge( $old, $mine, $yours, $mergedText );
+		$attemptMergeResult = null;
+		$isMerged = wfMerge( $old, $mine, $yours, $mergedText, $mergeAttemptResult );
 
 		$msg = 'Merge should be a ';
 		$msg .= $expectedMergeResult ? 'success' : 'failure';
 		$this->assertEquals( $expectedMergeResult, $isMerged, $msg );
+		$this->assertEquals( $expectedMergeAttemptResult, $mergeAttemptResult );
 
 		if ( $isMerged ) {
 			// Verify the merged text
@@ -532,6 +547,9 @@ class GlobalTest extends MediaWikiTestCase {
 				"one one one ONE ONE\n" .
 					"\n" .
 					"two two TWO TWO\n", // note: will always end in a newline
+
+				// mergeAttemptResult:
+				"",
 			],
 
 			// #1: conflict, fail
@@ -554,63 +572,13 @@ class GlobalTest extends MediaWikiTestCase {
 
 				// result:
 				null,
-			],
-		];
-	}
 
-	/**
-	 * @dataProvider provideMakeUrlIndexes()
-	 * @covers ::wfMakeUrlIndexes
-	 */
-	public function testMakeUrlIndexes( $url, $expected ) {
-		$index = wfMakeUrlIndexes( $url );
-		$this->assertEquals( $expected, $index, "wfMakeUrlIndexes(\"$url\")" );
-	}
-
-	public static function provideMakeUrlIndexes() {
-		return [
-			// Testcase for T30627
-			[
-				'https://example.org/test.cgi?id=12345',
-				[ 'https://org.example./test.cgi?id=12345' ]
-			],
-			[
-				// mailtos are handled special
-				// is this really right though? that final . probably belongs earlier?
-				'mailto:wiki@wikimedia.org',
-				[ 'mailto:org.wikimedia@wiki.' ]
-			],
-
-			// file URL cases per T30627...
-			[
-				// three slashes: local filesystem path Unix-style
-				'file:///whatever/you/like.txt',
-				[ 'file://./whatever/you/like.txt' ]
-			],
-			[
-				// three slashes: local filesystem path Windows-style
-				'file:///c:/whatever/you/like.txt',
-				[ 'file://./c:/whatever/you/like.txt' ]
-			],
-			[
-				// two slashes: UNC filesystem path Windows-style
-				'file://intranet/whatever/you/like.txt',
-				[ 'file://intranet./whatever/you/like.txt' ]
-			],
-			// Multiple-slash cases that can sorta work on Mozilla
-			// if you hack it just right are kinda pathological,
-			// and unreliable cross-platform or on IE which means they're
-			// unlikely to appear on intranets.
-			// Those will survive the algorithm but with results that
-			// are less consistent.
-
-			// protocol-relative URL cases per T31854...
-			[
-				'//example.org/test.cgi?id=12345',
-				[
-					'http://org.example./test.cgi?id=12345',
-					'https://org.example./test.cgi?id=12345'
-				]
+				// mergeAttemptResult:
+				"1,3c\n" .
+				"one one one\n" .
+				"\n" .
+				"two two\n" .
+				".\n",
 			],
 		];
 	}
@@ -683,9 +651,9 @@ class GlobalTest extends MediaWikiTestCase {
 	public function testWfMkdirParents() {
 		// Should not return true if file exists instead of directory
 		$fname = $this->getNewTempFile();
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$ok = wfMkdirParents( $fname );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		$this->assertFalse( $ok );
 	}
 
@@ -724,6 +692,9 @@ class GlobalTest extends MediaWikiTestCase {
 		);
 	}
 
+	/**
+	 * @covers ::wfMemcKey
+	 */
 	public function testWfMemcKey() {
 		$cache = ObjectCache::getLocalClusterInstance();
 		$this->assertEquals(
@@ -732,6 +703,9 @@ class GlobalTest extends MediaWikiTestCase {
 		);
 	}
 
+	/**
+	 * @covers ::wfForeignMemcKey
+	 */
 	public function testWfForeignMemcKey() {
 		$cache = ObjectCache::getLocalClusterInstance();
 		$keyspace = $this->readAttribute( $cache, 'keyspace' );
@@ -741,6 +715,9 @@ class GlobalTest extends MediaWikiTestCase {
 		);
 	}
 
+	/**
+	 * @covers ::wfGlobalCacheKey
+	 */
 	public function testWfGlobalCacheKey() {
 		$cache = ObjectCache::getLocalClusterInstance();
 		$this->assertEquals(

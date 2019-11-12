@@ -24,11 +24,15 @@
  *
  * @file
  * @author Niklas Laxström
- * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License 2.0 or later
+ * @license GPL-2.0-or-later
  * @since 1.19
  */
 
+use MediaWiki\ChangeTags\Taggable;
+use MediaWiki\Linker\LinkTarget;
+use MediaWiki\User\UserIdentity;
 use Wikimedia\Rdbms\IDatabase;
+use Wikimedia\Assert\Assert;
 
 /**
  * Interface for log entries. Every log entry has these methods.
@@ -96,7 +100,7 @@ interface LogEntry {
 	/**
 	 * Get the access restriction.
 	 *
-	 * @return string
+	 * @return int
 	 */
 	public function getDeleted();
 
@@ -156,7 +160,8 @@ abstract class LogEntryBase implements LogEntry {
 }
 
 /**
- * This class wraps around database result row.
+ * A value class to process existing log entries. In other words, this class caches a log
+ * entry from the database and provides an immutable object-oriented representation of it.
  *
  * @since 1.19
  */
@@ -170,19 +175,23 @@ class DatabaseLogEntry extends LogEntryBase {
 	 * @return array
 	 */
 	public static function getSelectQueryData() {
-		$tables = [ 'logging', 'user' ];
+		$commentQuery = CommentStore::getStore()->getJoin( 'log_comment' );
+		$actorQuery = ActorMigration::newMigration()->getJoin( 'log_user' );
+
+		$tables = array_merge(
+			[ 'logging' ], $commentQuery['tables'], $actorQuery['tables'], [ 'user' ]
+		);
 		$fields = [
 			'log_id', 'log_type', 'log_action', 'log_timestamp',
-			'log_user', 'log_user_text',
 			'log_namespace', 'log_title', // unused log_page
-			'log_comment', 'log_params', 'log_deleted',
+			'log_params', 'log_deleted',
 			'user_id', 'user_name', 'user_editcount',
-		];
+		] + $commentQuery['fields'] + $actorQuery['fields'];
 
 		$joins = [
 			// IPs don't have an entry in user table
-			'user' => [ 'LEFT JOIN', 'log_user=user_id' ],
-		];
+			'user' => [ 'LEFT JOIN', 'user_id=' . $actorQuery['fields']['log_user'] ],
+		] + $commentQuery['joins'] + $actorQuery['joins'];
 
 		return [
 			'tables' => $tables,
@@ -207,6 +216,30 @@ class DatabaseLogEntry extends LogEntryBase {
 		} else {
 			return new self( $row );
 		}
+	}
+
+	/**
+	 * Loads a LogEntry with the given id from database
+	 *
+	 * @param int $id
+	 * @param IDatabase $db
+	 * @return DatabaseLogEntry|null
+	 */
+	public static function newFromId( $id, IDatabase $db ) {
+		$queryInfo = self::getSelectQueryData();
+		$queryInfo['conds'] += [ 'log_id' => $id ];
+		$row = $db->selectRow(
+			$queryInfo['tables'],
+			$queryInfo['fields'],
+			$queryInfo['conds'],
+			__METHOD__,
+			$queryInfo['options'],
+			$queryInfo['join_conds']
+		);
+		if ( !$row ) {
+			return null;
+		}
+		return self::newFromRow( $row );
 	}
 
 	/** @var stdClass Database result row. */
@@ -263,9 +296,9 @@ class DatabaseLogEntry extends LogEntryBase {
 	public function getParameters() {
 		if ( !isset( $this->params ) ) {
 			$blob = $this->getRawParameters();
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			$params = LogEntryBase::extractParams( $blob );
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 			if ( $params !== false ) {
 				$this->params = $params;
 				$this->legacy = false;
@@ -291,11 +324,14 @@ class DatabaseLogEntry extends LogEntryBase {
 
 	public function getPerformer() {
 		if ( !$this->performer ) {
+			$actorId = isset( $this->row->log_actor ) ? (int)$this->row->log_actor : 0;
 			$userId = (int)$this->row->log_user;
-			if ( $userId !== 0 ) {
+			if ( $userId !== 0 || $actorId !== 0 ) {
 				// logged-in users
 				if ( isset( $this->row->user_name ) ) {
 					$this->performer = User::newFromRow( $this->row );
+				} elseif ( $actorId !== 0 ) {
+					$this->performer = User::newFromActorId( $actorId );
 				} else {
 					$this->performer = User::newFromId( $userId );
 				}
@@ -322,7 +358,7 @@ class DatabaseLogEntry extends LogEntryBase {
 	}
 
 	public function getComment() {
-		return $this->row->log_comment;
+		return CommentStore::getStore()->getComment( 'log_comment', $this->row )->text;
 	}
 
 	public function getDeleted() {
@@ -330,6 +366,10 @@ class DatabaseLogEntry extends LogEntryBase {
 	}
 }
 
+/**
+ * A subclass of DatabaseLogEntry for objects constructed from entries in the
+ * recentchanges table (rather than the logging table).
+ */
 class RCDatabaseLogEntry extends DatabaseLogEntry {
 
 	public function getId() {
@@ -354,8 +394,11 @@ class RCDatabaseLogEntry extends DatabaseLogEntry {
 
 	public function getPerformer() {
 		if ( !$this->performer ) {
+			$actorId = isset( $this->row->rc_actor ) ? (int)$this->row->rc_actor : 0;
 			$userId = (int)$this->row->rc_user;
-			if ( $userId !== 0 ) {
+			if ( $actorId !== 0 ) {
+				$this->performer = User::newFromActorId( $actorId );
+			} elseif ( $userId !== 0 ) {
 				$this->performer = User::newFromId( $userId );
 			} else {
 				$userText = $this->row->rc_user_text;
@@ -380,7 +423,9 @@ class RCDatabaseLogEntry extends DatabaseLogEntry {
 	}
 
 	public function getComment() {
-		return $this->row->rc_comment;
+		return CommentStore::getStore()
+			// Legacy because the row may have used RecentChange::selectFields()
+			->getCommentLegacy( wfGetDB( DB_REPLICA ), 'rc_comment', $this->row )->text;
 	}
 
 	public function getDeleted() {
@@ -389,11 +434,11 @@ class RCDatabaseLogEntry extends DatabaseLogEntry {
 }
 
 /**
- * Class for creating log entries manually, to inject them into the database.
+ * Class for creating new log entries and inserting them into the database.
  *
  * @since 1.19
  */
-class ManualLogEntry extends LogEntryBase {
+class ManualLogEntry extends LogEntryBase implements Taggable {
 	/** @var string Type of log entry */
 	protected $type;
 
@@ -421,8 +466,8 @@ class ManualLogEntry extends LogEntryBase {
 	/** @var int A rev id associated to the log entry */
 	protected $revId = 0;
 
-	/** @var array Change tags add to the log entry */
-	protected $tags = null;
+	/** @var string[] Change tags add to the log entry */
+	protected $tags = [];
 
 	/** @var int Deletion state of the log entry */
 	protected $deleted;
@@ -437,8 +482,6 @@ class ManualLogEntry extends LogEntryBase {
 	protected $legacy = false;
 
 	/**
-	 * Constructor.
-	 *
 	 * @since 1.19
 	 * @param string $type
 	 * @param string $subtype
@@ -488,20 +531,20 @@ class ManualLogEntry extends LogEntryBase {
 	 * Set the user that performed the action being logged.
 	 *
 	 * @since 1.19
-	 * @param User $performer
+	 * @param UserIdentity $performer
 	 */
-	public function setPerformer( User $performer ) {
-		$this->performer = $performer;
+	public function setPerformer( UserIdentity $performer ) {
+		$this->performer = User::newFromIdentity( $performer );
 	}
 
 	/**
 	 * Set the title of the object changed.
 	 *
 	 * @since 1.19
-	 * @param Title $target
+	 * @param LinkTarget $target
 	 */
-	public function setTarget( Title $target ) {
-		$this->target = $target;
+	public function setTarget( LinkTarget $target ) {
+		$this->target = Title::newFromLinkTarget( $target );
 	}
 
 	/**
@@ -540,14 +583,35 @@ class ManualLogEntry extends LogEntryBase {
 	/**
 	 * Set change tags for the log entry.
 	 *
+	 * Passing `null` means the same as empty array,
+	 * for compatibility with WikiPage::doUpdateRestrictions().
+	 *
 	 * @since 1.27
-	 * @param string|string[] $tags
+	 * @param string|string[]|null $tags
+	 * @deprecated since 1.33 Please use addTags() instead
 	 */
 	public function setTags( $tags ) {
+		if ( $this->tags ) {
+			wfDebug( 'Overwriting existing ManualLogEntry tags' );
+		}
+		$this->tags = [];
+		if ( $tags !== null ) {
+			$this->addTags( $tags );
+		}
+	}
+
+	/**
+	 * Add change tags for the log entry
+	 *
+	 * @since 1.33
+	 * @param string|string[] $tags Tags to apply
+	 */
+	public function addTags( $tags ) {
 		if ( is_string( $tags ) ) {
 			$tags = [ $tags ];
 		}
-		$this->tags = $tags;
+		Assert::parameterElementType( 'string', $tags, 'tags' );
+		$this->tags = array_unique( array_merge( $this->tags, $tags ) );
 	}
 
 	/**
@@ -586,15 +650,14 @@ class ManualLogEntry extends LogEntryBase {
 	/**
 	 * Insert the entry into the `logging` table.
 	 *
-	 * @param IDatabase $dbw
+	 * @param IDatabase|null $dbw
 	 * @return int ID of the log entry
 	 * @throws MWException
 	 */
 	public function insert( IDatabase $dbw = null ) {
-		global $wgContLang;
+		global $wgActorTableSchemaMigrationStage;
 
 		$dbw = $dbw ?: wfGetDB( DB_MASTER );
-		$id = $dbw->nextSequenceValue( 'logging_log_id_seq' );
 
 		if ( $this->timestamp === null ) {
 			$this->timestamp = wfTimestampNow();
@@ -603,11 +666,33 @@ class ManualLogEntry extends LogEntryBase {
 		// Trim spaces on user supplied text
 		$comment = trim( $this->getComment() );
 
-		// Truncate for whole multibyte characters.
-		$comment = $wgContLang->truncate( $comment, 255 );
-
 		$params = $this->getParameters();
 		$relations = $this->relations;
+
+		// Ensure actor relations are set
+		if ( ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_WRITE_NEW ) &&
+			empty( $relations['target_author_actor'] )
+		) {
+			$actorIds = [];
+			if ( !empty( $relations['target_author_id'] ) ) {
+				foreach ( $relations['target_author_id'] as $id ) {
+					$actorIds[] = User::newFromId( $id )->getActorId( $dbw );
+				}
+			}
+			if ( !empty( $relations['target_author_ip'] ) ) {
+				foreach ( $relations['target_author_ip'] as $ip ) {
+					$actorIds[] = User::newFromName( $ip, false )->getActorId( $dbw );
+				}
+			}
+			if ( $actorIds ) {
+				$relations['target_author_actor'] = $actorIds;
+				$params['authorActors'] = $actorIds;
+			}
+		}
+		if ( !( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_WRITE_OLD ) ) {
+			unset( $relations['target_author_id'], $relations['target_author_ip'] );
+			unset( $params['authorIds'], $params['authorIPs'] );
+		}
 
 		// Additional fields for which there's no space in the database table schema
 		$revId = $this->getAssociatedRevId();
@@ -617,24 +702,23 @@ class ManualLogEntry extends LogEntryBase {
 		}
 
 		$data = [
-			'log_id' => $id,
 			'log_type' => $this->getType(),
 			'log_action' => $this->getSubtype(),
 			'log_timestamp' => $dbw->timestamp( $this->getTimestamp() ),
-			'log_user' => $this->getPerformer()->getId(),
-			'log_user_text' => $this->getPerformer()->getName(),
 			'log_namespace' => $this->getTarget()->getNamespace(),
 			'log_title' => $this->getTarget()->getDBkey(),
 			'log_page' => $this->getTarget()->getArticleID(),
-			'log_comment' => $comment,
 			'log_params' => LogEntryBase::makeParamBlob( $params ),
 		];
 		if ( isset( $this->deleted ) ) {
 			$data['log_deleted'] = $this->deleted;
 		}
+		$data += CommentStore::getStore()->insert( $dbw, 'log_comment', $comment );
+		$data += ActorMigration::newMigration()
+			->getInsertValues( $dbw, 'log_user', $this->getPerformer() );
 
 		$dbw->insert( 'logging', $data, __METHOD__ );
-		$this->id = !is_null( $id ) ? $id : $dbw->insertId();
+		$this->id = $dbw->insertId();
 
 		$rows = [];
 		foreach ( $relations as $tag => $values ) {
@@ -709,31 +793,48 @@ class ManualLogEntry extends LogEntryBase {
 	 * @param string $to One of: rcandudp (default), rc, udp
 	 */
 	public function publish( $newId, $to = 'rcandudp' ) {
+		$canAddTags = true;
+		// FIXME: this code should be removed once all callers properly call publish()
+		if ( $to === 'udp' && !$newId && !$this->getAssociatedRevId() ) {
+			\MediaWiki\Logger\LoggerFactory::getInstance( 'logging' )->warning(
+				'newId and/or revId must be set when calling ManualLogEntry::publish()',
+				[
+					'newId' => $newId,
+					'to' => $to,
+					'revId' => $this->getAssociatedRevId(),
+					// pass a new exception to register the stack trace
+					'exception' => new RuntimeException()
+				]
+			);
+			$canAddTags = false;
+		}
+
 		DeferredUpdates::addCallableUpdate(
-			function () use ( $newId, $to ) {
+			function () use ( $newId, $to, $canAddTags ) {
 				$log = new LogPage( $this->getType() );
 				if ( !$log->isRestricted() ) {
+					Hooks::runWithoutAbort( 'ManualLogEntryBeforePublish', [ $this ] );
 					$rc = $this->getRecentChange( $newId );
 
 					if ( $to === 'rc' || $to === 'rcandudp' ) {
 						// save RC, passing tags so they are applied there
+						$rc->addTags( $this->getTags() );
+						$rc->save( $rc::SEND_NONE );
+					} else {
 						$tags = $this->getTags();
-						if ( is_null( $tags ) ) {
-							$tags = [];
+						if ( $tags && $canAddTags ) {
+							$revId = $this->getAssociatedRevId();
+							ChangeTags::addTags(
+								$tags,
+								null,
+								$revId > 0 ? $revId : null,
+								$newId > 0 ? $newId : null
+							);
 						}
-						$rc->addTags( $tags );
-						$rc->save( 'pleasedontudp' );
 					}
 
 					if ( $to === 'udp' || $to === 'rcandudp' ) {
 						$rc->notifyRCFeeds();
-					}
-
-					// Log the autopatrol if the log entry is patrollable
-					if ( $this->getIsPatrollable() &&
-						$rc->getAttribute( 'rc_patrolled' ) === 1
-					) {
-						PatrolLog::record( $rc, true, $this->getPerformer() );
 					}
 				}
 			},
@@ -769,7 +870,7 @@ class ManualLogEntry extends LogEntryBase {
 	}
 
 	public function getTimestamp() {
-		$ts = $this->timestamp !== null ? $this->timestamp : wfTimestampNow();
+		$ts = $this->timestamp ?? wfTimestampNow();
 
 		return wfTimestamp( TS_MW, $ts );
 	}
@@ -788,7 +889,7 @@ class ManualLogEntry extends LogEntryBase {
 
 	/**
 	 * @since 1.27
-	 * @return array
+	 * @return string[]
 	 */
 	public function getTags() {
 		return $this->tags;

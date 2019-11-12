@@ -74,16 +74,16 @@ abstract class ImageHandler extends MediaHandler {
 		}
 	}
 
-	function getScriptParams( $params ) {
+	protected function getScriptParams( $params ) {
 		return [ 'width' => $params['width'] ];
 	}
 
 	/**
 	 * @param File $image
-	 * @param array $params
+	 * @param array &$params
 	 * @return bool
 	 */
-	function normaliseParams( $image, &$params ) {
+	public function normaliseParams( $image, &$params ) {
 		$mimeType = $image->getMimeType();
 
 		if ( !isset( $params['width'] ) ) {
@@ -152,8 +152,8 @@ abstract class ImageHandler extends MediaHandler {
 	/**
 	 * Validate thumbnail parameters and fill in the correct height
 	 *
-	 * @param int $width Specified width (input/output)
-	 * @param int $height Height (output only)
+	 * @param int &$width Specified width (input/output)
+	 * @param int &$height Height (output only)
 	 * @param int $srcWidth Width of the source image
 	 * @param int $srcHeight Height of the source image
 	 * @param string $mimeType Unused
@@ -201,9 +201,9 @@ abstract class ImageHandler extends MediaHandler {
 	}
 
 	function getImageSize( $image, $path ) {
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$gis = getimagesize( $path );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 
 		return $gis;
 	}
@@ -238,7 +238,7 @@ abstract class ImageHandler extends MediaHandler {
 	 * @param File $file
 	 * @return string
 	 */
-	function getLongDesc( $file ) {
+	public function getLongDesc( $file ) {
 		global $wgLang;
 		$pages = $file->pageCount();
 		$size = htmlspecialchars( $wgLang->formatSize( $file->getSize() ) );

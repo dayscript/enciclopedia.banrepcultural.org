@@ -44,8 +44,6 @@ class DeletedContributionsPage extends SpecialPage {
 		$this->outputHeader();
 		$this->checkPermissions();
 
-		$user = $this->getUser();
-
 		$out = $this->getOutput();
 		$out->setPageTitle( $this->msg( 'deletedcontributions-title' ) );
 
@@ -59,7 +57,9 @@ class DeletedContributionsPage extends SpecialPage {
 		$opts->validateIntBounds( 'limit', 0, $this->getConfig()->get( 'QueryPageDefaultLimit' ) );
 
 		if ( $par !== null ) {
-			$opts->setValue( 'target', $par );
+			// Beautify the username
+			$par = User::getCanonicalName( $par, false );
+			$opts->setValue( 'target', (string)$par );
 		}
 
 		$ns = $opts->getValue( 'namespace' );
@@ -69,7 +69,7 @@ class DeletedContributionsPage extends SpecialPage {
 
 		$this->mOpts = $opts;
 
-		$target = $opts->getValue( 'target' );
+		$target = trim( $opts->getValue( 'target' ) );
 		if ( !strlen( $target ) ) {
 			$this->getForm();
 
@@ -97,7 +97,7 @@ class DeletedContributionsPage extends SpecialPage {
 		}
 
 		# Show a message about replica DB lag, if applicable
-		$lag = wfGetLB()->safeGetLag( $pager->getDatabase() );
+		$lag = $pager->getDatabase()->getSessionLagStatus()['lag'];
 		if ( $lag > 0 ) {
 			$out->showLagWarning( $lag );
 		}
@@ -141,15 +141,18 @@ class DeletedContributionsPage extends SpecialPage {
 		if ( $talk ) {
 			$tools = SpecialContributions::getUserLinks( $this, $userObj );
 
-			# Link to contributions
-			$insert['contribs'] = $linkRenderer->makeKnownLink(
+			$contributionsLink = $linkRenderer->makeKnownLink(
 				SpecialPage::getTitleFor( 'Contributions', $nt->getDBkey() ),
 				$this->msg( 'sp-deletedcontributions-contribs' )->text()
 			);
-
-			// Swap out the deletedcontribs link for our contribs one
-			$tools = wfArrayInsertAfter( $tools, $insert, 'deletedcontribs' );
-			unset( $tools['deletedcontribs'] );
+			if ( isset( $tools['deletedcontribs'] ) ) {
+				// Swap out the deletedcontribs link for our contribs one
+				$tools = wfArrayInsertAfter(
+					$tools, [ 'contribs' => $contributionsLink ], 'deletedcontribs' );
+				unset( $tools['deletedcontribs'] );
+			} else {
+				$tools['contribs'] = $contributionsLink;
+			}
 
 			$links = $this->getLanguage()->pipeList( $tools );
 

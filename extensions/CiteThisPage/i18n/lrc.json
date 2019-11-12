@@ -2,12 +2,14 @@
 	"@metadata": {
 		"authors": [
 			"Bonevarluri",
-			"Mogoeilor"
+			"Mogoeilor",
+			"Beyronvan",
+			"Lorestani"
 		]
 	},
 	"citethispage": "جاگه",
-	"citethispage-link": "جاگه ای بلگه",
-	"tooltip-citethispage": "دونسمنیا چه جور دای بلگه جاگر بوئه",
+	"citethispage-link": "جاگٱ اؽ بٱلگٱ",
+	"tooltip-citethispage": "دونسمنیا چاْ تۉر دی ی بٱلگٱ جاگر مۊئٱن",
 	"citethispage-change-submit": "جاگه",
 	"citethispage-change-target": "بلگه"
 }

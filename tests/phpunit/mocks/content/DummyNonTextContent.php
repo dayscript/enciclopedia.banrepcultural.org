@@ -92,7 +92,7 @@ class DummyNonTextContent extends AbstractContent {
 
 	/**
 	 * @param Title $title
-	 * @param int $revId Unused.
+	 * @param int|null $revId Unused.
 	 * @param null|ParserOptions $options
 	 * @param bool $generateHtml Whether to generate Html (default: true). If false, the result
 	 *  of calling getText() on the ParserOutput object returned by this method is undefined.
@@ -102,7 +102,7 @@ class DummyNonTextContent extends AbstractContent {
 	public function getParserOutput( Title $title, $revId = null,
 		ParserOptions $options = null, $generateHtml = true
 	) {
-		return new ParserOutput( $this->getNativeData() );
+		return new ParserOutput( $this->serialize() );
 	}
 
 	/**
@@ -110,12 +110,12 @@ class DummyNonTextContent extends AbstractContent {
 	 *
 	 * @param Title $title Context title for parsing
 	 * @param int|null $revId Revision ID (for {{REVISIONID}})
-	 * @param ParserOptions $options Parser options
+	 * @param ParserOptions $options
 	 * @param bool $generateHtml Whether or not to generate HTML
 	 * @param ParserOutput &$output The output object to fill (reference).
 	 */
 	protected function fillParserOutput( Title $title, $revId,
 			ParserOptions $options, $generateHtml, ParserOutput &$output ) {
-		$output = new ParserOutput( $this->getNativeData() );
+		$output = new ParserOutput( $this->serialize() );
 	}
 }

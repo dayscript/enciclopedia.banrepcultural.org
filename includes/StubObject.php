@@ -19,6 +19,7 @@
  *
  * @file
  */
+use Wikimedia\ObjectFactory;
 
 /**
  * Class to implement stub globals, which are globals that delay loading the
@@ -55,10 +56,8 @@ class StubObject {
 	protected $params;
 
 	/**
-	 * Constructor.
-	 *
-	 * @param string $global Name of the global variable.
-	 * @param string|callable $class Name of the class of the real object
+	 * @param string|null $global Name of the global variable.
+	 * @param string|callable|null $class Name of the class of the real object
 	 *                               or a factory function to call
 	 * @param array $params Parameters to pass to constructor of the real object.
 	 */
@@ -88,7 +87,7 @@ class StubObject {
 	 * infinite loop when unstubbing an object or to avoid reference parameter
 	 * breakage.
 	 *
-	 * @param object $obj Object to check.
+	 * @param object &$obj Object to check.
 	 * @return void
 	 */
 	public static function unstub( &$obj ) {

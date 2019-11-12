@@ -11,9 +11,10 @@
 $fallback = 'kk-latn, kk-cyrl';
 
 $separatorTransformTable = [
-	',' => "\xc2\xa0",
+	',' => "\u{00A0}",
 	'.' => ',',
 ];
+$minimumGroupingDigits = 2;
 
 $fallback8bitEncoding = 'windows-1254';
 

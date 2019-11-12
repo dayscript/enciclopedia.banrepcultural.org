@@ -2,9 +2,7 @@
 /**
  * Query the list of contributors to a page
  *
- * Created on Nov 14, 2013
- *
- * Copyright © 2013 Brad Jorsch
+ * Copyright © 2013 Wikimedia Foundation and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +22,9 @@
  * @file
  * @since 1.23
  */
+
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionRecord;
 
 /**
  * A query module to show contributors to a page
@@ -45,6 +46,8 @@ class ApiQueryContributors extends ApiQueryBase {
 	}
 
 	public function execute() {
+		global $wgActorTableSchemaMigrationStage;
+
 		$db = $this->getDB();
 		$params = $this->extractRequestParams();
 		$this->requireMaxOneParameter( $params, 'group', 'excludegroup', 'rights', 'excluderights' );
@@ -61,7 +64,7 @@ class ApiQueryContributors extends ApiQueryBase {
 				return $v >= $cont_page;
 			} );
 		}
-		if ( !count( $pages ) ) {
+		if ( $pages === [] ) {
 			// Nothing to do
 			return;
 		}
@@ -75,17 +78,28 @@ class ApiQueryContributors extends ApiQueryBase {
 		}
 
 		$result = $this->getResult();
+		$revQuery = MediaWikiServices::getInstance()->getRevisionStore()->getQueryInfo();
+
+		// For SCHEMA_COMPAT_READ_NEW, target indexes on the
+		// revision_actor_temp table, otherwise on the revision table.
+		$pageField = ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW )
+			? 'revactor_page' : 'rev_page';
+		$idField = ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW )
+			? 'revactor_actor' : $revQuery['fields']['rev_user'];
+		$countField = ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_NEW )
+			? 'revactor_actor' : $revQuery['fields']['rev_user_text'];
 
 		// First, count anons
-		$this->addTables( 'revision' );
+		$this->addTables( $revQuery['tables'] );
+		$this->addJoinConds( $revQuery['joins'] );
 		$this->addFields( [
-			'page' => 'rev_page',
-			'anons' => 'COUNT(DISTINCT rev_user_text)',
+			'page' => $pageField,
+			'anons' => "COUNT(DISTINCT $countField)",
 		] );
-		$this->addWhereFld( 'rev_page', $pages );
-		$this->addWhere( 'rev_user = 0' );
-		$this->addWhere( $db->bitAnd( 'rev_deleted', Revision::DELETED_USER ) . ' = 0' );
-		$this->addOption( 'GROUP BY', 'rev_page' );
+		$this->addWhereFld( $pageField, $pages );
+		$this->addWhere( ActorMigration::newMigration()->isAnon( $revQuery['fields']['rev_user'] ) );
+		$this->addWhere( $db->bitAnd( 'rev_deleted', RevisionRecord::DELETED_USER ) . ' = 0' );
+		$this->addOption( 'GROUP BY', $pageField );
 		$res = $this->select( __METHOD__ );
 		foreach ( $res as $row ) {
 			$fit = $result->addValue( [ 'query', 'pages', $row->page ],
@@ -96,7 +110,7 @@ class ApiQueryContributors extends ApiQueryBase {
 				// some other module used up all the space. Just set a dummy
 				// continue and hope it works next time.
 				$this->setContinueEnumParameter( 'continue',
-					$params['continue'] !== null ? $params['continue'] : '0|0'
+					$params['continue'] ?? '0|0'
 				);
 
 				return;
@@ -105,24 +119,27 @@ class ApiQueryContributors extends ApiQueryBase {
 
 		// Next, add logged-in users
 		$this->resetQueryParams();
-		$this->addTables( 'revision' );
+		$this->addTables( $revQuery['tables'] );
+		$this->addJoinConds( $revQuery['joins'] );
 		$this->addFields( [
-			'page' => 'rev_page',
-			'user' => 'rev_user',
-			'username' => 'MAX(rev_user_text)', // Non-MySQL databases don't like partial group-by
+			'page' => $pageField,
+			'id' => $idField,
+			// Non-MySQL databases don't like partial group-by
+			'userid' => 'MAX(' . $revQuery['fields']['rev_user'] . ')',
+			'username' => 'MAX(' . $revQuery['fields']['rev_user_text'] . ')',
 		] );
-		$this->addWhereFld( 'rev_page', $pages );
-		$this->addWhere( 'rev_user != 0' );
-		$this->addWhere( $db->bitAnd( 'rev_deleted', Revision::DELETED_USER ) . ' = 0' );
-		$this->addOption( 'GROUP BY', 'rev_page, rev_user' );
+		$this->addWhereFld( $pageField, $pages );
+		$this->addWhere( ActorMigration::newMigration()->isNotAnon( $revQuery['fields']['rev_user'] ) );
+		$this->addWhere( $db->bitAnd( 'rev_deleted', RevisionRecord::DELETED_USER ) . ' = 0' );
+		$this->addOption( 'GROUP BY', [ $pageField, $idField ] );
 		$this->addOption( 'LIMIT', $params['limit'] + 1 );
 
 		// Force a sort order to ensure that properties are grouped by page
-		// But only if pp_page is not constant in the WHERE clause.
+		// But only if rev_page is not constant in the WHERE clause.
 		if ( count( $pages ) > 1 ) {
-			$this->addOption( 'ORDER BY', 'rev_page, rev_user' );
+			$this->addOption( 'ORDER BY', [ 'page', 'id' ] );
 		} else {
-			$this->addOption( 'ORDER BY', 'rev_user' );
+			$this->addOption( 'ORDER BY', 'id' );
 		}
 
 		$limitGroups = [];
@@ -159,9 +176,9 @@ class ApiQueryContributors extends ApiQueryBase {
 			$limitGroups = array_unique( $limitGroups );
 			$this->addTables( 'user_groups' );
 			$this->addJoinConds( [ 'user_groups' => [
-				$excludeGroups ? 'LEFT OUTER JOIN' : 'INNER JOIN',
+				$excludeGroups ? 'LEFT JOIN' : 'JOIN',
 				[
-					'ug_user=rev_user',
+					'ug_user=' . $revQuery['fields']['rev_user'],
 					'ug_group' => $limitGroups,
 					'ug_expiry IS NULL OR ug_expiry >= ' . $db->addQuotes( $db->timestamp() )
 				]
@@ -173,11 +190,11 @@ class ApiQueryContributors extends ApiQueryBase {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 2 );
 			$cont_page = (int)$cont[0];
-			$cont_user = (int)$cont[1];
+			$cont_id = (int)$cont[1];
 			$this->addWhere(
-				"rev_page > $cont_page OR " .
-				"(rev_page = $cont_page AND " .
-				"rev_user >= $cont_user)"
+				"$pageField > $cont_page OR " .
+				"($pageField = $cont_page AND " .
+				"$idField >= $cont_id)"
 			);
 		}
 
@@ -187,18 +204,16 @@ class ApiQueryContributors extends ApiQueryBase {
 			if ( ++$count > $params['limit'] ) {
 				// We've reached the one extra which shows that
 				// there are additional pages to be had. Stop here...
-				$this->setContinueEnumParameter( 'continue', $row->page . '|' . $row->user );
-
+				$this->setContinueEnumParameter( 'continue', $row->page . '|' . $row->id );
 				return;
 			}
 
 			$fit = $this->addPageSubItem( $row->page,
-				[ 'userid' => (int)$row->user, 'name' => $row->username ],
+				[ 'userid' => (int)$row->userid, 'name' => $row->username ],
 				'user'
 			);
 			if ( !$fit ) {
-				$this->setContinueEnumParameter( 'continue', $row->page . '|' . $row->user );
-
+				$this->setContinueEnumParameter( 'continue', $row->page . '|' . $row->id );
 				return;
 			}
 		}

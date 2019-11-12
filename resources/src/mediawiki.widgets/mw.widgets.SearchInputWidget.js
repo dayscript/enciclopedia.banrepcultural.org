@@ -4,7 +4,7 @@
  * @copyright 2011-2015 MediaWiki Widgets Team and others; see AUTHORS.txt
  * @license The MIT License (MIT); see LICENSE.txt
  */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Creates a mw.widgets.SearchInputWidget object.
@@ -14,7 +14,7 @@
 	 *
 	 * @constructor
 	 * @param {Object} [config] Configuration options
-	 * @cfg {boolean} [pushPending=true] Visually mark the input field as "pending", while
+	 * @cfg {boolean} [pushPending=false] Visually mark the input field as "pending", while
 	 *  requesting suggestions.
 	 * @cfg {boolean} [performSearchOnClick=true] If true, the script will start a search when-
 	 *  ever a user hits a suggestion. If false, the text of the suggestion is inserted into the
@@ -33,8 +33,7 @@
 			icon: 'search',
 			maxLength: undefined,
 			performSearchOnClick: true,
-			dataLocation: 'header',
-			namespace: 0
+			dataLocation: 'header'
 		}, config );
 
 		// Parent constructor
@@ -66,6 +65,10 @@
 				)
 			} );
 		}.bind( this ) );
+
+		this.connect( this, {
+			change: 'onChange'
+		} );
 
 		this.$element.addClass( 'oo-ui-textInputWidget-type-search' );
 		this.updateSearchIndicator();
@@ -114,10 +117,9 @@
 	};
 
 	/**
-	 * @inheritdoc
+	 * @see OO.ui.SearchInputWidget#onChange
 	 */
 	mw.widgets.SearchInputWidget.prototype.onChange = function () {
-		mw.widgets.SearchInputWidget.parent.prototype.onChange.call( this );
 		this.updateSearchIndicator();
 	};
 
@@ -149,11 +151,12 @@
 			self = this;
 
 		// reuse the searchSuggest function from mw.searchSuggest
-		promise = mw.searchSuggest.request( api, this.getQueryValue(), $.noop, this.limit, this.getNamespace() );
+		promise = mw.searchSuggest.request( api, this.getQueryValue(), function () {}, this.limit, this.getNamespace() );
 
 		// tracking purposes
 		promise.done( function ( data, jqXHR ) {
 			self.requestType = jqXHR.getResponseHeader( 'X-OpenSearch-Type' );
+			self.searchId = jqXHR.getResponseHeader( 'X-Search-ID' );
 		} );
 
 		return promise;
@@ -171,10 +174,12 @@
 			data: response || {},
 			metadata: {
 				type: this.requestType || 'unknown',
+				searchId: this.searchId || null,
 				query: this.getQueryValue()
 			}
 		};
 		this.requestType = undefined;
+		this.searchId = undefined;
 
 		return resp;
 	};
@@ -184,15 +189,28 @@
 	 */
 	mw.widgets.SearchInputWidget.prototype.getOptionsFromData = function ( data ) {
 		var items = [],
+			titles = data.data[ 1 ],
+			descriptions = data.data[ 2 ],
+			urls = data.data[ 3 ],
 			self = this;
 
-		// mw.widgets.TitleWidget does a lot more work here, because the TitleOptionWidgets can
-		// differ a lot, depending on the returned data from the request. With the request used here
-		// we get only the search results.
-		$.each( data.data[ 1 ], function ( i, result ) {
+		// eslint-disable-next-line no-jquery/no-each-util
+		$.each( titles, function ( i, result ) {
 			items.push( new mw.widgets.TitleOptionWidget(
-				// data[ 3 ][ i ] is the link for this result
-				self.getOptionWidgetData( result, null, data.data[ 3 ][ i ] )
+				self.getOptionWidgetData(
+					result,
+					// Create a result object that looks like the one from
+					// the parent's API query.
+					{
+						data: result,
+						url: urls[ i ],
+						imageUrl: null, // The JSON 'opensearch' API doesn't have images
+						description: descriptions[ i ],
+						missing: false,
+						redirect: false,
+						disambiguation: false
+					}
+				)
 			) );
 		} );
 
@@ -200,33 +218,12 @@
 			action: 'impression-results',
 			numberOfResults: items.length,
 			resultSetType: data.metadata.type,
+			searchId: data.metadata.searchId,
 			query: data.metadata.query,
 			inputLocation: this.dataLocation || 'header'
 		} );
 
 		return items;
-	};
-
-	/**
-	 * @inheritdoc mw.widgets.TitleWidget
-	 *
-	 * @param {string} title
-	 * @param {Object} data
-	 * @param {string} url The Url to the result
-	 */
-	mw.widgets.SearchInputWidget.prototype.getOptionWidgetData = function ( title, data, url ) {
-		// the values used in mw.widgets-TitleWidget doesn't exist here, that's why
-		// the values are hard-coded here
-		return {
-			data: title,
-			url: url,
-			imageUrl: null,
-			description: null,
-			missing: false,
-			redirect: false,
-			disambiguation: false,
-			query: this.getQueryValue()
-		};
 	};
 
 	/**
@@ -236,7 +233,7 @@
 		mw.widgets.SearchInputWidget.parent.prototype.onLookupMenuItemChoose.apply( this, arguments );
 
 		if ( this.performSearchOnClick ) {
-			this.$element.closest( 'form' ).submit();
+			this.$element.closest( 'form' ).trigger( 'submit' );
 		}
 	};
 
@@ -255,4 +252,4 @@
 		return items;
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

@@ -60,7 +60,7 @@ class UncategorizedCategoriesPage extends UncategorizedPagesPage {
 					$title = Title::makeTitleSafe( NS_CATEGORY, $titleStr );
 				}
 				if ( $title ) {
-					$this->exceptionList[] = $title->getDBKey();
+					$this->exceptionList[] = $title->getDBkey();
 				}
 			}
 		}
@@ -68,7 +68,7 @@ class UncategorizedCategoriesPage extends UncategorizedPagesPage {
 	}
 
 	public function getQueryInfo() {
-		$dbr = wfGetDB( DB_SLAVE );
+		$dbr = wfGetDB( DB_REPLICA );
 		$query = parent::getQueryInfo();
 		$exceptionList = $this->getExceptionList();
 		if ( $exceptionList ) {

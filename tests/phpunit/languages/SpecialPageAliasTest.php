@@ -7,12 +7,14 @@
  * @group SpecialPageAliases
  * @group SystemTest
  * @group medium
+ * @todo This should be a structure test
  *
  * @author Katie Filbert < aude.wiki@gmail.com >
  */
 class SpecialPageAliasTest extends MediaWikiTestCase {
 
 	/**
+	 * @coversNothing
 	 * @dataProvider validSpecialPageAliasesProvider
 	 */
 	public function testValidSpecialPageAliases( $code, $specialPageAliases ) {
@@ -25,7 +27,7 @@ class SpecialPageAliasTest extends MediaWikiTestCase {
 	}
 
 	public function validSpecialPageAliasesProvider() {
-		$codes = array_keys( Language::fetchLanguageNames( 'mwfile' ) );
+		$codes = array_keys( Language::fetchLanguageNames( null, 'mwfile' ) );
 
 		$data = [];
 

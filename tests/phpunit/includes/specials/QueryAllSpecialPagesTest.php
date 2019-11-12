@@ -5,10 +5,12 @@
  * Copyright © 2011, Antoine Musso
  *
  * @author Antoine Musso
- * @group Database
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
+ * @group Database
  * @covers QueryPage<extended>
  */
 class QueryAllSpecialPagesTest extends MediaWikiTestCase {
@@ -20,7 +22,7 @@ class QueryAllSpecialPagesTest extends MediaWikiTestCase {
 
 	/** List query pages that can not be tested automatically */
 	protected $manualTest = [
-		'LinkSearchPage'
+		LinkSearchPage::class
 	];
 
 	/**
@@ -30,7 +32,7 @@ class QueryAllSpecialPagesTest extends MediaWikiTestCase {
 	 * https://bugs.mysql.com/bug.php?id=10327
 	 */
 	protected $reopensTempTable = [
-		'BrokenRedirects',
+		BrokenRedirects::class,
 	];
 
 	/**
@@ -40,10 +42,10 @@ class QueryAllSpecialPagesTest extends MediaWikiTestCase {
 		parent::__construct();
 
 		foreach ( QueryPage::getPages() as $page ) {
-			$class = $page[0];
-			$name = $page[1];
+			list( $class, $name ) = $page;
 			if ( !in_array( $class, $this->manualTest ) ) {
-				$this->queryPages[$class] = SpecialPageFactory::getPage( $name );
+				$this->queryPages[$class] =
+					MediaWikiServices::getInstance()->getSpecialPageFactory()->getPage( $name );
 			}
 		}
 	}

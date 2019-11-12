@@ -7,7 +7,7 @@ use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group AuthManager
- * @covers MediaWiki\Auth\AbstractPasswordPrimaryAuthenticationProvider
+ * @covers \MediaWiki\Auth\AbstractPasswordPrimaryAuthenticationProvider
  */
 class AbstractPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCase {
 	public function testConstructor() {
@@ -33,7 +33,7 @@ class AbstractPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCa
 		$providerPriv = TestingAccessWrapper::newFromObject( $provider );
 
 		$obj = $providerPriv->getPasswordFactory();
-		$this->assertInstanceOf( 'PasswordFactory', $obj );
+		$this->assertInstanceOf( \PasswordFactory::class, $obj );
 		$this->assertSame( $obj, $providerPriv->getPasswordFactory() );
 	}
 
@@ -46,10 +46,10 @@ class AbstractPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCa
 		$providerPriv = TestingAccessWrapper::newFromObject( $provider );
 
 		$obj = $providerPriv->getPassword( null );
-		$this->assertInstanceOf( 'Password', $obj );
+		$this->assertInstanceOf( \Password::class, $obj );
 
 		$obj = $providerPriv->getPassword( 'invalid' );
-		$this->assertInstanceOf( 'Password', $obj );
+		$this->assertInstanceOf( \Password::class, $obj );
 	}
 
 	public function testGetNewPasswordExpiry() {
@@ -88,7 +88,7 @@ class AbstractPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCa
 
 	public function testCheckPasswordValidity() {
 		$uppCalled = 0;
-		$uppStatus = \Status::newGood();
+		$uppStatus = \Status::newGood( [] );
 		$this->setMwGlobals( [
 			'wgPasswordPolicy' => [
 				'policies' => [
@@ -142,7 +142,7 @@ class AbstractPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCa
 		$this->assertNull( $manager->getAuthenticationSessionData( 'reset-pass' ) );
 
 		$manager->removeAuthenticationSessionData( null );
-		$status = \Status::newGood();
+		$status = \Status::newGood( [ 'suggestChangeOnLogin' => true ] );
 		$status->error( 'testing' );
 		$providerPriv->setPasswordResetFlag( 'Foo', $status );
 		$ret = $manager->getAuthenticationSessionData( 'reset-pass' );

@@ -34,15 +34,12 @@ class SpecialAutoblockList extends SpecialPage {
 	}
 
 	/**
-	 * Main execution point
-	 *
-	 * @param string $par Title fragment
+	 * @param string|null $par Title fragment
 	 */
 	public function execute( $par ) {
 		$this->setHeaders();
 		$this->outputHeader();
 		$out = $this->getOutput();
-		$lang = $this->getLanguage();
 		$out->setPageTitle( $this->msg( 'autoblocklist' ) );
 		$this->addHelpLink( 'Autoblock' );
 		$out->addModuleStyles( [ 'mediawiki.special' ] );
@@ -55,13 +52,7 @@ class SpecialAutoblockList extends SpecialPage {
 			'Limit' => [
 				'type' => 'limitselect',
 				'label-message' => 'table_pager_limit_label',
-				'options' => [
-					$lang->formatNum( 20 ) => 20,
-					$lang->formatNum( 50 ) => 50,
-					$lang->formatNum( 100 ) => 100,
-					$lang->formatNum( 250 ) => 250,
-					$lang->formatNum( 500 ) => 500,
-				],
+				'options' => $pager->getLimitSelectList(),
 				'name' => 'limit',
 				'default' => $pager->getLimit(),
 			]
@@ -74,10 +65,10 @@ class SpecialAutoblockList extends SpecialPage {
 			->setFormIdentifier( 'blocklist' )
 			->setWrapperLegendMsg( 'autoblocklist-legend' )
 			->setSubmitTextMsg( 'autoblocklist-submit' )
-			->setSubmitProgressive()
 			->prepareForm()
 			->displayForm( false );
 
+		$this->showTotal( $pager );
 		$this->showList( $pager );
 	}
 
@@ -98,6 +89,20 @@ class SpecialAutoblockList extends SpecialPage {
 	}
 
 	/**
+	 * Show total number of autoblocks on top of the table
+	 *
+	 * @param BlockListPager $pager The BlockListPager instance for this page
+	 */
+	protected function showTotal( BlockListPager $pager ) {
+		$out = $this->getOutput();
+		$out->addHTML(
+			Html::rawElement( 'div', [ 'style' => 'font-weight: bold;' ],
+				$this->msg( 'autoblocklist-total-autoblocks', $pager->getTotalAutoblocks() )->parse() )
+			. "\n"
+		);
+	}
+
+	/**
 	 * Show the list of blocked accounts matching the actual filter.
 	 * @param BlockListPager $pager The BlockListPager instance for this page
 	 */
@@ -112,7 +117,7 @@ class SpecialAutoblockList extends SpecialPage {
 		# Not necessary in a standard installation without such extensions enabled
 		if ( count( $otherAutoblockLink ) ) {
 			$out->addHTML(
-				Html::element( 'h2', [], $this->msg( 'autoblocklist-localblocks',
+				Html::rawElement( 'h2', [], $this->msg( 'autoblocklist-localblocks',
 					$pager->getNumRows() )->parse() )
 				. "\n"
 			);

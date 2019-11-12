@@ -85,9 +85,9 @@ abstract class MediaHandler {
 	 * Should be idempotent.
 	 * Returns false if the parameters are unacceptable and the transform should fail
 	 * @param File $image
-	 * @param array $params
+	 * @param array &$params
 	 */
-	abstract function normaliseParams( $image, &$params );
+	abstract public function normaliseParams( $image, &$params );
 
 	/**
 	 * Get an image size array like that returned by getimagesize(), or false if it
@@ -119,7 +119,7 @@ abstract class MediaHandler {
 	 * @param string $path The filename
 	 * @return string A string of metadata in php serialized form (Run through serialize())
 	 */
-	function getMetadata( $image, $path ) {
+	public function getMetadata( $image, $path ) {
 		return '';
 	}
 
@@ -157,11 +157,10 @@ abstract class MediaHandler {
 	 */
 	function convertMetadataVersion( $metadata, $version = 1 ) {
 		if ( !is_array( $metadata ) ) {
-
 			// unserialize to keep return parameter consistent.
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			$ret = unserialize( $metadata );
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 
 			return $ret;
 		}
@@ -196,7 +195,7 @@ abstract class MediaHandler {
 	 * @param string $metadata The metadata in serialized form
 	 * @return bool
 	 */
-	function isMetadataValid( $image, $metadata ) {
+	public function isMetadataValid( $image, $metadata ) {
 		return self::METADATA_GOOD;
 	}
 
@@ -256,7 +255,7 @@ abstract class MediaHandler {
 	 * Get a MediaTransformOutput object representing the transformed output. Does not
 	 * actually do the transform.
 	 *
-	 * @param File $image The image object
+	 * @param File $image
 	 * @param string $dstPath Filesystem destination path
 	 * @param string $dstUrl Destination URL to use in output HTML
 	 * @param array $params Arbitrary set of parameters validated by $this->validateParam()
@@ -270,7 +269,7 @@ abstract class MediaHandler {
 	 * Get a MediaTransformOutput object representing the transformed output. Does the
 	 * transform unless $flags contains self::TRANSFORM_LATER.
 	 *
-	 * @param File $image The image object
+	 * @param File $image
 	 * @param string $dstPath Filesystem destination path
 	 * @param string $dstUrl Destination URL to use in output HTML
 	 * @param array $params Arbitrary set of parameters validated by $this->validateParam()
@@ -285,11 +284,11 @@ abstract class MediaHandler {
 	 *
 	 * @param string $ext Extension of original file
 	 * @param string $mime MIME type of original file
-	 * @param array $params Handler specific rendering parameters
+	 * @param array|null $params Handler specific rendering parameters
 	 * @return array Thumbnail extension and MIME type
 	 */
-	function getThumbType( $ext, $mime, $params = null ) {
-		$magic = MimeMagic::singleton();
+	public function getThumbType( $ext, $mime, $params = null ) {
+		$magic = MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer();
 		if ( !$ext || $magic->isMatchingExtension( $ext, $mime ) === false ) {
 			// The extension is not valid for this MIME type and we do
 			// recognize the MIME type
@@ -302,16 +301,6 @@ abstract class MediaHandler {
 		// The extension is correct (true) or the MIME type is unknown to
 		// MediaWiki (null)
 		return [ $ext, $mime ];
-	}
-
-	/**
-	 * Get useful response headers for GET/HEAD requests for a file with the given metadata
-	 *
-	 * @param mixed $metadata Result of the getMetadata() function of this handler for a file
-	 * @return array
-	 */
-	public function getStreamHeaders( $metadata ) {
-		return [];
 	}
 
 	/**
@@ -351,7 +340,7 @@ abstract class MediaHandler {
 	 * @param File $file
 	 * @return bool
 	 */
-	function pageCount( File $file ) {
+	public function pageCount( File $file ) {
 		return false;
 	}
 
@@ -392,7 +381,7 @@ abstract class MediaHandler {
 	 * False if the handler is disabled for all files
 	 * @return bool
 	 */
-	function isEnabled() {
+	public function isEnabled() {
 		return true;
 	}
 
@@ -412,7 +401,7 @@ abstract class MediaHandler {
 	 * @param int $page What page to get dimensions of
 	 * @return array|bool
 	 */
-	function getPageDimensions( File $image, $page ) {
+	public function getPageDimensions( File $image, $page ) {
 		$gis = $this->getImageSize( $image, $image->getLocalRefPath() );
 		if ( $gis ) {
 			return [
@@ -488,7 +477,7 @@ abstract class MediaHandler {
 	 * @param bool|IContextSource $context Context to use (optional)
 	 * @return array|bool
 	 */
-	function formatMetadata( $image, $context = false ) {
+	public function formatMetadata( $image, $context = false ) {
 		return false;
 	}
 
@@ -498,7 +487,7 @@ abstract class MediaHandler {
 	 *
 	 * This is used by the media handlers that use the FormatMetadata class
 	 *
-	 * @param array $metadataArray Metadata array
+	 * @param array $metadataArray
 	 * @param bool|IContextSource $context Context to use (optional)
 	 * @return array Array for use displaying metadata.
 	 */
@@ -593,7 +582,7 @@ abstract class MediaHandler {
 	 * @param File $file
 	 * @return string
 	 */
-	function getLongDesc( $file ) {
+	public function getLongDesc( $file ) {
 		return self::getGeneralLongDesc( $file );
 	}
 
@@ -671,7 +660,7 @@ abstract class MediaHandler {
 	 * @param string $fileName The local path to the file.
 	 * @return Status
 	 */
-	function verifyUpload( $fileName ) {
+	public function verifyUpload( $fileName ) {
 		return Status::newGood();
 	}
 
@@ -715,7 +704,7 @@ abstract class MediaHandler {
 	 *
 	 * @see LocalFile::purgeThumbnails
 	 *
-	 * @param array $files
+	 * @param array &$files
 	 * @param array $options Purge options. Currently will always be
 	 *  an array with a single key 'forThumbRefresh' set to true.
 	 */
@@ -779,6 +768,19 @@ abstract class MediaHandler {
 	 */
 	public function getAvailableLanguages( File $file ) {
 		return [];
+	}
+
+	/**
+	 * When overridden in a descendant class, returns a language code most suiting
+	 *
+	 * @since 1.32
+	 *
+	 * @param string $userPreferredLanguage Language code requesed
+	 * @param string[] $availableLanguages Languages present in the file
+	 * @return string|null Language code picked or null if not supported/available
+	 */
+	public function getMatchedLanguage( $userPreferredLanguage, array $availableLanguages ) {
+		return null;
 	}
 
 	/**
@@ -867,5 +869,61 @@ abstract class MediaHandler {
 	 */
 	public function getWarningConfig( $file ) {
 		return null;
+	}
+
+	/**
+	 * Converts a dimensions array about a potentially multipage document from an
+	 * exhaustive list of ordered page numbers to a list of page ranges
+	 * @param array $pagesByDimensions
+	 * @return string
+	 * @since 1.30
+	 */
+	public static function getPageRangesByDimensions( $pagesByDimensions ) {
+		$pageRangesByDimensions = [];
+
+		foreach ( $pagesByDimensions as $dimensions => $pageList ) {
+			$ranges = [];
+			$firstPage = $pageList[0];
+			$lastPage = $firstPage - 1;
+
+			foreach ( $pageList as $page ) {
+				if ( $page > $lastPage + 1 ) {
+					if ( $firstPage != $lastPage ) {
+						$ranges[] = "$firstPage-$lastPage";
+					} else {
+						$ranges[] = "$firstPage";
+					}
+
+					$firstPage = $page;
+				}
+
+				$lastPage = $page;
+			}
+
+			if ( $firstPage != $lastPage ) {
+				$ranges[] = "$firstPage-$lastPage";
+			} else {
+				$ranges[] = "$firstPage";
+			}
+
+			$pageRangesByDimensions[ $dimensions ] = $ranges;
+		}
+
+		$dimensionsString = [];
+		foreach ( $pageRangesByDimensions as $dimensions => $pageRanges ) {
+			$dimensionsString[] = "$dimensions:" . implode( ',', $pageRanges );
+		}
+
+		return implode( '/', $dimensionsString );
+	}
+
+	/**
+	 * Get useful response headers for GET/HEAD requests for a file with the given metadata
+	 * @param array $metadata Contains this handler's unserialized getMetadata() for a file
+	 * @return array
+	 * @since 1.30
+	 */
+	public function getContentHeaders( $metadata ) {
+		return [ 'X-Content-Dimensions' => '' ]; // T175689
 	}
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/hhvm -f
 <?php
 
+use MediaWiki\Shell\Shell;
+
 require __DIR__ . '/../Maintenance.php';
 
 class RunHipHopServer extends Maintenance {
@@ -12,8 +14,8 @@ class RunHipHopServer extends Maintenance {
 		global $IP;
 
 		passthru(
-			'cd ' . wfEscapeShellArg( $IP ) . " && " .
-			wfEscapeShellArg(
+			'cd ' . Shell::escape( $IP ) . " && " .
+			Shell::escape(
 				'hhvm',
 				'-c', __DIR__."/server.conf",
 				'--mode=server',
@@ -24,5 +26,5 @@ class RunHipHopServer extends Maintenance {
 		exit( $ret );
 	}
 }
-$maintClass = 'RunHipHopServer';
+$maintClass = RunHipHopServer::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

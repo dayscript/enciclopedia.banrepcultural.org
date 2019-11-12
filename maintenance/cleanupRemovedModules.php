@@ -46,7 +46,7 @@ class CleanupRemovedModules extends Maintenance {
 		$this->output( "Cleaning up module_deps table...\n" );
 
 		$dbw = $this->getDB( DB_MASTER );
-		$rl = new ResourceLoader( MediaWikiServices::getInstance()->getMainConfig() );
+		$rl = MediaWikiServices::getInstance()->getResourceLoader();
 		$moduleNames = $rl->getModuleNames();
 		$res = $dbw->select( 'module_deps',
 			[ 'md_module', 'md_skin' ],
@@ -57,7 +57,7 @@ class CleanupRemovedModules extends Maintenance {
 
 		$modDeps = $dbw->tableName( 'module_deps' );
 		$i = 1;
-		foreach ( array_chunk( $rows, $this->mBatchSize ) as $chunk ) {
+		foreach ( array_chunk( $rows, $this->getBatchSize() ) as $chunk ) {
 			// WHERE ( mod=A AND skin=A ) OR ( mod=A AND skin=B) ..
 			$conds = array_map( function ( stdClass $row ) use ( $dbw ) {
 				return $dbw->makeList( (array)$row, IDatabase::LIST_AND );
@@ -77,5 +77,5 @@ class CleanupRemovedModules extends Maintenance {
 	}
 }
 
-$maintClass = 'CleanupRemovedModules';
+$maintClass = CleanupRemovedModules::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

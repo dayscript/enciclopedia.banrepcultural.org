@@ -21,6 +21,8 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * A special page that allows users to change their preferences
  *
@@ -50,8 +52,12 @@ class SpecialPreferences extends SpecialPage {
 			return;
 		}
 
-		$out->addModules( 'mediawiki.special.preferences' );
-		$out->addModuleStyles( 'mediawiki.special.preferences.styles' );
+		$out->addModules( 'mediawiki.special.preferences.ooui' );
+		$out->addModuleStyles( [
+			'mediawiki.special.preferences.styles.ooui',
+			'mediawiki.widgets.TagMultiselectWidget.styles',
+		] );
+		$out->addModuleStyles( 'oojs-ui-widgets.styles' );
 
 		$session = $this->getRequest()->getSession();
 		if ( $session->get( 'specialPreferencesSaveSuccess' ) ) {
@@ -81,43 +87,34 @@ class SpecialPreferences extends SpecialPage {
 			$user = $this->getUser();
 		}
 
-		$htmlForm = Preferences::getFormObject( $user, $this->getContext() );
-		$htmlForm->setSubmitCallback( [ 'Preferences', 'tryUISubmit' ] );
+		$htmlForm = $this->getFormObject( $user, $this->getContext() );
 		$sectionTitles = $htmlForm->getPreferenceSections();
 
-		$prefTabs = '';
+		$prefTabs = [];
 		foreach ( $sectionTitles as $key ) {
-			$prefTabs .= Html::rawElement( 'li',
-				[
-					'role' => 'presentation',
-					'class' => ( $key === 'personal' ) ? 'selected' : null
-				],
-				Html::rawElement( 'a',
-					[
-						'id' => 'preftab-' . $key,
-						'role' => 'tab',
-						'href' => '#mw-prefsection-' . $key,
-						'aria-controls' => 'mw-prefsection-' . $key,
-						'aria-selected' => ( $key === 'personal' ) ? 'true' : 'false',
-						'tabIndex' => ( $key === 'personal' ) ? 0 : -1,
-					],
-					$htmlForm->getLegend( $key )
-				)
-			);
+			$prefTabs[] = [
+				'name' => $key,
+				'label' => $htmlForm->getLegend( $key ),
+			];
 		}
+		$out->addJsConfigVars( 'wgPreferencesTabs', $prefTabs );
 
-		$out->addHTML(
-			Html::rawElement( 'ul',
-				[
-					'id' => 'preftoc',
-					'role' => 'tablist'
-				],
-				$prefTabs )
-		);
 		$htmlForm->show();
 	}
 
-	private function showResetForm() {
+	/**
+	 * Get the preferences form to use.
+	 * @param User $user The user.
+	 * @param IContextSource $context The context.
+	 * @return PreferencesFormLegacy|HTMLForm
+	 */
+	protected function getFormObject( $user, IContextSource $context ) {
+		$preferencesFactory = MediaWikiServices::getInstance()->getPreferencesFactory();
+		$form = $preferencesFactory->getForm( $user, $context, PreferencesFormOOUI::class );
+		return $form;
+	}
+
+	protected function showResetForm() {
 		if ( !$this->getUser()->isAllowed( 'editmyoptions' ) ) {
 			throw new PermissionsError( 'editmyoptions' );
 		}
@@ -126,7 +123,7 @@ class SpecialPreferences extends SpecialPage {
 
 		$context = new DerivativeContext( $this->getContext() );
 		$context->setTitle( $this->getPageTitle( 'reset' ) ); // Reset subpage
-		$htmlForm = new HTMLForm( [], $context, 'prefs-restore' );
+		$htmlForm = HTMLForm::factory( 'ooui', [], $context, 'prefs-restore' );
 
 		$htmlForm->setSubmitTextMsg( 'restoreprefs' );
 		$htmlForm->setSubmitDestructive();

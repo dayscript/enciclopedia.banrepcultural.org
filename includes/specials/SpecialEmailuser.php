@@ -21,6 +21,7 @@
  * @ingroup SpecialPage
  */
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Preferences\MultiUsernameFilter;
 
 /**
  * A special page that allows users to send e-mails to other users
@@ -44,7 +45,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 	}
 
 	public function getDescription() {
-		$target = self::getTarget( $this->mTarget );
+		$target = self::getTarget( $this->mTarget, $this->getUser() );
 		if ( !$target instanceof User ) {
 			return $this->msg( 'emailuser-title-notarget' )->text();
 		}
@@ -91,7 +92,6 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			'Text' => [
 				'type' => 'textarea',
 				'rows' => 20,
-				'cols' => 80,
 				'label-message' => 'emailmessage',
 				'required' => true,
 			],
@@ -105,11 +105,13 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 
 	public function execute( $par ) {
 		$out = $this->getOutput();
+		$request = $this->getRequest();
 		$out->addModuleStyles( 'mediawiki.special' );
 
-		$this->mTarget = is_null( $par )
-			? $this->getRequest()->getVal( 'wpTarget', $this->getRequest()->getVal( 'target', '' ) )
-			: $par;
+		$this->mTarget = $par ?? $request->getVal( 'wpTarget', $request->getVal( 'target', '' ) );
+
+		// Make sure, that HTMLForm uses the correct target.
+		$request->setVal( 'wpTarget', $this->mTarget );
 
 		// This needs to be below assignment of $this->mTarget because
 		// getDescription() needs it to determine the correct page title.
@@ -130,7 +132,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			case 'badaccess':
 				throw new PermissionsError( 'sendemail' );
 			case 'blockedemailuser':
-				throw new UserBlockedError( $this->getUser()->mBlock );
+				throw $this->getBlockedEmailError();
 			case 'actionthrottledtext':
 				throw new ThrottledError;
 			case 'mailnologin':
@@ -141,45 +143,22 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 				list( $title, $msg, $params ) = $error;
 				throw new ErrorPageError( $title, $msg, $params );
 		}
-		// Got a valid target user name? Else ask for one.
-		$ret = self::getTarget( $this->mTarget );
-		if ( !$ret instanceof User ) {
-			if ( $this->mTarget != '' ) {
-				// Messages used here: notargettext, noemailtext, nowikiemailtext
-				$ret = ( $ret == 'notarget' ) ? 'emailnotarget' : ( $ret . 'text' );
-				$out->wrapWikiMsg( "<p class='error'>$1</p>", $ret );
-			}
-			$out->addHTML( $this->userForm( $this->mTarget ) );
 
-			return;
-		}
-
-		$this->mTargetObj = $ret;
-
-		// Set the 'relevant user' in the skin, so it displays links like Contributions,
-		// User logs, UserRights, etc.
-		$this->getSkin()->setRelevantUser( $this->mTargetObj );
-
+		// Make sure, that a submitted form isn't submitted to a subpage (which could be
+		// a non-existing username)
 		$context = new DerivativeContext( $this->getContext() );
 		$context->setTitle( $this->getPageTitle() ); // Remove subpage
-		$form = new HTMLForm( $this->getFormFields(), $context );
-		// By now we are supposed to be sure that $this->mTarget is a user name
-		$form->addPreText( $this->msg( 'emailpagetext', $this->mTarget )->parse() );
-		$form->setSubmitTextMsg( 'emailsend' );
-		$form->setSubmitCallback( [ __CLASS__, 'uiSubmit' ] );
-		$form->setWrapperLegendMsg( 'email-legend' );
-		$form->loadData();
+		$this->setContext( $context );
 
-		if ( !Hooks::run( 'EmailUserForm', [ &$form ] ) ) {
-			return;
-		}
-
-		$result = $form->show();
-
-		if ( $result === true || ( $result instanceof Status && $result->isGood() ) ) {
-			$out->setPageTitle( $this->msg( 'emailsent' ) );
-			$out->addWikiMsg( 'emailsenttext', $this->mTarget );
-			$out->returnToMain( false, $this->mTargetObj->getUserPage() );
+		// A little hack: HTMLForm will check $this->mTarget only, if the form was posted, not
+		// if the user opens Special:EmailUser/Florian (e.g.). So check, if the user did that
+		// and show the "Send email to user" form directly, if so. Show the "enter username"
+		// form, otherwise.
+		$this->mTargetObj = self::getTarget( $this->mTarget, $this->getUser() );
+		if ( !$this->mTargetObj instanceof User ) {
+			$this->userForm( $this->mTarget );
+		} else {
+			$this->sendEmailForm();
 		}
 	}
 
@@ -187,9 +166,14 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 	 * Validate target User
 	 *
 	 * @param string $target Target user name
-	 * @return User User object on success or a string on error
+	 * @param User|null $sender User sending the email
+	 * @return User|string User object on success or a string on error
 	 */
-	public static function getTarget( $target ) {
+	public static function getTarget( $target, User $sender = null ) {
+		if ( $sender === null ) {
+			wfDeprecated( __METHOD__ . ' without specifying the sending user', '1.30' );
+		}
+
 		if ( $target == '' ) {
 			wfDebug( "Target is empty.\n" );
 
@@ -197,21 +181,65 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 		}
 
 		$nu = User::newFromName( $target );
-		if ( !$nu instanceof User || !$nu->getId() ) {
+		$error = self::validateTarget( $nu, $sender );
+
+		return $error ?: $nu;
+	}
+
+	/**
+	 * Validate target User
+	 *
+	 * @param User $target Target user
+	 * @param User|null $sender User sending the email
+	 * @return string Error message or empty string if valid.
+	 * @since 1.30
+	 */
+	public static function validateTarget( $target, User $sender = null ) {
+		if ( $sender === null ) {
+			wfDeprecated( __METHOD__ . ' without specifying the sending user', '1.30' );
+		}
+
+		if ( !$target instanceof User || !$target->getId() ) {
 			wfDebug( "Target is invalid user.\n" );
 
 			return 'notarget';
-		} elseif ( !$nu->isEmailConfirmed() ) {
+		}
+
+		if ( !$target->isEmailConfirmed() ) {
 			wfDebug( "User has no valid email.\n" );
 
 			return 'noemail';
-		} elseif ( !$nu->canReceiveEmail() ) {
+		}
+
+		if ( !$target->canReceiveEmail() ) {
 			wfDebug( "User does not allow user emails.\n" );
 
 			return 'nowikiemail';
 		}
 
-		return $nu;
+		if ( $sender !== null && !$target->getOption( 'email-allow-new-users' ) &&
+			$sender->isNewbie()
+		) {
+			wfDebug( "User does not allow user emails from new users.\n" );
+
+			return 'nowikiemail';
+		}
+
+		if ( $sender !== null ) {
+			$blacklist = $target->getOption( 'email-blacklist', '' );
+			if ( $blacklist ) {
+				$blacklist = MultiUsernameFilter::splitIds( $blacklist );
+				$lookup = CentralIdLookup::factory();
+				$senderId = $lookup->centralIdFromLocalUser( $sender );
+				if ( $senderId !== 0 && in_array( $senderId, $blacklist ) ) {
+					wfDebug( "User does not allow user emails from this user.\n" );
+
+					return 'nowikiemail';
+				}
+			}
+		}
+
+		return '';
 	}
 
 	/**
@@ -219,8 +247,9 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 	 *
 	 * @param User $user
 	 * @param string $editToken Edit token
-	 * @param Config $config optional for backwards compatibility
-	 * @return string|null Null on success or string on error
+	 * @param Config|null $config optional for backwards compatibility
+	 * @return null|string|array Null on success, string on error, or array on
+	 *  hook error
 	 */
 	public static function getPermissionsError( $user, $editToken, Config $config = null ) {
 		if ( $config === null ) {
@@ -246,7 +275,9 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			return "blockedemailuser";
 		}
 
-		if ( $user->pingLimiter( 'emailuser' ) ) {
+		// Check the ping limiter without incrementing it - we'll check it
+		// again later and increment it on a successful send
+		if ( $user->pingLimiter( 'emailuser', 0 ) ) {
 			wfDebug( "Ping limiter triggered.\n" );
 
 			return 'actionthrottledtext';
@@ -268,50 +299,64 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 	 * Form to ask for target user name.
 	 *
 	 * @param string $name User name submitted.
-	 * @return string Form asking for user name.
 	 */
 	protected function userForm( $name ) {
-		$this->getOutput()->addModules( 'mediawiki.userSuggest' );
-		$string = Html::openElement(
-				'form',
-				[ 'method' => 'get', 'action' => wfScript(), 'id' => 'askusername' ]
-			) .
-			Html::hidden( 'title', $this->getPageTitle()->getPrefixedText() ) .
-			Html::openElement( 'fieldset' ) .
-			Html::rawElement( 'legend', null, $this->msg( 'emailtarget' )->parse() ) .
-			Html::label(
-				$this->msg( 'emailusername' )->text(),
-				'emailusertarget'
-			) . '&#160;' .
-			Html::input(
-				'target',
-				$name,
-				'text',
-				[
-					'id' => 'emailusertarget',
-					'class' => 'mw-autocomplete-user', // used by mediawiki.userSuggest
-					'autofocus' => true,
-					'size' => 30,
-				]
-			) .
-			' ' .
-			Html::submitButton( $this->msg( 'emailusernamesubmit' )->text(), [] ) .
-			Html::closeElement( 'fieldset' ) .
-			Html::closeElement( 'form' ) . "\n";
+		$htmlForm = HTMLForm::factory( 'ooui', [
+			'Target' => [
+				'type' => 'user',
+				'exists' => true,
+				'label' => $this->msg( 'emailusername' )->text(),
+				'id' => 'emailusertarget',
+				'autofocus' => true,
+				'value' => $name,
+			]
+		], $this->getContext() );
 
-		return $string;
+		$htmlForm
+			->setMethod( 'post' )
+			->setSubmitCallback( [ $this, 'sendEmailForm' ] )
+			->setFormIdentifier( 'userForm' )
+			->setId( 'askusername' )
+			->setWrapperLegendMsg( 'emailtarget' )
+			->setSubmitTextMsg( 'emailusernamesubmit' )
+			->show();
 	}
 
-	/**
-	 * Submit callback for an HTMLForm object, will simply call submit().
-	 *
-	 * @since 1.20
-	 * @param array $data
-	 * @param HTMLForm $form
-	 * @return Status|bool
-	 */
-	public static function uiSubmit( array $data, HTMLForm $form ) {
-		return self::submit( $data, $form->getContext() );
+	public function sendEmailForm() {
+		$out = $this->getOutput();
+
+		$ret = $this->mTargetObj;
+		if ( !$ret instanceof User ) {
+			if ( $this->mTarget != '' ) {
+				// Messages used here: notargettext, noemailtext, nowikiemailtext
+				$ret = ( $ret == 'notarget' ) ? 'emailnotarget' : ( $ret . 'text' );
+				return Status::newFatal( $ret );
+			}
+			return false;
+		}
+
+		$htmlForm = HTMLForm::factory( 'ooui', $this->getFormFields(), $this->getContext() );
+		// By now we are supposed to be sure that $this->mTarget is a user name
+		$htmlForm
+			->addPreText( $this->msg( 'emailpagetext', $this->mTarget )->parse() )
+			->setSubmitTextMsg( 'emailsend' )
+			->setSubmitCallback( [ __CLASS__, 'submit' ] )
+			->setFormIdentifier( 'sendEmailForm' )
+			->setWrapperLegendMsg( 'email-legend' )
+			->loadData();
+
+		if ( !Hooks::run( 'EmailUserForm', [ &$htmlForm ] ) ) {
+			return false;
+		}
+
+		$result = $htmlForm->show();
+
+		if ( $result === true || ( $result instanceof Status && $result->isGood() ) ) {
+			$out->setPageTitle( $this->msg( 'emailsent' ) );
+			$out->addWikiMsg( 'emailsenttext', $this->mTarget );
+			$out->returnToMain( false, $ret->getUserPage() );
+		}
+		return true;
 	}
 
 	/**
@@ -326,7 +371,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 	public static function submit( array $data, IContextSource $context ) {
 		$config = $context->getConfig();
 
-		$target = self::getTarget( $data['Target'] );
+		$target = self::getTarget( $data['Target'], $context->getUser() );
 		if ( !$target instanceof User ) {
 			// Messages used here: notargettext, noemailtext, nowikiemailtext
 			return Status::newFatal( $target . 'text' );
@@ -341,6 +386,11 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 		$text = rtrim( $text ) . "\n\n-- \n";
 		$text .= $context->msg( 'emailuserfooter',
 			$from->name, $to->name )->inContentLanguage()->text();
+
+		// Check and increment the rate limits
+		if ( $context->getUser()->pingLimiter( 'emailuser' ) ) {
+			throw new ThrottledError();
+		}
 
 		$error = false;
 		if ( !Hooks::run( 'EmailUser', [ &$to, &$from, &$subject, &$text, &$error ] ) ) {
@@ -381,7 +431,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			 * SPF and bounce problems with some mailers (see below).
 			 */
 			$mailFrom = new MailAddress( $config->get( 'PasswordSender' ),
-				wfMessage( 'emailsender' )->inContentLanguage()->text() );
+				$context->msg( 'emailsender' )->inContentLanguage()->text() );
 			$replyTo = $from;
 		} else {
 			/**
@@ -416,7 +466,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 			if ( $data['CCMe'] && $to != $from ) {
 				$ccTo = $from;
 				$ccFrom = $from;
-				$ccSubject = $context->msg( 'emailccsubject' )->rawParams(
+				$ccSubject = $context->msg( 'emailccsubject' )->plaintextParams(
 					$target->getName(), $subject )->text();
 				$ccText = $text;
 
@@ -425,7 +475,7 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 				if ( $config->get( 'UserEmailUseReplyTo' ) ) {
 					$mailFrom = new MailAddress(
 						$config->get( 'PasswordSender' ),
-						wfMessage( 'emailsender' )->inContentLanguage()->text()
+						$context->msg( 'emailsender' )->inContentLanguage()->text()
 					);
 					$replyTo = $ccFrom;
 				} else {
@@ -466,5 +516,18 @@ class SpecialEmailUser extends UnlistedSpecialPage {
 
 	protected function getGroupName() {
 		return 'users';
+	}
+
+	/**
+	 * Builds an error message based on the block params
+	 *
+	 * @return ErrorPageError
+	 */
+	private function getBlockedEmailError() {
+		$block = $this->getUser()->mBlock;
+		$params = $block->getBlockErrorParams( $this->getContext() );
+
+		$msg = $block->isSitewide() ? 'blockedtext' : 'blocked-email-user';
+		return new ErrorPageError( 'blockedtitle', $msg, $params );
 	}
 }

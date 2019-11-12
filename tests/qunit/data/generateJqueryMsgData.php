@@ -21,8 +21,8 @@
 		$.each( mw.libs.phpParserData.tests, function ( i, test ) {
 			QUnit.stop();
 			getMwLanguage( test.lang, function ( langClass ) {
-				var parser = new mw.jqueryMsg.parser( { language: langClass } );
-				assert.equal(
+				var parser = new mw.jqueryMsg.Parser( { language: langClass } );
+				assert.strictEqual(
 					parser.parse( test.key, test.args ).html(),
 					test.result,
 					test.name
@@ -50,7 +50,7 @@
 				}, 'Language class should be loaded', 1000 );
 				runs( function () {
 					console.log( test.lang, 'running tests' );
-					var parser = new mw.jqueryMsg.parser( { language: langClass } );
+					var parser = new mw.jqueryMsg.Parser( { language: langClass } );
 					expect(
 						parser.parse( test.key, test.args ).html()
 					).toEqual( test.result );

@@ -40,15 +40,19 @@ class Category {
 	/** Counts of membership (cat_pages, cat_subcats, cat_files) */
 	private $mPages = null, $mSubcats = null, $mFiles = null;
 
+	const LOAD_ONLY = 0;
+	const LAZY_INIT_ROW = 1;
+
 	private function __construct() {
 	}
 
 	/**
 	 * Set up all member variables using a database query.
+	 * @param int $mode One of (Category::LOAD_ONLY, Category::LAZY_INIT_ROW)
 	 * @throws MWException
 	 * @return bool True on success, false on failure.
 	 */
-	protected function initialize() {
+	protected function initialize( $mode = self::LOAD_ONLY ) {
 		if ( $this->mName === null && $this->mID === null ) {
 			throw new MWException( __METHOD__ . ' has both names and IDs null' );
 		} elseif ( $this->mID === null ) {
@@ -80,7 +84,7 @@ class Category {
 				$this->mFiles = 0;
 
 				# If the title exists, call refreshCounts to add a row for it.
-				if ( $this->mTitle->exists() ) {
+				if ( $mode === self::LAZY_INIT_ROW && $this->mTitle->exists() ) {
 					DeferredUpdates::addCallableUpdate( [ $this, 'refreshCounts' ] );
 				}
 
@@ -104,7 +108,9 @@ class Category {
 			$this->mSubcats = max( $this->mSubcats, 0 );
 			$this->mFiles = max( $this->mFiles, 0 );
 
-			DeferredUpdates::addCallableUpdate( [ $this, 'refreshCounts' ] );
+			if ( $mode === self::LAZY_INIT_ROW ) {
+				DeferredUpdates::addCallableUpdate( [ $this, 'refreshCounts' ] );
+			}
 		}
 
 		return true;
@@ -113,9 +119,9 @@ class Category {
 	/**
 	 * Factory function.
 	 *
-	 * @param array $name A category name (no "Category:" prefix).  It need
+	 * @param string $name A category name (no "Category:" prefix).  It need
 	 *   not be normalized, with spaces replaced by underscores.
-	 * @return mixed Category, or false on a totally invalid name
+	 * @return Category|bool Category, or false on a totally invalid name
 	 */
 	public static function newFromName( $name ) {
 		$cat = new self();
@@ -165,7 +171,7 @@ class Category {
 	 *   fields are null, the resulting Category object will represent an empty
 	 *   category if a title object was given. If the fields are null and no
 	 *   title was given, this method fails and returns false.
-	 * @param Title $title Optional title object for the category represented by
+	 * @param Title|null $title Optional title object for the category represented by
 	 *   the given row. May be provided if it is already known, to avoid having
 	 *   to re-create a title object later.
 	 * @return Category|false
@@ -247,7 +253,7 @@ class Category {
 			return $this->mTitle;
 		}
 
-		if ( !$this->initialize() ) {
+		if ( !$this->initialize( self::LAZY_INIT_ROW ) ) {
 			return false;
 		}
 
@@ -258,12 +264,11 @@ class Category {
 	/**
 	 * Fetch a TitleArray of up to $limit category members, beginning after the
 	 * category sort key $offset.
-	 * @param int $limit
+	 * @param int|bool $limit
 	 * @param string $offset
 	 * @return TitleArray TitleArray object for category members.
 	 */
 	public function getMembers( $limit = false, $offset = '' ) {
-
 		$dbr = wfGetDB( DB_REPLICA );
 
 		$conds = [ 'cl_to' => $this->getName(), 'cl_from = page_id' ];
@@ -294,10 +299,10 @@ class Category {
 	/**
 	 * Generic accessor
 	 * @param string $key
-	 * @return bool
+	 * @return mixed
 	 */
 	private function getX( $key ) {
-		if ( !$this->initialize() ) {
+		if ( $this->{$key} === null && !$this->initialize( self::LAZY_INIT_ROW ) ) {
 			return false;
 		}
 		return $this->{$key};
@@ -316,31 +321,45 @@ class Category {
 		# If we have just a category name, find out whether there is an
 		# existing row. Or if we have just an ID, get the name, because
 		# that's what categorylinks uses.
-		if ( !$this->initialize() ) {
+		if ( !$this->initialize( self::LOAD_ONLY ) ) {
 			return false;
 		}
 
 		$dbw = wfGetDB( DB_MASTER );
 		# Avoid excess contention on the same category (T162121)
 		$name = __METHOD__ . ':' . md5( $this->mName );
-		$scopedLock = $dbw->getScopedLockAndFlush( $name, __METHOD__, 1 );
+		$scopedLock = $dbw->getScopedLockAndFlush( $name, __METHOD__, 0 );
 		if ( !$scopedLock ) {
-			return;
+			return false;
 		}
 
 		$dbw->startAtomic( __METHOD__ );
 
-		$cond1 = $dbw->conditional( [ 'page_namespace' => NS_CATEGORY ], 1, 'NULL' );
-		$cond2 = $dbw->conditional( [ 'page_namespace' => NS_FILE ], 1, 'NULL' );
-		$result = $dbw->selectRow(
+		// Lock the `category` row before locking `categorylinks` rows to try
+		// to avoid deadlocks with LinksDeletionUpdate (T195397)
+		$dbw->lockForUpdate( 'category', [ 'cat_title' => $this->mName ], __METHOD__ );
+
+		// Lock all the `categorylinks` records and gaps for this category;
+		// this is a separate query due to postgres/oracle limitations
+		$dbw->selectRowCount(
 			[ 'categorylinks', 'page' ],
-			[ 'pages' => 'COUNT(*)',
-				'subcats' => "COUNT($cond1)",
-				'files' => "COUNT($cond2)"
-			],
+			'*',
 			[ 'cl_to' => $this->mName, 'page_id = cl_from' ],
 			__METHOD__,
 			[ 'LOCK IN SHARE MODE' ]
+		);
+		// Get the aggregate `categorylinks` row counts for this category
+		$catCond = $dbw->conditional( [ 'page_namespace' => NS_CATEGORY ], 1, 'NULL' );
+		$fileCond = $dbw->conditional( [ 'page_namespace' => NS_FILE ], 1, 'NULL' );
+		$result = $dbw->selectRow(
+			[ 'categorylinks', 'page' ],
+			[
+				'pages' => 'COUNT(*)',
+				'subcats' => "COUNT($catCond)",
+				'files' => "COUNT($fileCond)"
+			],
+			[ 'cl_to' => $this->mName, 'page_id = cl_from' ],
+			__METHOD__
 		);
 
 		$shouldExist = $result->pages > 0 || $this->getTitle()->exists();
@@ -400,5 +419,46 @@ class Category {
 		$this->mFiles = $result->files;
 
 		return true;
+	}
+
+	/**
+	 * Call refreshCounts() if there are no entries in the categorylinks table
+	 * or if the category table has a row that states that there are no entries
+	 *
+	 * Due to lock errors or other failures, the precomputed counts can get out of sync,
+	 * making it hard to know when to delete the category row without checking the
+	 * categorylinks table.
+	 *
+	 * @return bool Whether links were refreshed
+	 * @since 1.32
+	 */
+	public function refreshCountsIfEmpty() {
+		$dbw = wfGetDB( DB_MASTER );
+
+		$hasLink = $dbw->selectField(
+			'categorylinks',
+			'1',
+			[ 'cl_to' => $this->getName() ],
+			__METHOD__
+		);
+		if ( !$hasLink ) {
+			$this->refreshCounts(); // delete any category table entry
+
+			return true;
+		}
+
+		$hasBadRow = $dbw->selectField(
+			'category',
+			'1',
+			[ 'cat_title' => $this->getName(), 'cat_pages <= 0' ],
+			__METHOD__
+		);
+		if ( $hasBadRow ) {
+			$this->refreshCounts(); // clean up this row
+
+			return true;
+		}
+
+		return false;
 	}
 }

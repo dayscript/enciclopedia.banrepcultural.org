@@ -44,17 +44,26 @@ class SpecialPageLanguage extends FormSpecialPage {
 
 	protected function preText() {
 		$this->getOutput()->addModules( 'mediawiki.special.pageLanguage' );
+		return parent::preText();
 	}
 
 	protected function getFormFields() {
 		// Get default from the subpage of Special page
 		$defaultName = $this->par;
+		$title = $defaultName ? Title::newFromText( $defaultName ) : null;
+		if ( $title ) {
+			$defaultPageLanguage =
+				ContentHandler::getForTitle( $title )->getPageLanguage( $title );
+			$hasCustomLanguageSet = !$defaultPageLanguage->equals( $title->getPageLanguage() );
+		} else {
+			$hasCustomLanguageSet = false;
+		}
 
 		$page = [];
 		$page['pagename'] = [
 			'type' => 'title',
 			'label-message' => 'pagelang-name',
-			'default' => $defaultName,
+			'default' => $title ? $title->getPrefixedText() : $defaultName,
 			'autofocus' => $defaultName === null,
 			'exists' => true,
 		];
@@ -68,13 +77,12 @@ class SpecialPageLanguage extends FormSpecialPage {
 			'id' => 'mw-pl-options',
 			'type' => 'radio',
 			'options' => $selectoptions,
-			'default' => 1
+			'default' => $hasCustomLanguageSet ? 2 : 1
 		];
 
 		// Building a language selector
 		$userLang = $this->getLanguage()->getCode();
 		$languages = Language::fetchLanguageNames( $userLang, 'mwfile' );
-		ksort( $languages );
 		$options = [];
 		foreach ( $languages as $code => $name ) {
 			$options["$code - $name"] = $code;
@@ -86,7 +94,9 @@ class SpecialPageLanguage extends FormSpecialPage {
 			'type' => 'select',
 			'options' => $options,
 			'label-message' => 'pagelang-language',
-			'default' => $this->getConfig()->get( 'LanguageCode' ),
+			'default' => $title ?
+				$title->getPageLanguage()->getCode() :
+				$this->getConfig()->get( 'LanguageCode' ),
 		];
 
 		// Allow user to enter a comment explaining the change
@@ -135,6 +145,16 @@ class SpecialPageLanguage extends FormSpecialPage {
 			return Status::newFatal( $ex->getMessageObject() );
 		}
 
+		// Check permissions and make sure the user has permission to edit the page
+		$errors = $title->getUserPermissionsErrors( 'edit', $this->getUser() );
+
+		if ( $errors ) {
+			$out = $this->getOutput();
+			$wikitext = $out->formatPermissionsErrorMessage( $errors );
+			// Hack to get our wikitext parsed
+			return Status::newFatal( new RawMessage( '$1', [ $wikitext ] ) );
+		}
+
 		// Url to redirect to after the operation
 		$this->goToUrl = $title->getFullUrlForRedirect(
 			$title->isRedirect() ? [ 'redirect' => 'no' ] : []
@@ -144,7 +164,7 @@ class SpecialPageLanguage extends FormSpecialPage {
 			$this->getContext(),
 			$title,
 			$newLanguage,
-			$data['reason'] === null ? '' : $data['reason']
+			$data['reason'] ?? ''
 		);
 	}
 
@@ -205,8 +225,8 @@ class SpecialPageLanguage extends FormSpecialPage {
 		}
 
 		// Hardcoded [def] if the language is set to null
-		$logOld = $oldLanguage ? $oldLanguage : $defLang . '[def]';
-		$logNew = $newLanguage ? $newLanguage : $defLang . '[def]';
+		$logOld = $oldLanguage ?: $defLang . '[def]';
+		$logNew = $newLanguage ?: $defLang . '[def]';
 
 		// Writing new page language to database
 		$dbw->update(

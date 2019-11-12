@@ -64,7 +64,7 @@ class MediaWikiTitleCodecTest extends MediaWikiTestCase {
 	 * @return GenderCache
 	 */
 	private function getGenderCache() {
-		$genderCache = $this->getMockBuilder( 'GenderCache' )
+		$genderCache = $this->getMockBuilder( GenderCache::class )
 			->disableOriginalConstructor()
 			->getMock();
 
@@ -164,7 +164,7 @@ class MediaWikiTitleCodecTest extends MediaWikiTestCase {
 			// getGenderCache() provides a mock that considers first
 			// names ending in "a" to be female.
 			[ NS_USER, 'Lisa_Müller', '', 'de', 'Benutzerin:Lisa Müller' ],
-			[ 1000000, 'Invalid_namespace', '', 'en', ':Invalid namespace' ],
+			[ 1000000, 'Invalid_namespace', '', 'en', 'Special:Badtitle/NS1000000:Invalid namespace' ],
 		];
 	}
 
@@ -195,7 +195,7 @@ class MediaWikiTitleCodecTest extends MediaWikiTestCase {
 			[ NS_MAIN, 'Remote_page', '', 'remotetestiw', 'en', 'remotetestiw:Remote_page' ],
 
 			// non-existent namespace
-			[ 10000000, 'Foobar', '', '', 'en', ':Foobar' ],
+			[ 10000000, 'Foobar', '', '', 'en', 'Special:Badtitle/NS10000000:Foobar' ],
 		];
 	}
 
@@ -385,7 +385,7 @@ class MediaWikiTitleCodecTest extends MediaWikiTestCase {
 	 * @dataProvider provideParseTitle_invalid
 	 */
 	public function testParseTitle_invalid( $text ) {
-		$this->setExpectedException( 'MalformedTitleException' );
+		$this->setExpectedException( MalformedTitleException::class );
 
 		$codec = $this->makeCodec( 'en' );
 		$codec->parseTitle( $text, NS_MAIN );

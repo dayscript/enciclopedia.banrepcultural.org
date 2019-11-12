@@ -27,7 +27,7 @@ class HTMLCheckField extends HTMLFormField {
 		}
 
 		$chkLabel = Xml::check( $this->mName, $value, $attr ) .
-			'&#160;' .
+			"\u{00A0}" .
 			Html::rawElement( 'label', $attrLabel, $this->mLabel );
 
 		if ( $wgUseMediaWikiUIEverywhere || $this->mParent instanceof VFormHTMLForm ) {
@@ -52,7 +52,7 @@ class HTMLCheckField extends HTMLFormField {
 			$value = !$value;
 		}
 
-		$attr = $this->getTooltipAndAccessKey();
+		$attr = $this->getTooltipAndAccessKeyOOUI();
 		$attr['id'] = $this->mID;
 		$attr['name'] = $this->mName;
 
@@ -88,7 +88,7 @@ class HTMLCheckField extends HTMLFormField {
 		) {
 			return '';
 		} else {
-			return '&#160;';
+			return "\u{00A0}";
 		}
 	}
 
@@ -116,11 +116,10 @@ class HTMLCheckField extends HTMLFormField {
 	public function loadDataFromRequest( $request ) {
 		$invert = isset( $this->mParams['invert'] ) && $this->mParams['invert'];
 
-		// GetCheck won't work like we want for checks.
 		// Fetch the value in either one of the two following case:
-		// - we have a valid submit attempt (form was just submitted, or a GET URL forged by the user)
-		// - checkbox name has a value (false or true), ie is not null
-		if ( $this->isSubmitAttempt( $request ) || $request->getVal( $this->mName ) !== null ) {
+		// - we have a valid submit attempt (form was just submitted)
+		// - we have a value (an URL manually built by the user, or GET form with no wpFormIdentifier)
+		if ( $this->isSubmitAttempt( $request ) || $request->getCheck( $this->mName ) ) {
 			return $invert
 				? !$request->getBool( $this->mName )
 				: $request->getBool( $this->mName );

@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @license GPL 2+
  * @author Matthew Flaschen
  */
 
@@ -26,6 +25,8 @@
 // conflicts) between ChangesListFilter and ChangesListFilterGroup.
 // What to call it.  FilterStructure?  That would also let me make
 // setUnidirectionalConflict protected.
+
+use Wikimedia\Rdbms\IDatabase;
 
 /**
  * Represents a filter group (used on ChangesListSpecialPage and descendants)
@@ -106,18 +107,18 @@ abstract class ChangesListFilterGroup {
 	protected $isFullCoverage;
 
 	/**
-	 * List of conflicting groups
+	 * Array of associative arrays with conflict information.  See
+	 * setUnidirectionalConflict
 	 *
-	 * @var array $conflictingGroups Array of associative arrays with conflict
-	 *   information.  See setUnidirectionalConflict
+	 * @var array $conflictingGroups
 	 */
 	protected $conflictingGroups = [];
 
 	/**
-	 * List of conflicting filters
+	 * Array of associative arrays with conflict information.  See
+	 * setUnidirectionalConflict
 	 *
-	 * @var array $conflictingFilters Array of associative arrays with conflict
-	 *   information.  See setUnidirectionalConflict
+	 * @var array $conflictingFilters
 	 */
 	protected $conflictingFilters = [];
 
@@ -131,17 +132,25 @@ abstract class ChangesListFilterGroup {
 	 * @param array $groupDefinition Configuration of group
 	 * * $groupDefinition['name'] string Group name; use camelCase with no punctuation
 	 * * $groupDefinition['title'] string i18n key for title (optional, can be omitted
-	 * *  only if none of the filters in the group display in the structured UI)
+	 *     only if none of the filters in the group display in the structured UI)
 	 * * $groupDefinition['type'] string A type constant from a subclass of this one
 	 * * $groupDefinition['priority'] int Priority integer.  Higher value means higher
-	 * *  up in the group list (optional, defaults to -100).
+	 *     up in the group list (optional, defaults to -100).
 	 * * $groupDefinition['filters'] array Numeric array of filter definitions, each of which
-	 * *  is an associative array to be passed to the filter constructor.  However,
-	 * *  'priority' is optional for the filters.  Any filter that has priority unset
-	 * *  will be put to the bottom, in the order given.
+	 *     is an associative array to be passed to the filter constructor.  However,
+	 *     'priority' is optional for the filters.  Any filter that has priority unset
+	 *     will be put to the bottom, in the order given.
 	 * * $groupDefinition['isFullCoverage'] bool Whether the group is full coverage;
-	 * *  if true, this means that checking every item in the group means no
-	 * *  changes list entries are filtered out.
+	 *     if true, this means that checking every item in the group means no
+	 *     changes list entries are filtered out.
+	 * * $groupDefinition['whatsThisHeader'] string i18n key for header of "What's
+	 *     This" popup (optional).
+	 * * $groupDefinition['whatsThisBody'] string i18n key for body of "What's This"
+	 *     popup (optional).
+	 * * $groupDefinition['whatsThisUrl'] string URL for main link of "What's This"
+	 *     popup (optional).
+	 * * $groupDefinition['whatsThisLinkText'] string i18n key of text for main link of
+	 *     "What's This" popup (optional).
 	 */
 	public function __construct( array $groupDefinition ) {
 		if ( strpos( $groupDefinition['name'], self::RESERVED_NAME_CHAR ) !== false ) {
@@ -157,7 +166,7 @@ abstract class ChangesListFilterGroup {
 			$this->title = $groupDefinition['title'];
 		}
 
-		if ( isset ( $groupDefinition['whatsThisHeader'] ) ) {
+		if ( isset( $groupDefinition['whatsThisHeader'] ) ) {
 			$this->whatsThisHeader = $groupDefinition['whatsThisHeader'];
 			$this->whatsThisBody = $groupDefinition['whatsThisBody'];
 			$this->whatsThisUrl = $groupDefinition['whatsThisUrl'];
@@ -165,11 +174,7 @@ abstract class ChangesListFilterGroup {
 		}
 
 		$this->type = $groupDefinition['type'];
-		if ( isset( $groupDefinition['priority'] ) ) {
-			$this->priority = $groupDefinition['priority'];
-		} else {
-			$this->priority = self::DEFAULT_PRIORITY;
-		}
+		$this->priority = $groupDefinition['priority'] ?? self::DEFAULT_PRIORITY;
 
 		$this->isFullCoverage = $groupDefinition['isFullCoverage'];
 
@@ -213,20 +218,15 @@ abstract class ChangesListFilterGroup {
 	 * (not filtered out), even for the hide-based filters.  So e.g. conflicting with
 	 * 'hideanons' means there is a conflict if only anonymous users are *shown*.
 	 *
-	 * @param ChangesListFilterGroup|ChangesListFilter $other Other
-	 *  ChangesListFilterGroup or ChangesListFilter
+	 * @param ChangesListFilterGroup|ChangesListFilter $other
 	 * @param string $globalKey i18n key for top-level conflict message
 	 * @param string $forwardKey i18n key for conflict message in this
 	 *  direction (when in UI context of $this object)
 	 * @param string $backwardKey i18n key for conflict message in reverse
 	 *  direction (when in UI context of $other object)
 	 */
-	public function conflictsWith( $other, $globalKey, $forwardKey,
-		$backwardKey ) {
-
-		if ( $globalKey === null || $forwardKey === null ||
-			$backwardKey === null ) {
-
+	public function conflictsWith( $other, $globalKey, $forwardKey, $backwardKey ) {
+		if ( $globalKey === null || $forwardKey === null || $backwardKey === null ) {
 			throw new MWException( 'All messages must be specified' );
 		}
 
@@ -249,15 +249,12 @@ abstract class ChangesListFilterGroup {
 	 *
 	 * Internal use ONLY.
 	 *
-	 * @param ChangesListFilterGroup|ChangesListFilter $other Other
-	 *  ChangesListFilterGroup or ChangesListFilter
+	 * @param ChangesListFilterGroup|ChangesListFilter $other
 	 * @param string $globalDescription i18n key for top-level conflict message
 	 * @param string $contextDescription i18n key for conflict message in this
 	 *  direction (when in UI context of $this object)
 	 */
-	public function setUnidirectionalConflict( $other, $globalDescription,
-		$contextDescription ) {
-
+	public function setUnidirectionalConflict( $other, $globalDescription, $contextDescription ) {
 		if ( $other instanceof ChangesListFilterGroup ) {
 			$this->conflictingGroups[] = [
 				'group' => $other->getName(),
@@ -307,7 +304,8 @@ abstract class ChangesListFilterGroup {
 	}
 
 	/**
-	 * @return array Associative array of ChangesListFilter objects, with filter name as key
+	 * @return ChangesListFilter[] Associative array of ChangesListFilter objects, with
+	 *   filter name as key
 	 */
 	public function getFilters() {
 		return $this->filters;
@@ -320,16 +318,8 @@ abstract class ChangesListFilterGroup {
 	 * @return ChangesListFilter|null Specified filter, or null if it is not registered
 	 */
 	public function getFilter( $name ) {
-		return isset( $this->filters[$name] ) ? $this->filters[$name] : null;
+		return $this->filters[$name] ?? null;
 	}
-
-	/**
-	 * Check whether the URL parameter is for the group, or for individual filters.
-	 * Defaults can also be defined on the group if and only if this is true.
-	 *
-	 * @return bool True if and only if the URL parameter is per-group
-	 */
-	abstract public function isPerGroupRequestParameter();
 
 	/**
 	 * Gets the JS data in the format required by the front-end of the structured UI
@@ -349,7 +339,7 @@ abstract class ChangesListFilterGroup {
 			'messageKeys' => [ $this->title ]
 		];
 
-		if ( isset ( $this->whatsThisHeader ) ) {
+		if ( isset( $this->whatsThisHeader ) ) {
 			$output['whatsThisHeader'] = $this->whatsThisHeader;
 			$output['whatsThisBody'] = $this->whatsThisBody;
 			$output['whatsThisUrl'] = $this->whatsThisUrl;
@@ -364,7 +354,7 @@ abstract class ChangesListFilterGroup {
 		}
 
 		usort( $this->filters, function ( $a, $b ) {
-			return $b->getPriority() - $a->getPriority();
+			return $b->getPriority() <=> $a->getPriority();
 		} );
 
 		foreach ( $this->filters as $filterName => $filter ) {
@@ -391,9 +381,9 @@ abstract class ChangesListFilterGroup {
 		);
 
 		foreach ( $conflicts as $conflictInfo ) {
-			$output['conflicts'][] = $conflictInfo;
 			unset( $conflictInfo['filterObject'] );
 			unset( $conflictInfo['groupObject'] );
+			$output['conflicts'][] = $conflictInfo;
 			array_push(
 				$output['messageKeys'],
 				$conflictInfo['globalDescription'],
@@ -439,11 +429,41 @@ abstract class ChangesListFilterGroup {
 	 * @return bool
 	 */
 	public function anySelected( FormOptions $opts ) {
-		return !!count( array_filter(
+		return (bool)count( array_filter(
 			$this->getFilters(),
 			function ( ChangesListFilter $filter ) use ( $opts ) {
 				return $filter->isSelected( $opts );
 			}
 		) );
 	}
+
+	/**
+	 * Modifies the query to include the filter group.
+	 *
+	 * The modification is only done if the filter group is in effect.  This means that
+	 * one or more valid and allowed filters were selected.
+	 *
+	 * @param IDatabase $dbr Database, for addQuotes, makeList, and similar
+	 * @param ChangesListSpecialPage $specialPage Current special page
+	 * @param array &$tables Array of tables; see IDatabase::select $table
+	 * @param array &$fields Array of fields; see IDatabase::select $vars
+	 * @param array &$conds Array of conditions; see IDatabase::select $conds
+	 * @param array &$query_options Array of query options; see IDatabase::select $options
+	 * @param array &$join_conds Array of join conditions; see IDatabase::select $join_conds
+	 * @param FormOptions $opts Wrapper for the current request options and their defaults
+	 * @param bool $isStructuredFiltersEnabled True if the Structured UI is currently enabled
+	 */
+	abstract public function modifyQuery( IDatabase $dbr, ChangesListSpecialPage $specialPage,
+		&$tables, &$fields, &$conds, &$query_options, &$join_conds,
+		FormOptions $opts, $isStructuredFiltersEnabled );
+
+	/**
+	 * All the options represented by this filter group to $opts
+	 *
+	 * @param FormOptions $opts
+	 * @param bool $allowDefaults
+	 * @param bool $isStructuredFiltersEnabled
+	 */
+	abstract public function addOptions( FormOptions $opts, $allowDefaults,
+		$isStructuredFiltersEnabled );
 }

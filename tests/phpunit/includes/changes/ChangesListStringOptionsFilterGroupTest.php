@@ -40,8 +40,6 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 	 * @dataProvider provideModifyQuery
 	 */
 	public function testModifyQuery( $filterDefinitions, $expectedValues, $input ) {
-		$self = $this;
-
 		$queryCallable = function (
 			$className,
 			$ctx,
@@ -52,8 +50,8 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 			&$query_options,
 			&$join_conds,
 			$actualSelectedValues
-		) use ( $self, $expectedValues ) {
-			$self->assertSame(
+		) use ( $expectedValues ) {
+			$this->assertSame(
 				$expectedValues,
 				$actualSelectedValues
 			);
@@ -170,7 +168,7 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 	}
 
 	protected function getSpecialPage() {
-		return $this->getMockBuilder( 'ChangesListSpecialPage' )
+		return $this->getMockBuilder( ChangesListSpecialPage::class )
 			->setConstructorArgs( [
 					'ChangesListSpecialPage',
 					'',
@@ -181,17 +179,17 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 	/**
 	 * @param array $groupDefinition Group definition
 	 * @param string $input Value in URL
-	 *
-	 * @dataProvider provideModifyQuery
 	 */
 	protected function modifyQueryHelper( $groupDefinition, $input ) {
-		$ctx = $this->createMock( 'IContextSource' );
-		$dbr = $this->createMock( 'IDatabase' );
+		$ctx = $this->createMock( IContextSource::class );
+		$dbr = $this->createMock( Wikimedia\Rdbms\IDatabase::class );
 		$tables = $fields = $conds = $query_options = $join_conds = [];
 
 		$group = new ChangesListStringOptionsFilterGroup( $groupDefinition );
 
 		$specialPage = $this->getSpecialPage();
+		$opts = new FormOptions();
+		$opts->add( $groupDefinition[ 'name' ], $input );
 
 		$group->modifyQuery(
 			$dbr,
@@ -201,7 +199,8 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 			$conds,
 			$query_options,
 			$join_conds,
-			$input
+			$opts,
+			true
 		);
 	}
 
@@ -249,6 +248,7 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 						'cssClass' => null,
 						'conflicts' => [],
 						'subset' => [],
+						'defaultHighlightColor' => null,
 					],
 					[
 						'name' => 'foo',
@@ -258,6 +258,7 @@ class ChangesListStringOptionsFilterGroupTest extends MediaWikiTestCase {
 						'cssClass' => null,
 						'conflicts' => [],
 						'subset' => [],
+						'defaultHighlightColor' => null,
 					],
 				],
 				'conflicts' => [],

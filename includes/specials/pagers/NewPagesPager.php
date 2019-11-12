@@ -24,21 +24,29 @@
  */
 class NewPagesPager extends ReverseChronologicalPager {
 
-	// Stored opts
+	/**
+	 * @var FormOptions
+	 */
 	protected $opts;
 
 	/**
-	 * @var HtmlForm
+	 * @var SpecialNewpages
 	 */
 	protected $mForm;
 
-	function __construct( $form, FormOptions $opts ) {
+	/**
+	 * @param SpecialNewpages $form
+	 * @param FormOptions $opts
+	 */
+	public function __construct( $form, FormOptions $opts ) {
 		parent::__construct( $form->getContext() );
 		$this->mForm = $form;
 		$this->opts = $opts;
 	}
 
 	function getQueryInfo() {
+		$rcQuery = RecentChange::getQueryInfo();
+
 		$conds = [];
 		$conds['rc_new'] = 1;
 
@@ -57,8 +65,6 @@ class NewPagesPager extends ReverseChronologicalPager {
 			}
 		}
 
-		$rcIndexes = [];
-
 		if ( $namespace !== false ) {
 			if ( $this->opts->getValue( 'invert' ) ) {
 				$conds[] = 'rc_namespace != ' . $this->mDb->addQuotes( $namespace );
@@ -68,18 +74,19 @@ class NewPagesPager extends ReverseChronologicalPager {
 		}
 
 		if ( $user ) {
-			$conds['rc_user_text'] = $user->getText();
-			$rcIndexes = 'rc_user_text';
+			$conds[] = ActorMigration::newMigration()->getWhere(
+				$this->mDb, 'rc_user', User::newFromName( $user->getText(), false ), false
+			)['conds'];
 		} elseif ( User::groupHasPermission( '*', 'createpage' ) &&
 			$this->opts->getValue( 'hideliu' )
 		) {
 			# If anons cannot make new pages, don't "exclude logged in users"!
-			$conds['rc_user'] = 0;
+			$conds[] = ActorMigration::newMigration()->isAnon( $rcQuery['fields']['rc_user'] );
 		}
 
 		# If this user cannot see patrolled edits or they are off, don't do dumb queries!
 		if ( $this->opts->getValue( 'hidepatrolled' ) && $this->getUser()->useNPPatrol() ) {
-			$conds['rc_patrolled'] = 0;
+			$conds['rc_patrolled'] = RecentChange::PRC_UNPATROLLED;
 		}
 
 		if ( $this->opts->getValue( 'hidebots' ) ) {
@@ -91,31 +98,22 @@ class NewPagesPager extends ReverseChronologicalPager {
 		}
 
 		// Allow changes to the New Pages query
-		$tables = [ 'recentchanges', 'page' ];
-		$fields = [
-			'rc_namespace', 'rc_title', 'rc_cur_id', 'rc_user', 'rc_user_text',
-			'rc_comment', 'rc_timestamp', 'rc_patrolled', 'rc_id', 'rc_deleted',
-			'length' => 'page_len', 'rev_id' => 'page_latest', 'rc_this_oldid',
-			'page_namespace', 'page_title'
-		];
-		$join_conds = [ 'page' => [ 'INNER JOIN', 'page_id=rc_cur_id' ] ];
+		$tables = array_merge( $rcQuery['tables'], [ 'page' ] );
+		$fields = array_merge( $rcQuery['fields'], [
+			'length' => 'page_len', 'rev_id' => 'page_latest', 'page_namespace', 'page_title'
+		] );
+		$join_conds = [ 'page' => [ 'JOIN', 'page_id=rc_cur_id' ] ] + $rcQuery['joins'];
 
 		// Avoid PHP 7.1 warning from passing $this by reference
 		$pager = $this;
 		Hooks::run( 'SpecialNewpagesConditions',
 			[ &$pager, $this->opts, &$conds, &$tables, &$fields, &$join_conds ] );
 
-		$options = [];
-
-		if ( $rcIndexes ) {
-			$options = [ 'USE INDEX' => [ 'recentchanges' => $rcIndexes ] ];
-		}
-
 		$info = [
 			'tables' => $tables,
 			'fields' => $fields,
 			'conds' => $conds,
-			'options' => $options,
+			'options' => [],
 			'join_conds' => $join_conds
 		];
 
@@ -140,7 +138,7 @@ class NewPagesPager extends ReverseChronologicalPager {
 		return $this->mForm->formatRow( $row );
 	}
 
-	function getStartBody() {
+	protected function getStartBody() {
 		# Do a batch existence check on pages
 		$linkBatch = new LinkBatch();
 		foreach ( $this->mResult as $row ) {
@@ -153,7 +151,7 @@ class NewPagesPager extends ReverseChronologicalPager {
 		return '<ul>';
 	}
 
-	function getEndBody() {
+	protected function getEndBody() {
 		return '</ul>';
 	}
 }

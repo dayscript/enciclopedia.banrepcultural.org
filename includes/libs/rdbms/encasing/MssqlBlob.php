@@ -6,17 +6,15 @@ class MssqlBlob extends Blob {
 	/** @noinspection PhpMissingParentConstructorInspection */
 
 	/**
-	 * @param string $data
+	 * @param Blob|string $data
 	 */
 	public function __construct( $data ) {
 		if ( $data instanceof MssqlBlob ) {
-			return $data;
+			$this->data = $data->data;
 		} elseif ( $data instanceof Blob ) {
-			$this->mData = $data->fetch();
-		} elseif ( is_array( $data ) && is_object( $data ) ) {
-			$this->mData = serialize( $data );
+			$this->data = $data->fetch();
 		} else {
-			$this->mData = $data;
+			$this->data = $data;
 		}
 	}
 
@@ -26,14 +24,14 @@ class MssqlBlob extends Blob {
 	 * @return string
 	 */
 	public function fetch() {
-		if ( $this->mData === null ) {
+		if ( $this->data === null ) {
 			return 'null';
 		}
 
 		$ret = '0x';
-		$dataLength = strlen( $this->mData );
+		$dataLength = strlen( $this->data );
 		for ( $i = 0; $i < $dataLength; $i++ ) {
-			$ret .= bin2hex( pack( 'C', ord( $this->mData[$i] ) ) );
+			$ret .= bin2hex( pack( 'C', ord( $this->data[$i] ) ) );
 		}
 
 		return $ret;

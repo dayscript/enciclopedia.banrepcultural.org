@@ -24,7 +24,8 @@
  * @author Ævar Arnfjörð Bjarmason <avarab@gmail.com>
  */
 
-use Wikimedia\Rdbms\ResultWrapper;
+use MediaWiki\MediaWikiServices;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -59,7 +60,7 @@ class MostlinkedCategoriesPage extends QueryPage {
 	 * Fetch user page links and cache their existence
 	 *
 	 * @param IDatabase $db
-	 * @param ResultWrapper $res
+	 * @param IResultWrapper $res
 	 */
 	function preprocessResults( $db, $res ) {
 		$this->executeLBFromResultWrapper( $res );
@@ -71,8 +72,6 @@ class MostlinkedCategoriesPage extends QueryPage {
 	 * @return string
 	 */
 	function formatResult( $skin, $result ) {
-		global $wgContLang;
-
 		$nt = Title::makeTitleSafe( NS_CATEGORY, $result->title );
 		if ( !$nt ) {
 			return Html::element(
@@ -85,8 +84,9 @@ class MostlinkedCategoriesPage extends QueryPage {
 			);
 		}
 
-		$text = $wgContLang->convert( $nt->getText() );
-		$plink = $this->getLinkRenderer()->makeLink( $nt, $text );
+		$text = MediaWikiServices::getInstance()->getContentLanguage()
+			->convert( htmlspecialchars( $nt->getText() ) );
+		$plink = $this->getLinkRenderer()->makeLink( $nt, new HtmlArmor( $text ) );
 		$nlinks = $this->msg( 'nmembers' )->numParams( $result->value )->escaped();
 
 		return $this->getLanguage()->specialList( $plink, $nlinks );

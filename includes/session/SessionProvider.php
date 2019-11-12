@@ -374,7 +374,7 @@ abstract class SessionProvider implements SessionProviderInterface, LoggerAwareI
 	public function preventSessionsForUser( $username ) {
 		if ( !$this->canChangeUser() ) {
 			throw new \BadMethodCallException(
-				__METHOD__ . ' must be implmented when canChangeUser() is false'
+				__METHOD__ . ' must be implemented when canChangeUser() is false'
 			);
 		}
 	}
@@ -387,7 +387,7 @@ abstract class SessionProvider implements SessionProviderInterface, LoggerAwareI
 	 * reset whatever token it does use here.
 	 *
 	 * @protected For use by \MediaWiki\Session\SessionManager only
-	 * @param User $user;
+	 * @param User $user
 	 */
 	public function invalidateSessionsForUser( User $user ) {
 	}
@@ -521,7 +521,7 @@ abstract class SessionProvider implements SessionProviderInterface, LoggerAwareI
 		if ( strlen( $hash ) < 32 ) {
 			// Should never happen, even md5 is 128 bits
 			// @codeCoverageIgnoreStart
-			throw new \UnexpectedValueException( 'Hash fuction returned less than 128 bits' );
+			throw new \UnexpectedValueException( 'Hash function returned less than 128 bits' );
 			// @codeCoverageIgnoreEnd
 		}
 		if ( strlen( $hash ) >= 40 ) {

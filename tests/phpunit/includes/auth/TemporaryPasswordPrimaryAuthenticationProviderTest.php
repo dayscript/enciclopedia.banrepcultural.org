@@ -9,7 +9,7 @@ use Wikimedia\TestingAccessWrapper;
 /**
  * @group AuthManager
  * @group Database
- * @covers MediaWiki\Auth\TemporaryPasswordPrimaryAuthenticationProvider
+ * @covers \MediaWiki\Auth\TemporaryPasswordPrimaryAuthenticationProvider
  */
 class TemporaryPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestCase {
 
@@ -128,11 +128,10 @@ class TemporaryPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestC
 		$user = self::getMutableTestUser()->getUser();
 
 		$dbw = wfGetDB( DB_MASTER );
-
-		$passwordFactory = new \PasswordFactory();
-		$passwordFactory->init( \RequestContext::getMain()->getConfig() );
+		$config = MediaWikiServices::getInstance()->getMainConfig();
 		// A is unsalted MD5 (thus fast) ... we don't care about security here, this is test only
-		$passwordFactory->setDefaultType( 'A' );
+		$passwordFactory = new \PasswordFactory( $config->get( 'PasswordConfig' ), 'A' );
+
 		$pwhash = $passwordFactory->newFromPlaintext( 'password' )->toString();
 
 		$provider = $this->getProvider();
@@ -647,7 +646,7 @@ class TemporaryPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestC
 		$req->password = 'bar';
 
 		$expect = AuthenticationResponse::newPass( 'Foo' );
-		$expect->createRequest = clone( $req );
+		$expect->createRequest = clone $req;
 		$expect->createRequest->username = 'Foo';
 		$this->assertEquals( $expect, $provider->beginPrimaryAccountCreation( $user, $user, $reqs ) );
 		$this->assertNull( $this->manager->getAuthenticationSessionData( 'no-email' ) );
@@ -703,7 +702,7 @@ class TemporaryPasswordPrimaryAuthenticationProviderTest extends \MediaWikiTestC
 		} );
 
 		$expect = AuthenticationResponse::newPass( $user->getName() );
-		$expect->createRequest = clone( $req );
+		$expect->createRequest = clone $req;
 		$expect->createRequest->username = $user->getName();
 		$res = $provider->beginPrimaryAccountCreation( $user, $creator, [ $req ] );
 		$this->assertEquals( $expect, $res );

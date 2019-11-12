@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Jun 20, 2007
- *
  * Copyright © 2007 Roan Kattouw "<Firstname>.<Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -52,12 +48,21 @@ class ApiRollback extends ApiBase {
 
 		// If change tagging was requested, check that the user is allowed to tag,
 		// and the tags are valid
-		if ( count( $params['tags'] ) ) {
+		if ( $params['tags'] ) {
 			$tagStatus = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $user );
 			if ( !$tagStatus->isOK() ) {
 				$this->dieStatus( $tagStatus );
 			}
 		}
+
+		// @TODO: remove this hack once rollback uses POST (T88044)
+		$fname = __METHOD__;
+		$trxLimits = $this->getConfig()->get( 'TrxProfilerLimits' );
+		$trxProfiler = Profiler::instance()->getTransactionProfiler();
+		$trxProfiler->redefineExpectations( $trxLimits['POST'], $fname );
+		DeferredUpdates::addCallableUpdate( function () use ( $trxProfiler, $trxLimits, $fname ) {
+			$trxProfiler->redefineExpectations( $trxLimits['PostSend-POST'], $fname );
+		} );
 
 		$retval = $pageObj->doRollback(
 			$this->getRbUser( $params ),
@@ -73,23 +78,20 @@ class ApiRollback extends ApiBase {
 			$this->dieStatus( $this->errorArrayToStatus( $retval, $user ) );
 		}
 
-		$watch = 'preferences';
-		if ( isset( $params['watchlist'] ) ) {
-			$watch = $params['watchlist'];
-		}
+		$watch = $params['watchlist'] ?? 'preferences';
 
 		// Watch pages
 		$this->setWatch( $watch, $titleObj, 'watchrollback' );
 
 		$info = [
 			'title' => $titleObj->getPrefixedText(),
-			'pageid' => intval( $details['current']->getPage() ),
+			'pageid' => (int)$details['current']->getPage(),
 			'summary' => $details['summary'],
-			'revid' => intval( $details['newid'] ),
+			'revid' => (int)$details['newid'],
 			// The revision being reverted (previously the current revision of the page)
-			'old_revid' => intval( $details['current']->getID() ),
+			'old_revid' => (int)$details['current']->getID(),
 			// The revision being restored (the last revision before revision(s) by the reverted user)
-			'last_revid' => intval( $details['target']->getID() )
+			'last_revid' => (int)$details['target']->getID()
 		];
 
 		$this->getResult()->addValue( null, $this->getModuleName(), $info );

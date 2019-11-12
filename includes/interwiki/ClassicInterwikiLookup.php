@@ -1,6 +1,4 @@
 <?php
-namespace MediaWiki\Interwiki;
-
 /**
  * InterwikiLookup implementing the "classic" interwiki storage (hardcoded up to MW 1.26).
  *
@@ -21,14 +19,18 @@ namespace MediaWiki\Interwiki;
  *
  * @file
  */
-use \Cdb\Exception as CdbException;
-use \Cdb\Reader as CdbReader;
-use Wikimedia\Rdbms\Database;
+
+namespace MediaWiki\Interwiki;
+
+use Cdb\Exception as CdbException;
+use Cdb\Reader as CdbReader;
 use Hooks;
 use Interwiki;
 use Language;
+use WikiMap;
 use MapCacheLRU;
 use WANObjectCache;
+use Wikimedia\Rdbms\Database;
 
 /**
  * InterwikiLookup implementing the "classic" interwiki storage (hardcoded up to MW 1.26).
@@ -52,7 +54,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	/**
 	 * @var Language
 	 */
-	private $contentLanguage;
+	private $contLang;
 
 	/**
 	 * @var WANObjectCache
@@ -90,7 +92,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	private $thisSite = null;
 
 	/**
-	 * @param Language $contentLanguage Language object used to convert prefixes to lower case
+	 * @param Language $contLang Language object used to convert prefixes to lower case
 	 * @param WANObjectCache $objectCache Cache for interwiki info retrieved from the database
 	 * @param int $objectCacheExpiry Expiry time for $objectCache, in seconds
 	 * @param bool|array|string $cdbData The path of a CDB file, or
@@ -103,7 +105,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	 * @param string $fallbackSite The code to assume for the local site,
 	 */
 	function __construct(
-		Language $contentLanguage,
+		Language $contLang,
 		WANObjectCache $objectCache,
 		$objectCacheExpiry,
 		$cdbData,
@@ -112,7 +114,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	) {
 		$this->localCache = new MapCacheLRU( 100 );
 
-		$this->contentLanguage = $contentLanguage;
+		$this->contLang = $contLang;
 		$this->objectCache = $objectCache;
 		$this->objectCacheExpiry = $objectCacheExpiry;
 		$this->cdbData = $cdbData;
@@ -143,7 +145,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 			return null;
 		}
 
-		$prefix = $this->contentLanguage->lc( $prefix );
+		$prefix = $this->contLang->lc( $prefix );
 		if ( $this->localCache->has( $prefix ) ) {
 			return $this->localCache->get( $prefix );
 		}
@@ -211,17 +213,20 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	 */
 	private function getInterwikiCacheEntry( $prefix ) {
 		wfDebug( __METHOD__ . "( $prefix )\n" );
+
+		$wikiId = WikiMap::getWikiIdFromDbDomain( WikiMap::getCurrentWikiDbDomain() );
+
 		$value = false;
 		try {
 			// Resolve site name
 			if ( $this->interwikiScopes >= 3 && !$this->thisSite ) {
-				$this->thisSite = $this->getCacheValue( '__sites:' . wfWikiID() );
+				$this->thisSite = $this->getCacheValue( '__sites:' . $wikiId );
 				if ( $this->thisSite == '' ) {
 					$this->thisSite = $this->fallbackSite;
 				}
 			}
 
-			$value = $this->getCacheValue( wfWikiID() . ':' . $prefix );
+			$value = $this->getCacheValue( $wikiId . ':' . $prefix );
 			// Site level
 			if ( $value == '' && $this->interwikiScopes >= 3 ) {
 				$value = $this->getCacheValue( "_{$this->thisSite}:{$prefix}" );
@@ -278,10 +283,11 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 			}
 		}
 
+		$fname = __METHOD__;
 		$iwData = $this->objectCache->getWithSetCallback(
 			$this->objectCache->makeKey( 'interwiki', $prefix ),
 			$this->objectCacheExpiry,
-			function ( $oldValue, &$ttl, array &$setOpts ) use ( $prefix ) {
+			function ( $oldValue, &$ttl, array &$setOpts ) use ( $prefix, $fname ) {
 				$dbr = wfGetDB( DB_REPLICA ); // TODO: inject LoadBalancer
 
 				$setOpts += Database::getCacheSetOptions( $dbr );
@@ -290,7 +296,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 					'interwiki',
 					self::selectFields(),
 					[ 'iw_prefix' => $prefix ],
-					__METHOD__
+					$fname
 				);
 
 				return $row ? (array)$row : '!NONEXISTENT';
@@ -313,10 +319,10 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	private function loadFromArray( $mc ) {
 		if ( isset( $mc['iw_url'] ) ) {
 			$url = $mc['iw_url'];
-			$local = isset( $mc['iw_local'] ) ? $mc['iw_local'] : 0;
-			$trans = isset( $mc['iw_trans'] ) ? $mc['iw_trans'] : 0;
-			$api = isset( $mc['iw_api'] ) ? $mc['iw_api'] : '';
-			$wikiId = isset( $mc['iw_wikiid'] ) ? $mc['iw_wikiid'] : '';
+			$local = $mc['iw_local'] ?? 0;
+			$trans = $mc['iw_trans'] ?? 0;
+			$api = $mc['iw_api'] ?? '';
+			$wikiId = $mc['iw_wikiid'] ?? '';
 
 			return new Interwiki( null, $url, $api, $wikiId, $local, $trans );
 		}
@@ -332,11 +338,14 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 	 */
 	private function getAllPrefixesCached( $local ) {
 		wfDebug( __METHOD__ . "()\n" );
+
+		$wikiId = WikiMap::getWikiIdFromDbDomain( WikiMap::getCurrentWikiDbDomain() );
+
 		$data = [];
 		try {
 			/* Resolve site name */
 			if ( $this->interwikiScopes >= 3 && !$this->thisSite ) {
-				$site = $this->getCacheValue( '__sites:' . wfWikiID() );
+				$site = $this->getCacheValue( '__sites:' . $wikiId );
 
 				if ( $site == '' ) {
 					$this->thisSite = $this->fallbackSite;
@@ -355,7 +364,7 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 			if ( $this->interwikiScopes >= 3 ) {
 				$sources[] = '_' . $this->thisSite;
 			}
-			$sources[] = wfWikiID();
+			$sources[] = $wikiId;
 
 			foreach ( $sources as $source ) {
 				$list = $this->getCacheValue( '__list:' . $source );
@@ -382,8 +391,6 @@ class ClassicInterwikiLookup implements InterwikiLookup {
 			wfDebug( __METHOD__ . ": CdbException caught, error message was "
 				. $e->getMessage() );
 		}
-
-		ksort( $data );
 
 		return array_values( $data );
 	}

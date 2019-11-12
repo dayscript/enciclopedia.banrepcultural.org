@@ -1,5 +1,8 @@
 <?php
 
+/**
+ * @covers WikiTextStructure
+ */
 class WikitextStructureTest extends MediaWikiLangTestCase {
 
 	private function getMockTitle() {
@@ -8,7 +11,7 @@ class WikitextStructureTest extends MediaWikiLangTestCase {
 
 	/**
 	 * Get parser output for Wiki text
-	 * @param $text
+	 * @param string $text
 	 * @return ParserOutput
 	 */
 	private function getParserOutput( $text ) {
@@ -18,7 +21,7 @@ class WikitextStructureTest extends MediaWikiLangTestCase {
 
 	/**
 	 * Get WikitextStructure for given text
-	 * @param $text
+	 * @param string $text
 	 * @return WikiTextStructure
 	 */
 	private function getStructure( $text ) {
@@ -99,9 +102,15 @@ Then we got more<br>text
 END;
 		$struct = $this->getStructure( $text );
 		$this->assertEquals( "Opening text is opening.", $struct->getOpeningText() );
-		$this->assertEquals( "Opening text is opening.   Then we got more text",
+		$this->assertEquals( "Opening text is opening. Then we got more text",
 			$struct->getMainText() );
-		$this->assertEquals( [ "Header table  row in table  another row in table" ],
+		$this->assertEquals( [ "Header table row in table another row in table" ],
 			$struct->getAuxiliaryText() );
+	}
+
+	public function testPreservesWordSpacing() {
+		$text = "<dd><dl>foo</dl><dl>bar</dl></dd><p>baz</p>";
+		$struct = $this->getStructure( $text );
+		$this->assertEquals( "foo bar baz", $struct->getMainText() );
 	}
 }

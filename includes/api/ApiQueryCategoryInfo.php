@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on May 13, 2007
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -47,7 +43,7 @@ class ApiQueryCategoryInfo extends ApiQueryBase {
 		$titles = $this->getPageSet()->getGoodAndMissingTitles();
 		$cattitles = [];
 		foreach ( $categories as $c ) {
-			/** @var $t Title */
+			/** @var Title $t */
 			$t = $titles[$c];
 			$cattitles[$c] = $t->getDBkey();
 		}
@@ -82,10 +78,10 @@ class ApiQueryCategoryInfo extends ApiQueryBase {
 		$catids = array_flip( $cattitles );
 		foreach ( $res as $row ) {
 			$vals = [];
-			$vals['size'] = intval( $row->cat_pages );
+			$vals['size'] = (int)$row->cat_pages;
 			$vals['pages'] = $row->cat_pages - $row->cat_subcats - $row->cat_files;
-			$vals['files'] = intval( $row->cat_files );
-			$vals['subcats'] = intval( $row->cat_subcats );
+			$vals['files'] = (int)$row->cat_files;
+			$vals['subcats'] = (int)$row->cat_subcats;
 			$vals['hidden'] = (bool)$row->cat_hidden;
 			$fit = $this->addPageSubItems( $catids[$row->cat_title], $vals );
 			if ( !$fit ) {

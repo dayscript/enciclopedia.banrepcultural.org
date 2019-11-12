@@ -3,23 +3,18 @@
  *
  * Set options:
  *
- *		$( '#textbox' ).suggestions( { option1: value1, option2: value2 } );
- *		$( '#textbox' ).suggestions( option, value );
- *
- * Get option:
- *
- *		value = $( '#textbox' ).suggestions( option );
+ *  $( '#textbox' ).suggestions( { option1: value1, option2: value2 } );
+ *  $( '#textbox' ).suggestions( option, value );
  *
  * Initialize:
  *
- *		$( '#textbox' ).suggestions();
+ *  $( '#textbox' ).suggestions();
  *
  * Uses jQuery.suggestions singleton internally.
  *
  * @class jQuery.plugin.suggestions
  */
 
- // jscs:disable checkParamNames
 /**
  * @method suggestions
  * @chainable
@@ -94,9 +89,8 @@
  * @param {boolean} [options.highlightInput=false] Whether to highlight matched portions of the
  *  input or not.
  */
- // jscs:enable checkParamNames
 
-( function ( $, mw ) {
+( function () {
 
 	var hasOwn = Object.hasOwnProperty;
 
@@ -118,7 +112,7 @@
 			if ( context.data.timerID !== null ) {
 				clearTimeout( context.data.timerID );
 			}
-			if ( $.isFunction( context.config.cancel ) ) {
+			if ( typeof context.config.cancel === 'function' ) {
 				context.config.cancel.call( context.data.$textbox );
 			}
 		},
@@ -295,7 +289,7 @@
 									expandFrom = 'left';
 
 								// Catch invalid values, default to 'auto'
-								} else if ( $.inArray( expandFrom, [ 'left', 'right', 'start', 'end', 'auto' ] ) === -1 ) {
+								} else if ( [ 'left', 'right', 'start', 'end', 'auto' ].indexOf( expandFrom ) === -1 ) {
 									expandFrom = 'auto';
 								}
 
@@ -358,7 +352,7 @@
 									.addClass( 'suggestions-result' )
 									.attr( 'rel', i )
 									.data( 'text', context.config.suggestions[ i ] )
-									.mousemove( function () {
+									.on( 'mousemove', function () {
 										context.data.selectedWithMouse = true;
 										$.suggestions.highlight(
 											context,
@@ -495,7 +489,7 @@
 					context.data.$textbox.val( result.data( 'text' ) );
 					// .val() doesn't call any event handlers, so
 					// let the world know what happened
-					context.data.$textbox.change();
+					context.data.$textbox.trigger( 'change' );
 				}
 				context.data.$textbox.trigger( 'change' );
 			}
@@ -580,10 +574,8 @@
 
 	// See file header for method documentation
 	$.fn.suggestions = function () {
-
 		// Multi-context fields
-		var returnValue,
-			args = arguments;
+		var args = arguments;
 
 		$( this ).each( function () {
 			var context, key;
@@ -626,9 +618,6 @@
 					if ( args.length > 1 ) {
 						// Set property values
 						$.suggestions.configure( context, args[ 0 ], args[ 1 ] );
-					} else if ( returnValue === null || returnValue === undefined ) {
-						// Get property values, but don't give access to internal data - returns only the first
-						returnValue = ( args[ 0 ] in context.config ? undefined : context.config[ args[ 0 ] ] );
 					}
 				}
 			}
@@ -663,10 +652,10 @@
 							// Can't use click() because the container div is hidden when the
 							// textbox loses focus. Instead, listen for a mousedown followed
 							// by a mouseup on the same div.
-							.mousedown( function ( e ) {
+							.on( 'mousedown', function ( e ) {
 								context.data.mouseDownOn = $( e.target ).closest( '.suggestions-results .suggestions-result' );
 							} )
-							.mouseup( function ( e ) {
+							.on( 'mouseup', function ( e ) {
 								var $result = $( e.target ).closest( '.suggestions-results .suggestions-result' ),
 									$other = context.data.mouseDownOn;
 
@@ -684,11 +673,11 @@
 									// when done synchronously in at least Firefox 3.6 (T64858).
 									setTimeout( function () {
 										$.suggestions.hide( context );
-									}, 0 );
+									} );
 								}
 								// Always bring focus to the textbox, as that's probably where the user expects it
 								// if they were just typing.
-								context.data.$textbox.focus();
+								context.data.$textbox.trigger( 'focus' );
 							} )
 					)
 					.append(
@@ -696,10 +685,10 @@
 							// Can't use click() because the container div is hidden when the
 							// textbox loses focus. Instead, listen for a mousedown followed
 							// by a mouseup on the same div.
-							.mousedown( function ( e ) {
+							.on( 'mousedown', function ( e ) {
 								context.data.mouseDownOn = $( e.target ).closest( '.suggestions-special' );
 							} )
-							.mouseup( function ( e ) {
+							.on( 'mouseup', function ( e ) {
 								var $special = $( e.target ).closest( '.suggestions-special' ),
 									$other = context.data.mouseDownOn;
 
@@ -716,13 +705,13 @@
 									// when done synchronously in at least Firefox 3.6 (T64858).
 									setTimeout( function () {
 										$.suggestions.hide( context );
-									}, 0 );
+									} );
 								}
 								// Always bring focus to the textbox, as that's probably where the user expects it
 								// if they were just typing.
-								context.data.$textbox.focus();
+								context.data.$textbox.trigger( 'focus' );
 							} )
-							.mousemove( function ( e ) {
+							.on( 'mousemove', function ( e ) {
 								context.data.selectedWithMouse = true;
 								$.suggestions.highlight(
 									context, $( e.target ).closest( '.suggestions-special' ), false
@@ -734,16 +723,16 @@
 				$( this )
 					// Stop browser autocomplete from interfering
 					.attr( 'autocomplete', 'off' )
-					.keydown( function ( e ) {
+					.on( 'keydown', function ( e ) {
 						// Store key pressed to handle later
 						context.data.keypressed = e.which;
 						context.data.keypressedCount = 0;
 					} )
-					.keypress( function ( e ) {
+					.on( 'keypress', function ( e ) {
 						context.data.keypressedCount++;
 						$.suggestions.keypress( e, context, context.data.keypressed );
 					} )
-					.keyup( function ( e ) {
+					.on( 'keyup', function ( e ) {
 						// The keypress event is fired when a key is pressed down and that key normally
 						// produces a character value. We also want to handle some keys that don't
 						// produce a character value so we also attach to the keydown/keyup events.
@@ -755,16 +744,16 @@
 							27, // escape
 							13, // enter
 							46, // delete
-							8   // backspace
+							8 //   backspace
 						];
 						if ( context.data.keypressedCount === 0 &&
 							e.which === context.data.keypressed &&
-							$.inArray( e.which, allowed ) !== -1
+							allowed.indexOf( e.which ) !== -1
 						) {
 							$.suggestions.keypress( e, context, context.data.keypressed );
 						}
 					} )
-					.blur( function () {
+					.on( 'blur', function () {
 						// When losing focus because of a mousedown
 						// on a suggestion, don't hide the suggestions
 						if ( context.data.mouseDownOn.length > 0 ) {
@@ -778,7 +767,7 @@
 			// Store the context for next time
 			$( this ).data( 'suggestions-context', context );
 		} );
-		return returnValue !== undefined ? returnValue : $( this );
+		return this;
 	};
 
 	/**
@@ -786,4 +775,4 @@
 	 * @mixins jQuery.plugin.suggestions
 	 */
 
-}( jQuery, mediaWiki ) );
+}() );

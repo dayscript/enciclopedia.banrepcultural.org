@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\Shell\Shell;
+
 require __DIR__ . '/../Maintenance.php';
 
 class HHVMMakeRepo extends Maintenance {
@@ -95,15 +97,15 @@ class HHVMMakeRepo extends Maintenance {
 		print "Found " . count( $files ) . " files in " .
 			count( $dirs ) . " directories\n";
 
-		$tmpDir = wfTempDir() . '/mw-make-repo' . mt_rand( 0, 1<<31 );
+		$tmpDir = wfTempDir() . '/mw-make-repo' . mt_rand( 0, 1 << 31 );
 		if ( !mkdir( $tmpDir ) ) {
-			$this->error( 'Unable to create temporary directory', 1 );
+			$this->fatalError( 'Unable to create temporary directory' );
 		}
 		file_put_contents( "$tmpDir/file-list", implode( "\n", $files ) );
 
 		$hhvm = $this->getOption( 'hhvm', 'hhvm' );
 		$verbose = $this->getOption( 'verbose', 3 );
-		$cmd = wfEscapeShellArg(
+		$cmd = Shell::escape(
 			$hhvm,
 			'--hphp',
 			'--target', 'hhbc',
@@ -119,11 +121,11 @@ class HHVMMakeRepo extends Maintenance {
 		passthru( $cmd, $ret );
 		if ( $ret ) {
 			$this->cleanupTemp( $tmpDir );
-			$this->error( "Error: HHVM returned error code $ret", 1 );
+			$this->fatalError( "Error: HHVM returned error code $ret" );
 		}
 		if ( !rename( "$tmpDir/hhvm.hhbc", $this->getOption( 'output' ) ) ) {
 			$this->cleanupTemp( $tmpDir );
-			$this->error( "Error: unable to rename output file", 1 );
+			$this->fatalError( "Error: unable to rename output file" );
 		}
 		$this->cleanupTemp( $tmpDir );
 		return 0;
@@ -149,6 +151,7 @@ class HHVMMakeRepo extends Maintenance {
 			),
 			RecursiveIteratorIterator::LEAVES_ONLY
 		);
+		/** @var SplFileInfo $fileInfo */
 		foreach ( $iter as $file => $fileInfo ) {
 			if ( $fileInfo->isFile() ) {
 				$files[] = $file;
@@ -157,5 +160,5 @@ class HHVMMakeRepo extends Maintenance {
 	}
 }
 
-$maintClass = 'HHVMMakeRepo';
+$maintClass = HHVMMakeRepo::class;
 require RUN_MAINTENANCE_IF_MAIN;

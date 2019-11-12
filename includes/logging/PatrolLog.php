@@ -27,22 +27,21 @@
  * logs of patrol events
  */
 class PatrolLog {
+
 	/**
 	 * Record a log event for a change being patrolled
 	 *
 	 * @param int|RecentChange $rc Change identifier or RecentChange object
 	 * @param bool $auto Was this patrol event automatic?
-	 * @param User $user User performing the action or null to use $wgUser
-	 * @param string|string[] $tags Change tags to add to the patrol log entry
+	 * @param User|null $user User performing the action or null to use $wgUser
+	 * @param string|string[]|null $tags Change tags to add to the patrol log entry
 	 *   ($user should be able to add the specified tags before this is called)
 	 *
 	 * @return bool
 	 */
 	public static function record( $rc, $auto = false, User $user = null, $tags = null ) {
-		global $wgLogAutopatrol;
-
-		// do not log autopatrolled edits if setting disables it
-		if ( $auto && !$wgLogAutopatrol ) {
+		// Do not log autopatrol actions: T184485
+		if ( $auto ) {
 			return false;
 		}
 

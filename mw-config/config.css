@@ -10,7 +10,6 @@
 .config-block {
 	margin-top: 2em;
 	display: block;
-
 }
 
 .config-block-label {
@@ -172,6 +171,11 @@
 #config-live-log {
 	overflow: hidden;
 	min-width: 20em;
+}
+
+/* Hide empty live-log textarea */
+#config-live-log textarea:empty {
+	display: none;
 }
 
 /* tooltip styles */

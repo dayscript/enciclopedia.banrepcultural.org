@@ -45,10 +45,11 @@ class ExtensionProcessor implements Processor {
 		'MediaHandlers',
 		'PasswordPolicy',
 		'RateLimits',
+		'RawHtmlMessages',
+		'ReauthenticateTime',
 		'RecentChangesFlags',
 		'RemoveCredentialsBlacklist',
 		'RemoveGroups',
-		'ResourceLoaderLESSVars',
 		'ResourceLoaderSources',
 		'RevokePermissions',
 		'SessionProviders',
@@ -106,7 +107,7 @@ class ExtensionProcessor implements Processor {
 	];
 
 	/**
-	 * Things that are not 'attributes', but are not in
+	 * Things that are not 'attributes', and are not in
 	 * $globalSettings or $creditsAttributes.
 	 *
 	 * @var array
@@ -118,6 +119,7 @@ class ExtensionProcessor implements Processor {
 		'ResourceFileModulePaths',
 		'ResourceModules',
 		'ResourceModuleSkinStyles',
+		'QUnitTestModule',
 		'ExtensionMessagesFiles',
 		'MessagesDirs',
 		'type',
@@ -163,6 +165,11 @@ class ExtensionProcessor implements Processor {
 	protected $credits = [];
 
 	/**
+	 * @var array
+	 */
+	protected $config = [];
+
+	/**
 	 * Any thing else in the $info that hasn't
 	 * already been processed
 	 *
@@ -182,26 +189,40 @@ class ExtensionProcessor implements Processor {
 	 * @param string $path
 	 * @param array $info
 	 * @param int $version manifest_version for info
-	 * @return array
 	 */
 	public function extractInfo( $path, array $info, $version ) {
 		$dir = dirname( $path );
-		if ( $version === 2 ) {
-			$this->extractConfig2( $info, $dir );
-		} else {
-			// $version === 1
-			$this->extractConfig1( $info );
-		}
 		$this->extractHooks( $info );
 		$this->extractExtensionMessagesFiles( $dir, $info );
 		$this->extractMessagesDirs( $dir, $info );
 		$this->extractNamespaces( $info );
 		$this->extractResourceLoaderModules( $dir, $info );
-		$this->extractServiceWiringFiles( $dir, $info );
-		$this->extractParserTestFiles( $dir, $info );
+		if ( isset( $info['ServiceWiringFiles'] ) ) {
+			$this->extractPathBasedGlobal(
+				'wgServiceWiringFiles',
+				$dir,
+				$info['ServiceWiringFiles']
+			);
+		}
+		if ( isset( $info['ParserTestFiles'] ) ) {
+			$this->extractPathBasedGlobal(
+				'wgParserTestFiles',
+				$dir,
+				$info['ParserTestFiles']
+			);
+		}
 		$name = $this->extractCredits( $path, $info );
 		if ( isset( $info['callback'] ) ) {
 			$this->callbacks[$name] = $info['callback'];
+		}
+
+		// config should be after all core globals are extracted,
+		// so duplicate setting detection will work fully
+		if ( $version === 2 ) {
+			$this->extractConfig2( $info, $dir );
+		} else {
+			// $version === 1
+			$this->extractConfig1( $info );
 		}
 
 		if ( $version === 2 ) {
@@ -275,6 +296,7 @@ class ExtensionProcessor implements Processor {
 
 		return [
 			'globals' => $this->globals,
+			'config' => $this->config,
 			'defines' => $this->defines,
 			'callbacks' => $this->callbacks,
 			'credits' => $this->credits,
@@ -283,7 +305,7 @@ class ExtensionProcessor implements Processor {
 	}
 
 	public function getRequirements( array $info ) {
-		return isset( $info['requires'] ) ? $info['requires'] : [];
+		return $info['requires'] ?? [];
 	}
 
 	protected function extractHooks( array $info ) {
@@ -308,8 +330,15 @@ class ExtensionProcessor implements Processor {
 	protected function extractNamespaces( array $info ) {
 		if ( isset( $info['namespaces'] ) ) {
 			foreach ( $info['namespaces'] as $ns ) {
-				$id = $ns['id'];
-				$this->defines[$ns['constant']] = $id;
+				if ( defined( $ns['constant'] ) ) {
+					// If the namespace constant is already defined, use it.
+					// This allows namespace IDs to be overwritten locally.
+					$id = constant( $ns['constant'] );
+				} else {
+					$id = $ns['id'];
+					$this->defines[ $ns['constant'] ] = $id;
+				}
+
 				if ( !( isset( $ns['conditional'] ) && $ns['conditional'] ) ) {
 					// If it is not conditional, register it
 					$this->attributes['ExtensionNamespaces'][$id] = $ns['name'];
@@ -337,9 +366,7 @@ class ExtensionProcessor implements Processor {
 	}
 
 	protected function extractResourceLoaderModules( $dir, array $info ) {
-		$defaultPaths = isset( $info['ResourceFileModulePaths'] )
-			? $info['ResourceFileModulePaths']
-			: false;
+		$defaultPaths = $info['ResourceFileModulePaths'] ?? false;
 		if ( isset( $defaultPaths['localBasePath'] ) ) {
 			if ( $defaultPaths['localBasePath'] === '' ) {
 				// Avoid double slashes (e.g. /extensions/Example//path)
@@ -367,13 +394,27 @@ class ExtensionProcessor implements Processor {
 				}
 			}
 		}
+
+		if ( isset( $info['QUnitTestModule'] ) ) {
+			$data = $info['QUnitTestModule'];
+			if ( isset( $data['localBasePath'] ) ) {
+				if ( $data['localBasePath'] === '' ) {
+					// Avoid double slashes (e.g. /extensions/Example//path)
+					$data['localBasePath'] = $dir;
+				} else {
+					$data['localBasePath'] = "$dir/{$data['localBasePath']}";
+				}
+			}
+			$this->attributes['QUnitTestModules']["test.{$info['name']}"] = $data;
+		}
 	}
 
 	protected function extractExtensionMessagesFiles( $dir, array $info ) {
 		if ( isset( $info['ExtensionMessagesFiles'] ) ) {
-			$this->globals["wgExtensionMessagesFiles"] += array_map( function( $file ) use ( $dir ) {
-				return "$dir/$file";
-			}, $info['ExtensionMessagesFiles'] );
+			foreach ( $info['ExtensionMessagesFiles'] as &$file ) {
+				$file = "$dir/$file";
+			}
+			$this->globals["wgExtensionMessagesFiles"] += $info['ExtensionMessagesFiles'];
 		}
 	}
 
@@ -403,7 +444,7 @@ class ExtensionProcessor implements Processor {
 	protected function extractCredits( $path, array $info ) {
 		$credits = [
 			'path' => $path,
-			'type' => isset( $info['type'] ) ? $info['type'] : 'other',
+			'type' => $info['type'] ?? 'other',
 		];
 		foreach ( self::$creditsAttributes as $attr ) {
 			if ( isset( $info[$attr] ) ) {
@@ -443,7 +484,7 @@ class ExtensionProcessor implements Processor {
 			}
 			foreach ( $info['config'] as $key => $val ) {
 				if ( $key[0] !== '@' ) {
-					$this->globals["$prefix$key"] = $val;
+					$this->addConfigGlobal( "$prefix$key", $val, $info['name'] );
 				}
 			}
 		}
@@ -457,11 +498,7 @@ class ExtensionProcessor implements Processor {
 	 * @param string $dir
 	 */
 	protected function extractConfig2( array $info, $dir ) {
-		if ( isset( $info['config_prefix'] ) ) {
-			$prefix = $info['config_prefix'];
-		} else {
-			$prefix = 'wg';
-		}
+		$prefix = $info['config_prefix'] ?? 'wg';
 		if ( isset( $info['config'] ) ) {
 			foreach ( $info['config'] as $key => $data ) {
 				$value = $data['value'];
@@ -471,24 +508,35 @@ class ExtensionProcessor implements Processor {
 				if ( isset( $data['path'] ) && $data['path'] ) {
 					$value = "$dir/$value";
 				}
-				$this->globals["$prefix$key"] = $value;
+				$this->addConfigGlobal( "$prefix$key", $value, $info['name'] );
+				$data['providedby'] = $info['name'];
+				if ( isset( $info['ConfigRegistry'][0] ) ) {
+					$data['configregistry'] = array_keys( $info['ConfigRegistry'] )[0];
+				}
+				$this->config[$key] = $data;
 			}
 		}
 	}
 
-	protected function extractServiceWiringFiles( $dir, array $info ) {
-		if ( isset( $info['ServiceWiringFiles'] ) ) {
-			foreach ( $info['ServiceWiringFiles'] as $path ) {
-				$this->globals['wgServiceWiringFiles'][] = "$dir/$path";
-			}
+	/**
+	 * Helper function to set a value to a specific global, if it isn't set already.
+	 *
+	 * @param string $key The config key with the prefix and anything
+	 * @param mixed $value The value of the config
+	 * @param string $extName Name of the extension
+	 */
+	private function addConfigGlobal( $key, $value, $extName ) {
+		if ( array_key_exists( $key, $this->globals ) ) {
+			throw new RuntimeException(
+				"The configuration setting '$key' was already set by MediaWiki core or"
+				. " another extension, and cannot be set again by $extName." );
 		}
+		$this->globals[$key] = $value;
 	}
 
-	protected function extractParserTestFiles( $dir, array $info ) {
-		if ( isset( $info['ParserTestFiles'] ) ) {
-			foreach ( $info['ParserTestFiles'] as $path ) {
-				$this->globals['wgParserTestFiles'][] = "$dir/$path";
-			}
+	protected function extractPathBasedGlobal( $global, $dir, $paths ) {
+		foreach ( $paths as $path ) {
+			$this->globals[$global][] = "$dir/$path";
 		}
 	}
 
@@ -513,10 +561,7 @@ class ExtensionProcessor implements Processor {
 	public function getExtraAutoloaderPaths( $dir, array $info ) {
 		$paths = [];
 		if ( isset( $info['load_composer_autoloader'] ) && $info['load_composer_autoloader'] === true ) {
-			$path = "$dir/vendor/autoload.php";
-			if ( file_exists( $path ) ) {
-				$paths[] = $path;
-			}
+			$paths[] = "$dir/vendor/autoload.php";
 		}
 		return $paths;
 	}

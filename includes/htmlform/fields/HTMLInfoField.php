@@ -22,7 +22,7 @@ class HTMLInfoField extends HTMLFormField {
 	public function getDefault() {
 		$default = parent::getDefault();
 		if ( $default instanceof Closure ) {
-			$default = call_user_func( $default, $this->mParams );
+			$default = $default( $this->mParams );
 		}
 		return $default;
 	}
@@ -73,6 +73,23 @@ class HTMLInfoField extends HTMLFormField {
 		}
 
 		return parent::getRaw( $value );
+	}
+
+	/**
+	 * @param mixed $value
+	 * @return OOUI\FieldLayout
+	 * @since 1.32
+	 */
+	public function getOOUI( $value ) {
+		if ( !empty( $this->mParams['rawrow'] ) ) {
+			if ( !( $value instanceof OOUI\FieldLayout ) ) {
+				wfDeprecated( "'default' parameter as a string when using 'rawrow' " .
+					"(must be a FieldLayout or subclass)", '1.32' );
+			}
+			return $value;
+		}
+
+		return parent::getOOUI( $value );
 	}
 
 	protected function needsLabel() {

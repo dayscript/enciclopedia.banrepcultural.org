@@ -18,12 +18,18 @@ class SVGMetadataExtractorTest extends MediaWikiTestCase {
 	 */
 	public function testGetXMLMetadata( $infile, $expected ) {
 		$r = new XMLReader();
-		if ( !method_exists( $r, 'readInnerXML' ) ) {
-			$this->markTestSkipped( 'XMLReader::readInnerXML() does not exist (libxml >2.6.20 needed).' );
-
-			return;
-		}
 		$this->assertMetadata( $infile, $expected );
+	}
+
+	/**
+	 * @dataProvider provideSvgUnits
+	 */
+	public function testScaleSVGUnit( $inUnit, $expected ) {
+		$this->assertEquals(
+			$expected,
+			SVGReader::scaleSVGUnit( $inUnit ),
+			'SVG unit conversion and scaling failure'
+		);
 	}
 
 	function assertMetadata( $infile, $expected ) {
@@ -123,19 +129,29 @@ class SVGMetadataExtractorTest extends MediaWikiTestCase {
 					'translations' => []
 				],
 			],
+			[
+				"$base/comma_separated_viewbox.svg",
+				[
+					'width' => 512,
+					'height' => 594,
+					'originalWidth' => '100%',
+					'originalHeight' => '100%',
+					'translations' => []
+				],
+			],
 		];
 	}
 
 	public static function provideSvgFilesWithXMLMetadata() {
 		$base = __DIR__ . '/../../data/media';
-		// @codingStandardsIgnoreStart Ignore Generic.Files.LineLength.TooLong
+		// phpcs:disable Generic.Files.LineLength
 		$metadata = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
       <ns4:Work xmlns:ns4="http://creativecommons.org/ns#" rdf:about="">
         <ns5:format xmlns:ns5="http://purl.org/dc/elements/1.1/">image/svg+xml</ns5:format>
         <ns5:type xmlns:ns5="http://purl.org/dc/elements/1.1/" rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
       </ns4:Work>
     </rdf:RDF>';
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 
 		$metadata = str_replace( "\r", '', $metadata ); // Windows compat
 		return [
@@ -150,6 +166,36 @@ class SVGMetadataExtractorTest extends MediaWikiTestCase {
 					'translations' => [],
 				]
 			],
+		];
+	}
+
+	public static function provideSvgUnits() {
+		return [
+			[ '1' , 1 ],
+			[ '1.1' , 1.1 ],
+			[ '0.1' , 0.1 ],
+			[ '.1' , 0.1 ],
+			[ '1e2' , 100 ],
+			[ '1E2' , 100 ],
+			[ '+1' , 1 ],
+			[ '-1' , -1 ],
+			[ '-1.1' , -1.1 ],
+			[ '1e+2' , 100 ],
+			[ '1e-2' , 0.01 ],
+			[ '10px' , 10 ],
+			[ '10pt' , 10 * 1.25 ],
+			[ '10pc' , 10 * 15 ],
+			[ '10mm' , 10 * 3.543307 ],
+			[ '10cm' , 10 * 35.43307 ],
+			[ '10in' , 10 * 90 ],
+			[ '10em' , 10 * 16 ],
+			[ '10ex' , 10 * 12 ],
+			[ '10%' , 51.2 ],
+			[ '10 px' , 10 ],
+			// Invalid values
+			[ '1e1.1', 10 ],
+			[ '10bp', 10 ],
+			[ 'p10', null ],
 		];
 	}
 }

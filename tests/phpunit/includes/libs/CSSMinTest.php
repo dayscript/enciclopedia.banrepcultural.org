@@ -1,17 +1,18 @@
 <?php
-/**
- * This file test the CSSMin library shipped with Mediawiki.
- *
- * @author Timo Tijhof
- */
 
+use Wikimedia\TestingAccessWrapper;
+
+/**
+ * @group ResourceLoader
+ * @group CSSMin
+ */
 class CSSMinTest extends MediaWikiTestCase {
 
 	protected function setUp() {
 		parent::setUp();
 
-		$server = 'http://doc.example.org';
-
+		// For wfExpandUrl
+		$server = 'https://expand.example';
 		$this->setMwGlobals( [
 			'wgServer' => $server,
 			'wgCanonicalServer' => $server,
@@ -19,7 +20,69 @@ class CSSMinTest extends MediaWikiTestCase {
 	}
 
 	/**
-	 * @dataProvider mimeTypeProvider
+	 * @dataProvider providesReferencedFiles
+	 * @covers CSSMin::getLocalFileReferences
+	 */
+	public function testGetLocalFileReferences( $input, $expected ) {
+		$output = CSSMin::getLocalFileReferences( $input, '/' );
+		$this->assertEquals(
+			$expected,
+			$output,
+			'getLocalFileReferences() must find the local file properly'
+		);
+	}
+
+	public static function providesReferencedFiles() {
+		// input, array of expected local file names
+		return [
+			[ 'url("//example.org")', [] ],
+			[ 'url("https://example.org")', [] ],
+			[ 'url("#default#")', [] ],
+			[ 'url("WikiFont-Glyphs.svg#wikiglyph")', [ '/WikiFont-Glyphs.svg' ] ],
+			[ 'url("#some-anchor")', [] ],
+		];
+	}
+
+	/**
+	 * @dataProvider provideSerializeStringValue
+	 * @covers CSSMin::serializeStringValue
+	 */
+	public function testSerializeStringValue( $input, $expected ) {
+		$output = CSSMin::serializeStringValue( $input );
+		$this->assertEquals(
+			$expected,
+			$output,
+			'Serialized output must be in the expected form.'
+		);
+	}
+
+	public static function provideSerializeStringValue() {
+		return [
+			[ 'Hello World!', '"Hello World!"' ],
+			[ "Null\0Null", "\"Null\u{FFFD}Null\"" ],
+			[ '"', '"\\""' ],
+			[ "'", '"\'"' ],
+			[ "\\", '"\\\\"' ],
+			[ "Tab\tTab", '"Tab\\9 Tab"' ],
+			[ "Space  tab \t space", '"Space  tab \\9  space"' ],
+			[ "Line\nfeed", '"Line\\a feed"' ],
+			[ "Return\rreturn", '"Return\\d return"' ],
+			[ "Next\u{0085}line", "\"Next\u{0085}line\"" ],
+			[ "Del\x7fDel", '"Del\\7f Del"' ],
+			[ "nb\u{00A0}sp", "\"nb\u{00A0}sp\"" ],
+			[ "AMP&amp;AMP", "\"AMP&amp;AMP\"" ],
+			[ '!"#$%&\'()*+,-./0123456789:;<=>?', '"!\\"#$%&\'()*+,-./0123456789:;<=>?"' ],
+			[ '@[\\]^_`{|}~', '"@[\\\\]^_`{|}~"' ],
+			[ 'ä', '"ä"' ],
+			[ 'Ä', '"Ä"' ],
+			[ '€', '"€"' ],
+			[ '𝒞', '"𝒞"' ], // U+1D49E 'MATHEMATICAL SCRIPT CAPITAL C'
+		];
+	}
+
+	/**
+	 * @dataProvider provideMimeType
+	 * @covers CSSMin::getMimeType
 	 */
 	public function testGetMimeType( $fileContents, $fileExtension, $expected ) {
 		$fileName = wfTempDir() . DIRECTORY_SEPARATOR . uniqid( 'MW_PHPUnit_CSSMinTest_' ) . '.'
@@ -29,7 +92,7 @@ class CSSMinTest extends MediaWikiTestCase {
 		$this->assertSame( $expected, CSSMin::getMimeType( $fileName ) );
 	}
 
-	public function mimeTypeProvider() {
+	public static function provideMimeType() {
 		return [
 			'JPEG with short extension' => [
 				"\xFF\xD8\xFF",
@@ -144,15 +207,69 @@ class CSSMinTest extends MediaWikiTestCase {
 			[ "foo { content: '\"'; }", "foo{content:'\"'}" ],
 			// - Whitespace in string values
 			[ 'foo { content: " "; }', 'foo{content:" "}' ],
+
+			// Whitespaces after opening and before closing parentheses and brackets
+			[ 'a:not( [ href ] ) { prop: url( foobar.png ); }', 'a:not([href]){prop:url(foobar.png)}' ],
+
+			// Ensure that the invalid "url (" will not become the valid "url(" by minification
+			[ 'foo { prop: url ( foobar.png ); }', 'foo{prop:url (foobar.png)}' ],
+		];
+	}
+
+	public static function provideIsRemoteUrl() {
+		return [
+			[ true, 'http://localhost/w/red.gif?123' ],
+			[ true, 'https://example.org/x.png' ],
+			[ true, '//example.org/x.y.z/image.png' ],
+			[ true, '//localhost/styles.css?query=yes' ],
+			[ true, 'data:image/gif;base64,R0lGODlhAQABAIAAAP8AADAAACwAAAAAAQABAAACAkQBADs=' ],
+			[ false, '' ],
+			[ false, '/' ],
+			[ true, '//' ],
+			[ false, 'x.gif' ],
+			[ false, '/x.gif' ],
+			[ false, './x.gif' ],
+			[ false, '../x.gif' ],
 		];
 	}
 
 	/**
-	 * This tests funky parameters to CSSMin::remap. testRemapRemapping tests
-	 * the basic functionality.
+	 * @dataProvider provideIsRemoteUrl
+	 * @covers CSSMin::isRemoteUrl
+	 */
+	public function testIsRemoteUrl( $expect, $url ) {
+		$class = TestingAccessWrapper::newFromClass( CSSMin::class );
+		$this->assertEquals( $class->isRemoteUrl( $url ), $expect );
+	}
+
+	public static function provideIsLocalUrls() {
+		return [
+			[ false, '' ],
+			[ false, '/' ],
+			[ false, '//' ],
+			[ false, 'x.gif' ],
+			[ true, '/x.gif' ],
+			[ false, './x.gif' ],
+			[ false, '../x.gif' ],
+		];
+	}
+
+	/**
+	 * @dataProvider provideIsLocalUrls
+	 * @covers CSSMin::isLocalUrl
+	 */
+	public function testIsLocalUrl( $expect, $url ) {
+		$class = TestingAccessWrapper::newFromClass( CSSMin::class );
+		$this->assertEquals( $class->isLocalUrl( $url ), $expect );
+	}
+
+	/**
+	 * This test tests funky parameters to CSSMin::remap.
 	 *
+	 * @see testRemapRemapping for testing of the basic functionality
 	 * @dataProvider provideRemapCases
 	 * @covers CSSMin::remap
+	 * @covers CSSMin::remapOne
 	 */
 	public function testRemap( $message, $params, $expectedOutput ) {
 		$remapped = call_user_func_array( 'CSSMin::remap', $params );
@@ -192,16 +309,66 @@ class CSSMinTest extends MediaWikiTestCase {
 			[
 				'Expand absolute paths',
 				[ 'foo { prop: url(/w/skin/images/bar.png); }', false, 'http://example.org/quux', false ],
-				'foo { prop: url(http://doc.example.org/w/skin/images/bar.png); }',
+				'foo { prop: url(https://expand.example/w/skin/images/bar.png); }',
+			],
+			[
+				"Don't barf at behavior: url(#default#behaviorName) - T162973",
+				[ 'foo { behavior: url(#default#bar); }', false, '/w/', false ],
+				'foo { behavior: url("#default#bar"); }',
+			],
+			[
+				'Keeps anchors',
+				[ 'url(#other)', false, '/', false ],
+				'url("#other")'
+			],
+			[
+				'Keeps anchors after a path',
+				[ 'url(images/file.svg#id)', false, '/', false ],
+				'url("/images/file.svg#id")'
 			],
 		];
 	}
 
 	/**
-	 * This tests basic functionality of CSSMin::remap. testRemapRemapping tests funky parameters.
+	 * Cases with empty url() for CSSMin::remap.
 	 *
+	 * Regression test for T191237.
+   *
+	 * @dataProvider provideRemapEmptyUrl
+	 * @covers CSSMin
+	 */
+	public function testRemapEmptyUrl( $params, $expected ) {
+		$remapped = call_user_func_array( 'CSSMin::remap', $params );
+		$this->assertEquals( $expected, $remapped, 'Ignore empty url' );
+	}
+
+	public static function provideRemapEmptyUrl() {
+		return [
+			'Empty' => [
+				[ "background-image: url();", false, '/example', false ],
+				"background-image: url();",
+			],
+			'Single quote' => [
+				[ "background-image: url('');", false, '/example', false ],
+				"background-image: url('');",
+			],
+			'Double quote' => [
+				[ 'background-image: url("");', false, '/example', false ],
+				'background-image: url("");',
+			],
+			'Single quote with outer spacing' => [
+				[ "background-image: url( '' );", false, '/example', false ],
+				"background-image: url( '' );",
+			],
+		];
+	}
+
+	/**
+	 * This tests the basic functionality of CSSMin::remap.
+	 *
+	 * @see testRemap for testing of funky parameters
 	 * @dataProvider provideRemapRemappingCases
-	 * @covers CSSMin::remap
+	 * @covers CSSMin
 	 */
 	public function testRemapRemapping( $message, $input, $expectedOutput ) {
 		$localPath = __DIR__ . '/../../data/cssmin';
@@ -209,45 +376,6 @@ class CSSMinTest extends MediaWikiTestCase {
 
 		$realOutput = CSSMin::remap( $input, $localPath, $remotePath );
 		$this->assertEquals( $expectedOutput, $realOutput, "CSSMin::remap: $message" );
-	}
-
-	public static function provideIsRemoteUrl() {
-		return [
-			[ true, 'http://localhost/w/red.gif?123' ],
-			[ true, 'https://example.org/x.png' ],
-			[ true, '//example.org/x.y.z/image.png' ],
-			[ true, '//localhost/styles.css?query=yes' ],
-			[ true, 'data:image/gif;base64,R0lGODlhAQABAIAAAP8AADAAACwAAAAAAQABAAACAkQBADs=' ],
-			[ false, 'x.gif' ],
-			[ false, '/x.gif' ],
-			[ false, './x.gif' ],
-			[ false, '../x.gif' ],
-		];
-	}
-
-	/**
-	 * @dataProvider provideIsRemoteUrl
-	 * @cover CSSMin::isRemoteUrl
-	 */
-	public function testIsRemoteUrl( $expect, $url ) {
-		$this->assertEquals( CSSMinTestable::isRemoteUrl( $url ), $expect );
-	}
-
-	public static function provideIsLocalUrls() {
-		return [
-			[ false, 'x.gif' ],
-			[ true, '/x.gif' ],
-			[ false, './x.gif' ],
-			[ false, '../x.gif' ],
-		];
-	}
-
-	/**
-	 * @dataProvider provideIsLocalUrls
-	 * @cover CSSMin::isLocalUrl
-	 */
-	public function testIsLocalUrl( $expect, $url ) {
-		$this->assertEquals( CSSMinTestable::isLocalUrl( $url ), $expect );
 	}
 
 	public static function provideRemapRemappingCases() {
@@ -259,11 +387,12 @@ class CSSMinTest extends MediaWikiTestCase {
 		// data: URIs for red.gif, green.gif, circle.svg
 		$red   = 'data:image/gif;base64,R0lGODlhAQABAIAAAP8AADAAACwAAAAAAQABAAACAkQBADs=';
 		$green = 'data:image/gif;base64,R0lGODlhAQABAIAAAACAADAAACwAAAAAAQABAAACAkQBADs=';
-		$svg = 'data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%0A'
-			. '%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D'
-			. '%228%22%3E%0A%3Ccircle%20cx%3D%224%22%20cy%3D%224%22%20r%3D%222%22%2F%3E%0A%3C%2Fsvg%3E%0A';
+		$svg = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%228'
+			. '%22 height=%228%22 viewBox=%220 0 8 8%22%3E %3Ccircle cx=%224%22 cy=%224%22 '
+			. 'r=%222%22/%3E %3Ca xmlns:xlink=%22http://www.w3.org/1999/xlink%22 xlink:title='
+			. '%22%3F%3E%22%3Etest%3C/a%3E %3C/svg%3E';
 
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'Regular file',
@@ -298,17 +427,22 @@ class CSSMinTest extends MediaWikiTestCase {
 			[
 				'Domain-relative URL',
 				'foo { background: url(/static/foo.png); }',
-				'foo { background: url(http://doc.example.org/static/foo.png); }',
+				'foo { background: url(https://expand.example/static/foo.png); }',
 			],
 			[
 				'Domain-relative URL with query',
 				'foo { background: url(/static/foo.png?query=yes); }',
-				'foo { background: url(http://doc.example.org/static/foo.png?query=yes); }',
+				'foo { background: url(https://expand.example/static/foo.png?query=yes); }',
+			],
+			[
+				'Path-relative URL with query',
+				"foo { background: url(?query=yes); }",
+				'foo { background: url(http://localhost/w/?query=yes); }',
 			],
 			[
 				'Remote URL (unnecessary quotes not preserved)',
-				'foo { background: url("http://example.org/w/foo.png"); }',
-				'foo { background: url(http://example.org/w/foo.png); }',
+				'foo { background: url("http://example.org/w/unnecessary-quotes.png"); }',
+				'foo { background: url(http://example.org/w/unnecessary-quotes.png); }',
 			],
 			[
 				'Embedded file',
@@ -349,7 +483,7 @@ class CSSMinTest extends MediaWikiTestCase {
 			[
 				'SVG files are embedded without base64 encoding and unnecessary IE 6 and 7 fallback',
 				'foo { /* @embed */ background: url(circle.svg); }',
-				"foo { background: url($svg); }",
+				"foo { background: url(\"$svg\"); }",
 			],
 			[
 				'Two regular files in one rule',
@@ -407,12 +541,52 @@ class CSSMinTest extends MediaWikiTestCase {
 			[
 				'@import rule to local file (should we remap this?)',
 				'@import url(/styles.css)',
-				'@import url(http://doc.example.org/styles.css)',
+				'@import url(https://expand.example/styles.css)',
 			],
 			[
-				'@import rule to URL (should we remap this?)',
-				'@import url(//localhost/styles.css?query=yes)',
-				'@import url(//localhost/styles.css?query=yes)',
+				'@import rule to local file (should we remap this?)',
+				'@import url(/styles.css)',
+				'@import url(https://expand.example/styles.css)',
+			],
+			[
+				'@import rule to URL',
+				'@import url(//localhost/styles.css?query=val)',
+				'@import url(//localhost/styles.css?query=val)',
+			],
+			[
+				'Background URL (double quotes)',
+				'foo { background: url("//localhost/styles.css?quoted=double") }',
+				'foo { background: url(//localhost/styles.css?quoted=double) }',
+			],
+			[
+				'Background URL (single quotes)',
+				'foo { background: url(\'//localhost/styles.css?quoted=single\') }',
+				'foo { background: url(//localhost/styles.css?quoted=single) }',
+			],
+			[
+				'Background URL (double quoted, containing parentheses; T60473)',
+				'foo { background: url("//localhost/styles.css?query=(parens)") }',
+				'foo { background: url("//localhost/styles.css?query=(parens)") }',
+			],
+			[
+				'Background URL (double quoted, containing single quotes; T60473)',
+				'foo { background: url("//localhost/styles.css?quote=\'") }',
+				'foo { background: url("//localhost/styles.css?quote=\'") }',
+			],
+			[
+				'Background URL (single quoted, containing double quotes; T60473)',
+				'foo { background: url(\'//localhost/styles.css?quote="\') }',
+				'foo { background: url("//localhost/styles.css?quote=\"") }',
+			],
+			[
+				'Background URL (double quoted with outer spacing)',
+				'foo { background: url( "http://localhost/styles.css?quoted=double" ) }',
+				'foo { background: url(http://localhost/styles.css?quoted=double) }',
+			],
+			[
+				'Background URL (single quoted, containing spaces, with outer spacing)',
+				"foo { background: url( ' red.gif ' ); }",
+				'foo { background: url("http://localhost/w/ red.gif "); }',
 			],
 			[
 				'Simple case with comments before url',
@@ -450,7 +624,7 @@ class CSSMinTest extends MediaWikiTestCase {
 				'.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default { border: 1px solid #d3d3d3/*{borderColorDefault}*/; background: #e6e6e6/*{bgColorDefault}*/ url(http://localhost/w/images/ui-bg_glass_75_e6e6e6_1x400.png)/*{bgImgUrlDefault}*/ 50%/*{bgDefaultXPos}*/ 50%/*{bgDefaultYPos}*/ repeat-x/*{bgDefaultRepeat}*/; font-weight: normal/*{fwDefault}*/; color: #555555/*{fcDefault}*/; }',
 			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
@@ -493,7 +667,7 @@ class CSSMinTest extends MediaWikiTestCase {
 	}
 
 	/**
-	 * Seperated because they are currently broken (T37492)
+	 * Separated because they are currently broken (T37492)
 	 *
 	 * @group Broken
 	 * @dataProvider provideStringCases
@@ -516,15 +690,5 @@ class CSSMinTest extends MediaWikiTestCase {
 				'foo::after{content:"{;}";position:absolute}'
 			],
 		];
-	}
-}
-
-class CSSMinTestable extends CSSMin {
-	// Make some protected methods public
-	public static function isRemoteUrl( $maybeUrl ) {
-		return parent::isRemoteUrl( $maybeUrl );
-	}
-	public static function isLocalUrl( $maybeUrl ) {
-		return parent::isLocalUrl( $maybeUrl );
 	}
 }

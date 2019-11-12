@@ -42,6 +42,10 @@ class MarkpatrolledAction extends FormAction {
 		return 'patrol';
 	}
 
+	protected function usesOOUI() {
+		return true;
+	}
+
 	protected function getRecentChange( $data = null ) {
 		$rc = null;
 		// Note: This works both on initial GET url and after submitting the form
@@ -85,6 +89,7 @@ class MarkpatrolledAction extends FormAction {
 	}
 
 	/**
+	 * @param array $data
 	 * @return bool|array True for success, false for didn't-try, array of errors on failure
 	 */
 	public function onSubmit( $data ) {

@@ -30,6 +30,8 @@ define( 'MW_PARSER_TEST', true );
 
 require __DIR__ . '/../../maintenance/Maintenance.php';
 
+use MediaWiki\MediaWikiServices;
+
 class ParserTestsMaintenance extends Maintenance {
 	function __construct() {
 		parent::__construct();
@@ -59,7 +61,8 @@ class ParserTestsMaintenance extends Maintenance {
 			'conjunction with --keep-uploads. Causes a real (non-mock) file backend to ' .
 			'be used.', false, true );
 		$this->addOption( 'run-disabled', 'run disabled tests' );
-		$this->addOption( 'run-parsoid', 'run parsoid tests (normally disabled)' );
+		$this->addOption( 'disable-save-parse', 'Don\'t run the parser when ' .
+			'inserting articles into the database' );
 		$this->addOption( 'dwdiff', 'Use dwdiff to display diff output' );
 		$this->addOption( 'mark-ws', 'Mark whitespace in diffs by replacing it with symbols' );
 		$this->addOption( 'norm', 'Apply a comma-separated list of normalization functions to ' .
@@ -80,7 +83,7 @@ class ParserTestsMaintenance extends Maintenance {
 	}
 
 	public function execute() {
-		global $wgParserTestFiles, $wgDBtype;
+		global $wgDBtype;
 
 		// Cases of weird db corruption were encountered when running tests on earlyish
 		// versions of SQLite
@@ -145,7 +148,8 @@ class ParserTestsMaintenance extends Maintenance {
 
 		$recorderLB = false;
 		if ( $record || $compare ) {
-			$recorderLB = wfGetLBFactory()->newMainLB();
+			$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
+			$recorderLB = $lbFactory->newMainLB();
 			// This connection will have the wiki's table prefix, not parsertest_
 			$recorderDB = $recorderLB->getConnection( DB_MASTER );
 
@@ -167,7 +171,7 @@ class ParserTestsMaintenance extends Maintenance {
 		}
 
 		// Default parser tests and any set from extensions or local config
-		$files = $this->getOption( 'file', $wgParserTestFiles );
+		$files = $this->getOption( 'file', ParserTestRunner::getParserTestFiles() );
 
 		$norm = $this->hasOption( 'norm' ) ? explode( ',', $this->getOption( 'norm' ) ) : [];
 
@@ -176,7 +180,7 @@ class ParserTestsMaintenance extends Maintenance {
 			'regex' => $regex,
 			'keep-uploads' => $this->hasOption( 'keep-uploads' ),
 			'run-disabled' => $this->hasOption( 'run-disabled' ),
-			'run-parsoid' => $this->hasOption( 'run-parsoid' ),
+			'disable-save-parse' => $this->hasOption( 'disable-save-parse' ),
 			'use-tidy-config' => $this->hasOption( 'use-tidy-config' ),
 			'file-backend' => $this->getOption( 'file-backend' ),
 			'upload-dir' => $this->getOption( 'upload-dir' ),

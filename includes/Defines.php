@@ -22,7 +22,6 @@
 
 require_once __DIR__ . '/libs/mime/defines.php';
 require_once __DIR__ . '/libs/rdbms/defines.php';
-require_once __DIR__ . '/compat/normal/UtfNormalDefines.php';
 
 use Wikimedia\Rdbms\IDatabase;
 
@@ -31,6 +30,9 @@ use Wikimedia\Rdbms\IDatabase;
  */
 
 # Obsolete aliases
+/**
+ * @deprecated since 1.28, use DB_REPLICA instead
+ */
 define( 'DB_SLAVE', -1 );
 
 /**@{
@@ -57,7 +59,7 @@ define( 'NS_SPECIAL', -1 );
  * Number 100 and beyond are reserved for custom namespaces;
  * DO NOT assign standard namespaces at 100 or beyond.
  * DO NOT Change integer values as they are most probably hardcoded everywhere
- * see bug #696 which talked about that.
+ * see T2696 which talked about that.
  */
 define( 'NS_MAIN', 0 );
 define( 'NS_TALK', 1 );
@@ -100,7 +102,7 @@ define( 'CACHE_ANYTHING', -1 );  // Use anything, as long as it works
 define( 'CACHE_NONE', 0 );       // Do not cache
 define( 'CACHE_DB', 1 );         // Store cache objects in the DB
 define( 'CACHE_MEMCACHED', 2 );  // MemCached, must specify servers in $wgMemCacheServers
-define( 'CACHE_ACCEL', 3 );      // APC, XCache or WinCache
+define( 'CACHE_ACCEL', 3 );      // APC or WinCache
 /**@}*/
 
 /**@{
@@ -266,4 +268,62 @@ define( 'CONTENT_FORMAT_XML', 'application/xml' );
  * Max string length for shell invocations; based on binfmts.h
  */
 define( 'SHELL_MAX_ARG_STRLEN', '100000' );
+/**@}*/
+
+/**@{
+ * Schema compatibility flags.
+ *
+ * Used as flags in a bit field that indicates whether the old or new schema (or both)
+ * are read or written.
+ *
+ * - SCHEMA_COMPAT_WRITE_OLD: Whether information is written to the old schema.
+ * - SCHEMA_COMPAT_READ_OLD: Whether information stored in the old schema is read.
+ * - SCHEMA_COMPAT_WRITE_NEW: Whether information is written to the new schema.
+ * - SCHEMA_COMPAT_READ_NEW: Whether information stored in the new schema is read.
+ */
+define( 'SCHEMA_COMPAT_WRITE_OLD', 0x01 );
+define( 'SCHEMA_COMPAT_READ_OLD', 0x02 );
+define( 'SCHEMA_COMPAT_WRITE_NEW', 0x10 );
+define( 'SCHEMA_COMPAT_READ_NEW', 0x20 );
+define( 'SCHEMA_COMPAT_WRITE_BOTH', SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_WRITE_NEW );
+define( 'SCHEMA_COMPAT_READ_BOTH', SCHEMA_COMPAT_READ_OLD | SCHEMA_COMPAT_READ_NEW );
+define( 'SCHEMA_COMPAT_OLD', SCHEMA_COMPAT_WRITE_OLD | SCHEMA_COMPAT_READ_OLD );
+define( 'SCHEMA_COMPAT_NEW', SCHEMA_COMPAT_WRITE_NEW | SCHEMA_COMPAT_READ_NEW );
+/**@}*/
+
+/**@{
+ * Schema change migration flags.
+ *
+ * Used as values of a feature flag for an orderly transition from an old
+ * schema to a new schema. The numeric values of these constants are compatible with the
+ * SCHEMA_COMPAT_XXX bitfield semantics. High bits are used to ensure that the numeric
+ * ordering follows the order in which the migration stages should be used.
+ *
+ * - MIGRATION_OLD: Only read and write the old schema. The new schema need not
+ *   even exist. This is used from when the patch is merged until the schema
+ *   change is actually applied to the database.
+ * - MIGRATION_WRITE_BOTH: Write both the old and new schema. Read the new
+ *   schema preferentially, falling back to the old. This is used while the
+ *   change is being tested, allowing easy roll-back to the old schema.
+ * - MIGRATION_WRITE_NEW: Write only the new schema. Read the new schema
+ *   preferentially, falling back to the old. This is used while running the
+ *   maintenance script to migrate existing entries in the old schema to the
+ *   new schema.
+ * - MIGRATION_NEW: Only read and write the new schema. The old schema (and the
+ *   feature flag) may now be removed.
+ */
+define( 'MIGRATION_OLD', 0x00000000 | SCHEMA_COMPAT_OLD );
+define( 'MIGRATION_WRITE_BOTH', 0x10000000 | SCHEMA_COMPAT_READ_BOTH | SCHEMA_COMPAT_WRITE_BOTH );
+define( 'MIGRATION_WRITE_NEW', 0x20000000 | SCHEMA_COMPAT_READ_BOTH | SCHEMA_COMPAT_WRITE_NEW );
+define( 'MIGRATION_NEW', 0x30000000 | SCHEMA_COMPAT_NEW );
+/**@}*/
+
+/**@{
+ * XML dump schema versions, for use with XmlDumpWriter.
+ * See also the corresponding export-nnnn.xsd files in the docs directory,
+ * which are also listed at <https://www.mediawiki.org/xml/>.
+ * Note that not all old schema versions are represented here, as several
+ * were already unsupported at the time these constants were introduced.
+ */
+define( 'XML_DUMP_SCHEMA_VERSION_10', '0.10' );
 /**@}*/

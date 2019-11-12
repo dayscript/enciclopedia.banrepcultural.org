@@ -1,10 +1,6 @@
 <?php
 
 /**
- *
- *
- * Created on Dec 29, 2015
- *
  * Copyright © 2015 Geoffrey Mon <geofbot@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +20,7 @@
  *
  * @file
  */
+use MediaWiki\MediaWikiServices;
 use Wikimedia\Timestamp\TimestampException;
 use Wikimedia\Rdbms\IDatabase;
 
@@ -56,11 +53,10 @@ class MergeHistory {
 	/** @var MWTimestamp|bool Timestamp upto which history from the source will be merged */
 	protected $timestampLimit;
 
-	/** @var integer Number of revisions merged (for Special:MergeHistory success message) */
+	/** @var int Number of revisions merged (for Special:MergeHistory success message) */
 	protected $revisionsMerged;
 
 	/**
-	 * MergeHistory constructor.
 	 * @param Title $source Page from which history will be merged
 	 * @param Title $dest Page to which history will be merged
 	 * @param string|bool $timestamp Timestamp up to which history from the source will be merged
@@ -171,7 +167,7 @@ class MergeHistory {
 		// Convert into a Status object
 		if ( $errors ) {
 			foreach ( $errors as $error ) {
-				call_user_func_array( [ $status, 'fatal' ], $error );
+				$status->fatal( ...$error );
 			}
 		}
 
@@ -258,6 +254,8 @@ class MergeHistory {
 			return $permCheck;
 		}
 
+		$this->dbw->startAtomic( __METHOD__ );
+
 		$this->dbw->update(
 			'revision',
 			[ 'rev_page' => $this->dest->getArticleID() ],
@@ -268,17 +266,17 @@ class MergeHistory {
 		// Check if this did anything
 		$this->revisionsMerged = $this->dbw->affectedRows();
 		if ( $this->revisionsMerged < 1 ) {
+			$this->dbw->endAtomic( __METHOD__ );
 			$status->fatal( 'mergehistory-fail-no-change' );
+
 			return $status;
 		}
 
 		// Make the source page a redirect if no revisions are left
-		$haveRevisions = $this->dbw->selectField(
+		$haveRevisions = $this->dbw->lockForUpdate(
 			'revision',
-			'rev_timestamp',
 			[ 'rev_page' => $this->source->getArticleID() ],
-			__METHOD__,
-			[ 'FOR UPDATE' ]
+			__METHOD__
 		);
 		if ( !$haveRevisions ) {
 			if ( $reason ) {
@@ -336,6 +334,10 @@ class MergeHistory {
 		}
 		$this->dest->invalidateCache(); // update histories
 
+		// Duplicate watchers of the old article to the new article on history merge
+		$store = MediaWikiServices::getInstance()->getWatchedItemStore();
+		$store->duplicateAllAssociatedEntries( $this->source, $this->dest );
+
 		// Update our logs
 		$logEntry = new ManualLogEntry( 'merge', 'merge' );
 		$logEntry->setPerformer( $user );
@@ -349,6 +351,8 @@ class MergeHistory {
 		$logEntry->publish( $logId );
 
 		Hooks::run( 'ArticleMergeComplete', [ $this->source, $this->dest ] );
+
+		$this->dbw->endAtomic( __METHOD__ );
 
 		return $status;
 	}

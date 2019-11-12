@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileJournal
- * @author Aaron Schulz
  */
 
 use MediaWiki\MediaWikiServices;
@@ -33,19 +32,19 @@ use Wikimedia\Rdbms\DBError;
 class DBFileJournal extends FileJournal {
 	/** @var IDatabase */
 	protected $dbw;
-
-	protected $wiki = false; // string; wiki DB name
+	/** @var string */
+	protected $domain;
 
 	/**
 	 * Construct a new instance from configuration.
 	 *
 	 * @param array $config Includes:
-	 *     'wiki' : wiki name to use for LoadBalancer
+	 *   domain: database domain ID of the wiki
 	 */
 	protected function __construct( array $config ) {
 		parent::__construct( $config );
 
-		$this->wiki = $config['wiki'];
+		$this->domain = $config['domain'] ?? $config['wiki']; // b/c
 	}
 
 	/**
@@ -125,9 +124,9 @@ class DBFileJournal extends FileJournal {
 
 	/**
 	 * @see FileJournal::doGetChangeEntries()
-	 * @param int $start
+	 * @param int|null $start
 	 * @param int $limit
-	 * @return array
+	 * @return array[]
 	 */
 	protected function doGetChangeEntries( $start, $limit ) {
 		$dbw = $this->getMasterDB();
@@ -184,8 +183,8 @@ class DBFileJournal extends FileJournal {
 	protected function getMasterDB() {
 		if ( !$this->dbw ) {
 			// Get a separate connection in autocommit mode
-			$lb =  MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->newMainLB();
-			$this->dbw = $lb->getConnection( DB_MASTER, [], $this->wiki );
+			$lb = MediaWikiServices::getInstance()->getDBLoadBalancerFactory()->newMainLB();
+			$this->dbw = $lb->getConnection( DB_MASTER, [], $this->domain );
 			$this->dbw->clearFlag( DBO_TRX );
 		}
 

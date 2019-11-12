@@ -59,7 +59,7 @@ class DeprecatedInterfaceFinder extends FileAwareNodeVisitor {
 		// Sort results by version, then by filename, then by name.
 		foreach ( $this->foundNodes as $version => &$nodes ) {
 			uasort( $nodes, function ( $a, $b ) {
-				return ( $a['filename'] . $a['name'] ) < ( $b['filename'] . $b['name'] ) ? -1 : 1;
+				return ( $a['filename'] . $a['name'] ) <=> ( $b['filename'] . $b['name'] );
 			} );
 		}
 		ksort( $this->foundNodes );
@@ -69,6 +69,8 @@ class DeprecatedInterfaceFinder extends FileAwareNodeVisitor {
 	/**
 	 * Check whether a function or method includes a call to wfDeprecated(),
 	 * indicating that it is a hard-deprecated interface.
+	 * @param PhpParser\Node $node
+	 * @return bool
 	 */
 	public function isHardDeprecated( PhpParser\Node $node ) {
 		if ( !$node->stmts ) {
@@ -130,6 +132,9 @@ class FindDeprecated extends Maintenance {
 		$this->addDescription( 'Find deprecated interfaces' );
 	}
 
+	/**
+	 * @return SplFileInfo[]
+	 */
 	public function getFiles() {
 		global $IP;
 
@@ -161,7 +166,7 @@ class FindDeprecated extends Maintenance {
 			}
 
 			$finder->setCurrentFile( substr( $file->getPathname(), strlen( $IP ) + 1 ) );
-			$nodes = $parser->parse( $code, [ 'throwOnError' => false ] );
+			$nodes = $parser->parse( $code );
 			$traverser->traverse( $nodes );
 
 			if ( $i % $chunkSize === 0 ) {
@@ -197,5 +202,5 @@ class FindDeprecated extends Maintenance {
 	}
 }
 
-$maintClass = 'FindDeprecated';
+$maintClass = FindDeprecated::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

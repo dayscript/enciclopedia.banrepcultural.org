@@ -1,59 +1,63 @@
-'use strict';
 const assert = require( 'assert' ),
 	CreateAccountPage = require( '../pageobjects/createaccount.page' ),
-	UserLoginPage = require( '../pageobjects/userlogin.page' ),
-	UserLogoutPage = require( '../pageobjects/userlogout.page' ),
-	PreferencesPage = require( '../pageobjects/preferences.page' );
+	PreferencesPage = require( '../pageobjects/preferences.page' ),
+	UserLoginPage = require( 'wdio-mediawiki/LoginPage' ),
+	Api = require( 'wdio-mediawiki/Api' ),
+	Util = require( 'wdio-mediawiki/Util' );
 
 describe( 'User', function () {
-
 	var password,
 		username;
 
+	before( function () {
+		// disable VisualEditor welcome dialog
+		UserLoginPage.open();
+		browser.localStorage( 'POST', { key: 've-beta-welcome-dialog', value: '1' } );
+	} );
+
 	beforeEach( function () {
-		username = `User-${Math.random().toString()}`;
-		password = Math.random().toString();
+		browser.deleteCookie();
+		username = Util.getTestString( 'User-' );
+		password = Util.getTestString();
 	} );
 
 	it( 'should be able to create account', function () {
-
 		// create
 		CreateAccountPage.createAccount( username, password );
 
 		// check
-		assert.equal( CreateAccountPage.heading.getText(), `Welcome, ${username}!` );
-
+		assert.strictEqual( CreateAccountPage.heading.getText(), `Welcome, ${username}!` );
 	} );
 
-	it( 'should be able to log in', function () {
-
+	it( 'should be able to log in @daily', function () {
 		// create
-		CreateAccountPage.createAccount( username, password );
-
-		// logout
-		UserLogoutPage.open();
+		browser.call( function () {
+			return Api.createAccount( username, password );
+		} );
 
 		// log in
 		UserLoginPage.login( username, password );
 
 		// check
-		assert.equal( UserLoginPage.userPage.getText(), username );
-
+		assert.strictEqual( UserLoginPage.userPage.getText(), username );
 	} );
 
-	it( 'should be able to change preferences', function () {
-
-		var realName = Math.random().toString();
+	// Disabled due to flakiness (T199446)
+	it.skip( 'should be able to change preferences', function () {
+		var realName = Util.getTestString();
 
 		// create
-		CreateAccountPage.createAccount( username, password );
+		browser.call( function () {
+			return Api.createAccount( username, password );
+		} );
 
-		// change real name
+		// log in
+		UserLoginPage.login( username, password );
+
+		// change
 		PreferencesPage.changeRealName( realName );
 
 		// check
-		assert.equal( PreferencesPage.realName.getValue(), realName );
-
+		assert.strictEqual( PreferencesPage.realName.getValue(), realName );
 	} );
-
 } );

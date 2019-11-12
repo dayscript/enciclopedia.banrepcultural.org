@@ -32,6 +32,7 @@
  *   up going to the HashBagOStuff used for the in-memory cache).
  *
  * @ingroup Cache
+ * @TODO: Make this class use composition instead of calling super
  */
 class CachedBagOStuff extends HashBagOStuff {
 	/** @var BagOStuff */
@@ -50,10 +51,10 @@ class CachedBagOStuff extends HashBagOStuff {
 		$this->attrMap = $backend->attrMap;
 	}
 
-	protected function doGet( $key, $flags = 0 ) {
-		$ret = parent::doGet( $key, $flags );
+	public function get( $key, $flags = 0 ) {
+		$ret = parent::get( $key, $flags );
 		if ( $ret === false && !$this->hasKey( $key ) ) {
-			$ret = $this->backend->doGet( $key, $flags );
+			$ret = $this->backend->get( $key, $flags );
 			$this->set( $key, $ret, 0, self::WRITE_CACHE_ONLY );
 		}
 		return $ret;
@@ -68,7 +69,7 @@ class CachedBagOStuff extends HashBagOStuff {
 	}
 
 	public function delete( $key, $flags = 0 ) {
-		unset( $this->bag[$key] );
+		parent::delete( $key, $flags );
 		if ( !( $flags & self::WRITE_CACHE_ONLY ) ) {
 			$this->backend->delete( $key );
 		}
@@ -86,16 +87,35 @@ class CachedBagOStuff extends HashBagOStuff {
 		return $this->backend->deleteObjectsExpiringBefore( $date, $progressCallback );
 	}
 
-	public function makeKey() {
-		return call_user_func_array( [ $this->backend, __FUNCTION__ ], func_get_args() );
+	public function makeKeyInternal( $keyspace, $args ) {
+		return $this->backend->makeKeyInternal( ...func_get_args() );
 	}
 
-	public function makeGlobalKey() {
-		return call_user_func_array( [ $this->backend, __FUNCTION__ ], func_get_args() );
+	public function makeKey( $class, $component = null ) {
+		return $this->backend->makeKey( ...func_get_args() );
+	}
+
+	public function makeGlobalKey( $class, $component = null ) {
+		return $this->backend->makeGlobalKey( ...func_get_args() );
 	}
 
 	// These just call the backend (tested elsewhere)
 	// @codeCoverageIgnoreStart
+
+	public function add( $key, $value, $exptime = 0, $flags = 0 ) {
+		if ( $this->get( $key ) === false ) {
+			return $this->set( $key, $value, $exptime, $flags );
+		}
+
+		return false; // key already set
+	}
+
+	public function incr( $key, $value = 1 ) {
+		$n = $this->backend->incr( $key, $value );
+		parent::delete( $key );
+
+		return $n;
+	}
 
 	public function lock( $key, $timeout = 6, $expiry = 6, $rclass = '' ) {
 		return $this->backend->lock( $key, $timeout, $expiry, $rclass );
@@ -111,10 +131,6 @@ class CachedBagOStuff extends HashBagOStuff {
 
 	public function clearLastError() {
 		return $this->backend->clearLastError();
-	}
-
-	public function modifySimpleRelayEvent( array $event ) {
-		return $this->backend->modifySimpleRelayEvent( $event );
 	}
 
 	// @codeCoverageIgnoreEnd

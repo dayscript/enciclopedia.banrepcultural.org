@@ -1,5 +1,5 @@
 <?php
-// @codingStandardsIgnoreFile It's an external lib and it isn't. Let's not bother.
+// phpcs:ignoreFile -- It's an external lib and it isn't. Let's not bother.
 /**
  * Memcached client for PHP.
  *
@@ -255,15 +255,13 @@ class MemcachedClient {
 	 * Memcache initializer
 	 *
 	 * @param array $args Associative array of settings
-	 *
-	 * @return mixed
 	 */
 	public function __construct( $args ) {
-		$this->set_servers( isset( $args['servers'] ) ? $args['servers'] : array() );
-		$this->_debug = isset( $args['debug'] ) ? $args['debug'] : false;
+		$this->set_servers( $args['servers'] ?? array() );
+		$this->_debug = $args['debug'] ?? false;
 		$this->stats = array();
-		$this->_compress_threshold = isset( $args['compress_threshold'] ) ? $args['compress_threshold'] : 0;
-		$this->_persistent = isset( $args['persistent'] ) ? $args['persistent'] : false;
+		$this->_compress_threshold = $args['compress_threshold'] ?? 0;
+		$this->_persistent = $args['persistent'] ?? false;
 		$this->_compress_enable = true;
 		$this->_have_zlib = function_exists( 'gzcompress' );
 
@@ -271,12 +269,12 @@ class MemcachedClient {
 		$this->_host_dead = array();
 
 		$this->_timeout_seconds = 0;
-		$this->_timeout_microseconds = isset( $args['timeout'] ) ? $args['timeout'] : 500000;
+		$this->_timeout_microseconds = $args['timeout'] ?? 500000;
 
-		$this->_connect_timeout = isset( $args['connect_timeout'] ) ? $args['connect_timeout'] : 0.1;
+		$this->_connect_timeout = $args['connect_timeout'] ?? 0.1;
 		$this->_connect_attempts = 2;
 
-		$this->_logger = isset( $args['logger'] ) ? $args['logger'] : new NullLogger();
+		$this->_logger = $args['logger'] ?? new NullLogger();
 	}
 
 	// }}}
@@ -363,7 +361,7 @@ class MemcachedClient {
 	/**
 	 * Changes the TTL on a key from the server to $time
 	 *
-	 * @param string $key Key
+	 * @param string $key
 	 * @param int $time TTL in seconds
 	 *
 	 * @return bool True on success, false on failure
@@ -469,7 +467,6 @@ class MemcachedClient {
 	 * @return mixed
 	 */
 	public function get( $key, &$casToken = null ) {
-
 		if ( $this->_debug ) {
 			$this->_debugprint( "get($key)" );
 		}
@@ -789,13 +786,13 @@ class MemcachedClient {
 		$timeout = $this->_connect_timeout;
 		$errno = $errstr = null;
 		for ( $i = 0; !$sock && $i < $this->_connect_attempts; $i++ ) {
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			if ( $this->_persistent == 1 ) {
 				$sock = pfsockopen( $ip, $port, $errno, $errstr, $timeout );
 			} else {
 				$sock = fsockopen( $ip, $port, $errno, $errstr, $timeout );
 			}
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 		}
 		if ( !$sock ) {
 			$this->_error_log( "Error connecting to $host: $errstr" );
@@ -1114,9 +1111,13 @@ class MemcachedClient {
 		if ( $this->_debug ) {
 			$this->_debugprint( sprintf( "%s %s (%s)", $cmd, $key, $line ) );
 		}
-		if ( $line == "STORED" ) {
+		if ( $line === "STORED" ) {
+			return true;
+		} elseif ( $line === "NOT_STORED" && $cmd === "set" ) {
+			// "Not stored" is always used as the mcrouter response with AllAsyncRoute
 			return true;
 		}
+
 		return false;
 	}
 

@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @group ContentHandler
  *
@@ -29,7 +31,7 @@ more stuff
 				"WikitextContentTest_testGetParserOutput",
 				CONTENT_MODEL_WIKITEXT,
 				"hello ''world''\n",
-				"<p>hello <i>world</i>\n</p>"
+				"<div class=\"mw-parser-output\"><p>hello <i>world</i>\n</p>\n\n\n</div>"
 			],
 			// TODO: more...?
 		];
@@ -40,7 +42,7 @@ more stuff
 			[ "WikitextContentTest_testGetSecondaryDataUpdates_1",
 				CONTENT_MODEL_WIKITEXT, "hello ''world''\n",
 				[
-					'LinksUpdate' => [
+					LinksUpdate::class => [
 						'mRecursive' => true,
 						'mLinks' => []
 					]
@@ -49,7 +51,7 @@ more stuff
 			[ "WikitextContentTest_testGetSecondaryDataUpdates_2",
 				CONTENT_MODEL_WIKITEXT, "hello [[world test 21344]]\n",
 				[
-					'LinksUpdate' => [
+					LinksUpdate::class => [
 						'mRecursive' => true,
 						'mLinks' => [
 							[ 'World_test_21344' => 0 ]
@@ -103,16 +105,16 @@ more stuff
 
 	public static function dataGetSection() {
 		return [
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"0",
 				"Intro"
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"2",
 				"== test ==
 just a test"
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"8",
 				false
 			],
@@ -128,7 +130,7 @@ just a test"
 
 		$sectionContent = $content->getSection( $sectionId );
 		if ( is_object( $sectionContent ) ) {
-			$sectionText = $sectionContent->getNativeData();
+			$sectionText = $sectionContent->getText();
 		} else {
 			$sectionText = $sectionContent;
 		}
@@ -138,38 +140,38 @@ just a test"
 
 	public static function dataReplaceSection() {
 		return [
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"0",
 				"No more",
 				null,
-				trim( preg_replace( '/^Intro/sm', 'No more', WikitextContentTest::$sections ) )
+				trim( preg_replace( '/^Intro/sm', 'No more', self::$sections ) )
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"",
 				"No more",
 				null,
 				"No more"
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"2",
 				"== TEST ==\nmore fun",
 				null,
 				trim( preg_replace(
 					'/^== test ==.*== foo ==/sm', "== TEST ==\nmore fun\n\n== foo ==",
-					WikitextContentTest::$sections
+					self::$sections
 				) )
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"8",
 				"No more",
 				null,
-				WikitextContentTest::$sections
+				self::$sections
 			],
-			[ WikitextContentTest::$sections,
+			[ self::$sections,
 				"new",
 				"No more",
 				"New",
-				trim( WikitextContentTest::$sections ) . "\n\n\n== New ==\n\nNo more"
+				trim( self::$sections ) . "\n\n\n== New ==\n\nNo more"
 			],
 		];
 	}
@@ -180,9 +182,10 @@ just a test"
 	 */
 	public function testReplaceSection( $text, $section, $with, $sectionTitle, $expected ) {
 		$content = $this->newContent( $text );
+		/** @var WikitextContent $c */
 		$c = $content->replaceSection( $section, $this->newContent( $with ), $sectionTitle );
 
-		$this->assertEquals( $expected, is_null( $c ) ? null : $c->getNativeData() );
+		$this->assertEquals( $expected, $c ? $c->getText() : null );
 	}
 
 	/**
@@ -192,7 +195,7 @@ just a test"
 		$content = $this->newContent( 'hello world' );
 		$content = $content->addSectionHeader( 'test' );
 
-		$this->assertEquals( "== test ==\n\nhello world", $content->getNativeData() );
+		$this->assertEquals( "== test ==\n\nhello world", $content->getText() );
 	}
 
 	public static function dataPreSaveTransform() {
@@ -268,16 +271,6 @@ just a test"
 			],
 			[ 'Foo',
 				null,
-				'comma',
-				false
-			],
-			[ 'Foo, bar',
-				null,
-				'comma',
-				true
-			],
-			[ 'Foo',
-				null,
 				'link',
 				false
 			],
@@ -303,11 +296,6 @@ just a test"
 			],
 			[ '#REDIRECT [[bar]]',
 				true,
-				'comma',
-				false
-			],
-			[ '#REDIRECT [[bar]]',
-				true,
 				'link',
 				false
 			],
@@ -318,7 +306,7 @@ just a test"
 	 * @covers WikitextContent::matchMagicWord
 	 */
 	public function testMatchMagicWord() {
-		$mw = MagicWord::get( "staticredirect" );
+		$mw = MediaWikiServices::getInstance()->getMagicWordFactory()->get( "staticredirect" );
 
 		$content = $this->newContent( "#REDIRECT [[FOO]]\n__STATICREDIRECT__" );
 		$this->assertTrue( $content->matchMagicWord( $mw ), "should have matched magic word" );
@@ -373,6 +361,10 @@ just a test"
 		$this->assertEquals( CONTENT_MODEL_WIKITEXT, $content->getContentHandler()->getModelID() );
 	}
 
+	/**
+	 * @covers ParserOptions::getRedirectTarget
+	 * @covers ParserOptions::setRedirectTarget
+	 */
 	public function testRedirectParserOption() {
 		$title = Title::newFromText( 'testRedirectParserOption' );
 
@@ -392,7 +384,7 @@ just a test"
 		$wikitext = false;
 		$redirectTarget = false;
 		$content = $this->newContent( 'hello world.' );
-		$options = $content->getContentHandler()->makeParserOptions( 'canonical' );
+		$options = ParserOptions::newCanonical( 'canonical' );
 		$options->setRedirectTarget( $title );
 		$content->getParserOutput( $title, null, $options );
 		$this->assertEquals( 'hello world.', $wikitext,
@@ -409,7 +401,7 @@ just a test"
 		$content = $this->newContent(
 			"#REDIRECT [[TestRedirectParserOption/redir]]\nhello redirect."
 		);
-		$options = $content->getContentHandler()->makeParserOptions( 'canonical' );
+		$options = ParserOptions::newCanonical( 'canonical' );
 		$content->getParserOutput( $title, null, $options );
 		$this->assertEquals(
 			'hello redirect.',
@@ -444,15 +436,30 @@ just a test"
 
 	public static function dataGetDeletionUpdates() {
 		return [
-			[ "WikitextContentTest_testGetSecondaryDataUpdates_1",
+			[
 				CONTENT_MODEL_WIKITEXT, "hello ''world''\n",
-				[ 'LinksDeletionUpdate' => [] ]
+				[ LinksDeletionUpdate::class => [] ]
 			],
-			[ "WikitextContentTest_testGetSecondaryDataUpdates_2",
+			[
 				CONTENT_MODEL_WIKITEXT, "hello [[world test 21344]]\n",
-				[ 'LinksDeletionUpdate' => [] ]
+				[ LinksDeletionUpdate::class => [] ]
 			],
 			// @todo more...?
 		];
+	}
+
+	/**
+	 * @covers WikitextContent::preSaveTransform
+	 * @covers WikitextContent::fillParserOutput
+	 */
+	public function testHadSignature() {
+		$titleObj = Title::newFromText( __CLASS__ );
+
+		$content = new WikitextContent( '~~~~' );
+		$pstContent = $content->preSaveTransform(
+			$titleObj, $this->getTestUser()->getUser(), new ParserOptions()
+		);
+
+		$this->assertTrue( $pstContent->getParserOutput( $titleObj )->getFlag( 'user-signature' ) );
 	}
 }

@@ -2,6 +2,7 @@
 
 namespace MediaWiki\Session;
 
+use MediaWiki\MediaWikiServices;
 use Psr\Log\LogLevel;
 use MediaWikiTestCase;
 use Wikimedia\TestingAccessWrapper;
@@ -63,8 +64,7 @@ class BotPasswordSessionProviderTest extends MediaWikiTestCase {
 	}
 
 	public function addDBDataOnce() {
-		$passwordFactory = new \PasswordFactory();
-		$passwordFactory->init( \RequestContext::getMain()->getConfig() );
+		$passwordFactory = MediaWikiServices::getInstance()->getPasswordFactory();
 		$passwordHash = $passwordFactory->newFromPlaintext( 'foobaz' );
 
 		$sysop = static::getTestSysop()->getUser();
@@ -184,7 +184,7 @@ class BotPasswordSessionProviderTest extends MediaWikiTestCase {
 	public function testNewSessionInfoForRequest() {
 		$provider = $this->getProvider();
 		$user = static::getTestSysop()->getUser();
-		$request = $this->getMockBuilder( 'FauxRequest' )
+		$request = $this->getMockBuilder( \FauxRequest::class )
 			->setMethods( [ 'getIP' ] )->getMock();
 		$request->expects( $this->any() )->method( 'getIP' )
 			->will( $this->returnValue( '127.0.0.1' ) );
@@ -212,7 +212,7 @@ class BotPasswordSessionProviderTest extends MediaWikiTestCase {
 		$provider->setLogger( $logger );
 
 		$user = static::getTestSysop()->getUser();
-		$request = $this->getMockBuilder( 'FauxRequest' )
+		$request = $this->getMockBuilder( \FauxRequest::class )
 			->setMethods( [ 'getIP' ] )->getMock();
 		$request->expects( $this->any() )->method( 'getIP' )
 			->will( $this->returnValue( '127.0.0.1' ) );
@@ -264,7 +264,7 @@ class BotPasswordSessionProviderTest extends MediaWikiTestCase {
 		], $logger->getBuffer() );
 		$logger->clearBuffer();
 
-		$request2 = $this->getMockBuilder( 'FauxRequest' )
+		$request2 = $this->getMockBuilder( \FauxRequest::class )
 			->setMethods( [ 'getIP' ] )->getMock();
 		$request2->expects( $this->any() )->method( 'getIP' )
 			->will( $this->returnValue( '10.0.0.1' ) );

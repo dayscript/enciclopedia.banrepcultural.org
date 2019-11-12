@@ -21,7 +21,7 @@
  * @ingroup SpecialPage
  */
 
-use Wikimedia\Rdbms\ResultWrapper;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -39,7 +39,7 @@ abstract class ImageQueryPage extends QueryPage {
 	 * @param OutputPage $out OutputPage to print to
 	 * @param Skin $skin User skin to use [unused]
 	 * @param IDatabase $dbr (read) connection to use
-	 * @param ResultWrapper $res Result pointer
+	 * @param IResultWrapper $res Result pointer
 	 * @param int $num Number of available result rows
 	 * @param int $offset Paging offset
 	 */
@@ -52,7 +52,7 @@ abstract class ImageQueryPage extends QueryPage {
 			$i = 0;
 			foreach ( $res as $row ) {
 				$i++;
-				$namespace = isset( $row->namespace ) ? $row->namespace : NS_FILE;
+				$namespace = $row->namespace ?? NS_FILE;
 				$title = Title::makeTitleSafe( $namespace, $row->title );
 				if ( $title instanceof Title && $title->getNamespace() == NS_FILE ) {
 					$gallery->add( $title, $this->getCellHtml( $row ) );
@@ -68,6 +68,7 @@ abstract class ImageQueryPage extends QueryPage {
 
 	// Gotta override this since it's abstract
 	function formatResult( $skin, $result ) {
+		return false;
 	}
 
 	/**

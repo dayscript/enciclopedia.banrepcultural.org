@@ -22,6 +22,8 @@
  * @author Ævar Arnfjörð Bjarmason <avarab@gmail.com>
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Searches the database for files of the requested MIME type, comparing this with the
  * 'img_major_mime' and 'img_minor_mime' fields in the image table.
@@ -56,8 +58,9 @@ class MIMEsearchPage extends QueryPage {
 			// Allow wildcard searching
 			$minorType['img_minor_mime'] = $this->minor;
 		}
+		$imgQuery = LocalFile::getQueryInfo();
 		$qi = [
-			'tables' => [ 'image' ],
+			'tables' => $imgQuery['tables'],
 			'fields' => [
 				'namespace' => NS_FILE,
 				'title' => 'img_name',
@@ -67,13 +70,14 @@ class MIMEsearchPage extends QueryPage {
 				'img_size',
 				'img_width',
 				'img_height',
-				'img_user_text',
+				'img_user_text' => $imgQuery['fields']['img_user_text'],
 				'img_timestamp'
 			],
 			'conds' => [
 				'img_major_mime' => $this->major,
 				// This is in order to trigger using
 				// the img_media_mime index in "range" mode.
+				// @todo how is order defined? use MimeAnalyzer::getMediaTypes?
 				'img_media_type' => [
 					MEDIATYPE_BITMAP,
 					MEDIATYPE_DRAWING,
@@ -85,8 +89,10 @@ class MIMEsearchPage extends QueryPage {
 					MEDIATYPE_TEXT,
 					MEDIATYPE_EXECUTABLE,
 					MEDIATYPE_ARCHIVE,
+					MEDIATYPE_3D,
 				],
 			] + $minorType,
+			'join_conds' => $imgQuery['joins'],
 		];
 
 		return $qi;
@@ -126,6 +132,7 @@ class MIMEsearchPage extends QueryPage {
 			->setMethod( 'get' )
 			->prepareForm()
 			->displayForm( false );
+		return '';
 	}
 
 	protected function getSuggestionsForTypes() {
@@ -156,7 +163,7 @@ class MIMEsearchPage extends QueryPage {
 	}
 
 	public function execute( $par ) {
-		$this->mime = $par ? $par : $this->getRequest()->getText( 'mime' );
+		$this->mime = $par ?: $this->getRequest()->getText( 'mime' );
 		$this->mime = trim( $this->mime );
 		list( $this->major, $this->minor ) = File::splitMime( $this->mime );
 
@@ -178,14 +185,13 @@ class MIMEsearchPage extends QueryPage {
 	 * @return string
 	 */
 	function formatResult( $skin, $result ) {
-		global $wgContLang;
-
 		$linkRenderer = $this->getLinkRenderer();
 		$nt = Title::makeTitle( $result->namespace, $result->title );
-		$text = $wgContLang->convert( $nt->getText() );
+		$text = MediaWikiServices::getInstance()->getContentLanguage()
+			->convert( htmlspecialchars( $nt->getText() ) );
 		$plink = $linkRenderer->makeLink(
 			Title::newFromText( $nt->getPrefixedText() ),
-			$text
+			new HtmlArmor( $text )
 		);
 
 		$download = Linker::makeMediaLinkObj( $nt, $this->msg( 'download' )->escaped() );

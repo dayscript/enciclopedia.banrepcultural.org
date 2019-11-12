@@ -37,6 +37,7 @@ class Xhprof {
 
 	/**
 	 * Start xhprof profiler
+	 * @return bool
 	 */
 	public static function isEnabled() {
 		return self::$enabled;
@@ -44,19 +45,23 @@ class Xhprof {
 
 	/**
 	 * Start xhprof profiler
+	 * @param int $flags
+	 * @param array $options
+	 * @throws Exception
 	 */
 	public static function enable( $flags = 0, $options = [] ) {
 		if ( self::isEnabled() ) {
 			throw new Exception( 'Profiling is already enabled.' );
 		}
 		self::$enabled = true;
-		if ( function_exists( 'xhprof_enable' ) ) {
-			xhprof_enable( $flags, $options );
-		} elseif ( function_exists( 'tideways_enable' ) ) {
-			tideways_enable( $flags, $options );
-		} else {
-			throw new Exception( "Neither xhprof nor tideways are installed" );
-		}
+		self::callAny(
+			[
+				'xhprof_enable',
+				'tideways_enable',
+				'tideways_xhprof_enable'
+			],
+			[ $flags, $options ]
+		);
 	}
 
 	/**
@@ -67,12 +72,27 @@ class Xhprof {
 	public static function disable() {
 		if ( self::isEnabled() ) {
 			self::$enabled = false;
-			if ( function_exists( 'xhprof_disable' ) ) {
-				return xhprof_disable();
-			} else {
-				// tideways
-				return tideways_disable();
+			return self::callAny( [
+				'xhprof_disable',
+				'tideways_disable',
+				'tideways_xhprof_disable'
+			] );
+		}
+	}
+
+	/**
+	 * Call the first available function from $functions.
+	 * @param array $functions
+	 * @param array $args
+	 * @throws Exception
+	 */
+	protected static function callAny( array $functions, array $args = [] ) {
+		foreach ( $functions as $func ) {
+			if ( function_exists( $func ) ) {
+				return $func( ...$args );
 			}
 		}
+
+		throw new Exception( "Neither xhprof nor tideways are installed" );
 	}
 }

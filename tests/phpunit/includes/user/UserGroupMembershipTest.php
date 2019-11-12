@@ -4,6 +4,9 @@
  * @group Database
  */
 class UserGroupMembershipTest extends MediaWikiTestCase {
+
+	protected $tablesUsed = [ 'user', 'user_groups' ];
+
 	/**
 	 * @var User Belongs to no groups
 	 */
@@ -50,8 +53,7 @@ class UserGroupMembershipTest extends MediaWikiTestCase {
 	 * @covers UserGroupMembership::delete
 	 */
 	public function testAddAndRemoveGroups() {
-		$user = new User;
-		$user->addToDatabase();
+		$user = $this->getMutableTestUser()->getUser();
 
 		// basic tests
 		$ugm = new UserGroupMembership( $user->getId(), 'unittesters' );

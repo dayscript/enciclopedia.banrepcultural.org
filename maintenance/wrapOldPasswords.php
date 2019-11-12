@@ -1,7 +1,4 @@
 <?php
-
-use MediaWiki\MediaWikiServices;
-
 /**
  * Maintenance script to wrap all old-style passwords in a layered type
  *
@@ -23,7 +20,10 @@ use MediaWiki\MediaWikiServices;
  * @file
  * @ingroup Maintenance
  */
+
 require_once __DIR__ . '/Maintenance.php';
+
+use MediaWiki\MediaWikiServices;
 
 /**
  * Maintenance script to wrap all passwords of a certain type in a specified layered
@@ -43,26 +43,19 @@ class WrapOldPasswords extends Maintenance {
 	}
 
 	public function execute() {
-		global $wgAuth;
-
-		if ( !$wgAuth->allowSetLocalPassword() ) {
-			$this->error( '$wgAuth does not allow local passwords. Aborting.', true );
-		}
-
-		$passwordFactory = new PasswordFactory();
-		$passwordFactory->init( RequestContext::getMain()->getConfig() );
+		$passwordFactory = MediaWikiServices::getInstance()->getPasswordFactory();
 
 		$typeInfo = $passwordFactory->getTypes();
 		$layeredType = $this->getOption( 'type' );
 
 		// Check that type exists and is a layered type
 		if ( !isset( $typeInfo[$layeredType] ) ) {
-			$this->error( 'Undefined password type', true );
+			$this->fatalError( 'Undefined password type' );
 		}
 
 		$passObj = $passwordFactory->newFromType( $layeredType );
 		if ( !$passObj instanceof LayeredParameterizedPassword ) {
-			$this->error( 'Layered parameterized password type must be used.', true );
+			$this->fatalError( 'Layered parameterized password type must be used.' );
 		}
 
 		// Extract the first layer type
@@ -87,7 +80,7 @@ class WrapOldPasswords extends Maintenance {
 				__METHOD__,
 				[
 					'ORDER BY' => 'user_id',
-					'LIMIT' => $this->mBatchSize,
+					'LIMIT' => $this->getBatchSize(),
 					'LOCK IN SHARE MODE',
 				]
 			);
@@ -121,11 +114,11 @@ class WrapOldPasswords extends Maintenance {
 
 			// Clear memcached so old passwords are wiped out
 			foreach ( $updateUsers as $user ) {
-				$user->clearSharedCache();
+				$user->clearSharedCache( 'refresh' );
 			}
 		} while ( $res->numRows() );
 	}
 }
 
-$maintClass = "WrapOldPasswords";
+$maintClass = WrapOldPasswords::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

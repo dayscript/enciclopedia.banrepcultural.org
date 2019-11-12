@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Dec 01, 2007
- *
  * Copyright © 2008 Roan Kattouw "<Firstname>.<Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -163,7 +159,7 @@ class ApiParamInfo extends ApiBase {
 	/**
 	 * List all submodules of a module
 	 * @param ApiBase $module
-	 * @param boolean $recursive
+	 * @param bool $recursive
 	 * @return string[]
 	 */
 	private function listAllSubmodules( ApiBase $module, $recursive ) {
@@ -184,7 +180,7 @@ class ApiParamInfo extends ApiBase {
 	}
 
 	/**
-	 * @param array $res Result array
+	 * @param array &$res Result array
 	 * @param string $key Result key
 	 * @param Message[] $msgs
 	 * @param bool $joinLists
@@ -309,16 +305,25 @@ class ApiParamInfo extends ApiBase {
 		}
 
 		$ret['parameters'] = [];
+		$ret['templatedparameters'] = [];
 		$params = $module->getFinalParams( ApiBase::GET_VALUES_FOR_HELP );
 		$paramDesc = $module->getFinalParamDescription();
+		$index = 0;
 		foreach ( $params as $name => $settings ) {
 			if ( !is_array( $settings ) ) {
 				$settings = [ ApiBase::PARAM_DFLT => $settings ];
 			}
 
 			$item = [
-				'name' => $name
+				'index' => ++$index,
+				'name' => $name,
 			];
+
+			if ( !empty( $settings[ApiBase::PARAM_TEMPLATE_VARS] ) ) {
+				$item['templatevars'] = $settings[ApiBase::PARAM_TEMPLATE_VARS];
+				ApiResult::setIndexedTagName( $item['templatevars'], 'var' );
+			}
+
 			if ( isset( $paramDesc[$name] ) ) {
 				$this->formatHelpMessages( $item, 'description', $paramDesc[$name], true );
 			}
@@ -334,9 +339,7 @@ class ApiParamInfo extends ApiBase {
 			}
 
 			if ( !isset( $settings[ApiBase::PARAM_TYPE] ) ) {
-				$dflt = isset( $settings[ApiBase::PARAM_DFLT] )
-					? $settings[ApiBase::PARAM_DFLT]
-					: null;
+				$dflt = $settings[ApiBase::PARAM_DFLT] ?? null;
 				if ( is_bool( $dflt ) ) {
 					$settings[ApiBase::PARAM_TYPE] = 'boolean';
 				} elseif ( is_string( $dflt ) || is_null( $dflt ) ) {
@@ -358,7 +361,7 @@ class ApiParamInfo extends ApiBase {
 						break;
 					case 'integer':
 					case 'limit':
-						$item['default'] = intval( $settings[ApiBase::PARAM_DFLT] );
+						$item['default'] = (int)$settings[ApiBase::PARAM_DFLT];
 						break;
 					case 'timestamp':
 						$item['default'] = wfTimestamp( TS_ISO_8601, $settings[ApiBase::PARAM_DFLT] );
@@ -371,11 +374,15 @@ class ApiParamInfo extends ApiBase {
 
 			$item['multi'] = !empty( $settings[ApiBase::PARAM_ISMULTI] );
 			if ( $item['multi'] ) {
-				$item['limit'] = $this->getMain()->canApiHighLimits() ?
-					ApiBase::LIMIT_SML2 :
-					ApiBase::LIMIT_SML1;
-				$item['lowlimit'] = ApiBase::LIMIT_SML1;
-				$item['highlimit'] = ApiBase::LIMIT_SML2;
+				$item['lowlimit'] = !empty( $settings[ApiBase::PARAM_ISMULTI_LIMIT1] )
+					? $settings[ApiBase::PARAM_ISMULTI_LIMIT1]
+					: ApiBase::LIMIT_SML1;
+				$item['highlimit'] = !empty( $settings[ApiBase::PARAM_ISMULTI_LIMIT2] )
+					? $settings[ApiBase::PARAM_ISMULTI_LIMIT2]
+					: ApiBase::LIMIT_SML2;
+				$item['limit'] = $this->getMain()->canApiHighLimits()
+					? $item['highlimit']
+					: $item['lowlimit'];
 			}
 
 			if ( !empty( $settings[ApiBase::PARAM_ALLOW_DUPLICATES] ) ) {
@@ -401,6 +408,25 @@ class ApiParamInfo extends ApiBase {
 					if ( isset( $settings[ApiBase::PARAM_SUBMODULE_PARAM_PREFIX] ) ) {
 						$item['submoduleparamprefix'] = $settings[ApiBase::PARAM_SUBMODULE_PARAM_PREFIX];
 					}
+
+					$deprecatedSubmodules = [];
+					foreach ( $item['submodules'] as $v => $submodulePath ) {
+						try {
+							$submod = $this->getModuleFromPath( $submodulePath );
+							if ( $submod && $submod->isDeprecated() ) {
+								$deprecatedSubmodules[] = $v;
+							}
+						} catch ( ApiUsageException $ex ) {
+							// Ignore
+						}
+					}
+					if ( $deprecatedSubmodules ) {
+						$item['type'] = array_merge(
+							array_diff( $item['type'], $deprecatedSubmodules ),
+							$deprecatedSubmodules
+						);
+						$item['deprecatedvalues'] = $deprecatedSubmodules;
+					}
 				} elseif ( $settings[ApiBase::PARAM_TYPE] === 'tags' ) {
 					$item['type'] = ChangeTags::listExplicitlyDefinedTags();
 				} else {
@@ -417,9 +443,7 @@ class ApiParamInfo extends ApiBase {
 					$allowAll = true;
 					$allSpecifier = ApiBase::ALL_DEFAULT_STRING;
 				} else {
-					$allowAll = isset( $settings[ApiBase::PARAM_ALL] )
-						? $settings[ApiBase::PARAM_ALL]
-						: false;
+					$allowAll = $settings[ApiBase::PARAM_ALL] ?? false;
 					$allSpecifier = ( is_string( $allowAll ) ? $allowAll : ApiBase::ALL_DEFAULT_STRING );
 				}
 				if ( $allowAll && $item['multi'] &&
@@ -448,6 +472,22 @@ class ApiParamInfo extends ApiBase {
 			if ( !empty( $settings[ApiBase::PARAM_RANGE_ENFORCE] ) ) {
 				$item['enforcerange'] = true;
 			}
+			if ( isset( $settings[self::PARAM_MAX_BYTES] ) ) {
+				$item['maxbytes'] = $settings[self::PARAM_MAX_BYTES];
+			}
+			if ( isset( $settings[self::PARAM_MAX_CHARS] ) ) {
+				$item['maxchars'] = $settings[self::PARAM_MAX_CHARS];
+			}
+			if ( !empty( $settings[ApiBase::PARAM_DEPRECATED_VALUES] ) ) {
+				$deprecatedValues = array_keys( $settings[ApiBase::PARAM_DEPRECATED_VALUES] );
+				if ( is_array( $item['type'] ) ) {
+					$deprecatedValues = array_intersect( $deprecatedValues, $item['type'] );
+				}
+				if ( $deprecatedValues ) {
+					$item['deprecatedvalues'] = array_values( $deprecatedValues );
+					ApiResult::setIndexedTagName( $item['deprecatedvalues'], 'v' );
+				}
+			}
 
 			if ( !empty( $settings[ApiBase::PARAM_HELP_MSG_INFO] ) ) {
 				$item['info'] = [];
@@ -472,9 +512,11 @@ class ApiParamInfo extends ApiBase {
 				ApiResult::setIndexedTagName( $item['info'], 'i' );
 			}
 
-			$ret['parameters'][] = $item;
+			$key = empty( $settings[ApiBase::PARAM_TEMPLATE_VARS] ) ? 'parameters' : 'templatedparameters';
+			$ret[$key][] = $item;
 		}
 		ApiResult::setIndexedTagName( $ret['parameters'], 'param' );
+		ApiResult::setIndexedTagName( $ret['templatedparameters'], 'param' );
 
 		$dynamicParams = $module->dynamicParameterDocumentation();
 		if ( $dynamicParams !== null ) {

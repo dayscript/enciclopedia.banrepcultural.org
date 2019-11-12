@@ -24,9 +24,8 @@
 /**
  * @ingroup Parser
  */
-// @codingStandardsIgnoreStart Squiz.Classes.ValidClassName.NotCamelCaps
+// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class Preprocessor_DOM extends Preprocessor {
-	// @codingStandardsIgnoreEnd
 
 	/**
 	 * @var Parser
@@ -87,9 +86,9 @@ class Preprocessor_DOM extends Preprocessor {
 		$xml .= "</list>";
 
 		$dom = new DOMDocument();
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$result = $dom->loadXML( $xml );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( !$result ) {
 			// Try running the XML through UtfNormal to get rid of invalid characters
 			$xml = UtfNormal\Validator::cleanUp( $xml );
@@ -148,7 +147,6 @@ class Preprocessor_DOM extends Preprocessor {
 	 * @return PPNode_DOM
 	 */
 	public function preprocessToObj( $text, $flags = 0 ) {
-
 		$xml = $this->cacheGetTree( $text, $flags );
 		if ( $xml === false ) {
 			$xml = $this->preprocessToXml( $text, $flags );
@@ -165,9 +163,9 @@ class Preprocessor_DOM extends Preprocessor {
 		}
 
 		$dom = new DOMDocument;
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$result = $dom->loadXML( $xml );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( !$result ) {
 			// Try running the XML through UtfNormal to get rid of invalid characters
 			$xml = UtfNormal\Validator::cleanUp( $xml );
@@ -223,8 +221,7 @@ class Preprocessor_DOM extends Preprocessor {
 
 		$searchBase = "[{<\n"; # }
 		if ( !$wgDisableLangConversion ) {
-			// FIXME: disabled due to T153761
-			// $searchBase .= '-';
+			$searchBase .= '-';
 		}
 
 		// For fast reverse searches
@@ -333,11 +330,15 @@ class Preprocessor_DOM extends Preprocessor {
 					} elseif ( isset( $this->rules[$curChar] ) ) {
 						$found = 'open';
 						$rule = $this->rules[$curChar];
-					} elseif ( $curChar == '-' ) {
-						$found = 'dash';
 					} else {
-						# Some versions of PHP have a strcspn which stops on null characters
-						# Ignore and continue
+						# Some versions of PHP have a strcspn which stops on
+						# null characters; ignore these and continue.
+						# We also may get '-' and '}' characters here which
+						# don't match -{ or $currentClosing.  Add these to
+						# output and continue.
+						if ( $curChar == '-' || $curChar == '}' ) {
+							$accum .= $curChar;
+						}
 						++$i;
 						continue;
 					}
@@ -363,7 +364,6 @@ class Preprocessor_DOM extends Preprocessor {
 				}
 				// Handle comments
 				if ( isset( $matches[2] ) && $matches[2] == '!--' ) {
-
 					// To avoid leaving blank lines, when a sequence of
 					// space-separated comments is both preceded and followed by
 					// a newline (ignoring spaces), then
@@ -551,13 +551,23 @@ class Preprocessor_DOM extends Preprocessor {
 						'count' => $count ];
 					$stack->push( $piece );
 					$accum =& $stack->getAccum();
-					$flags = $stack->getFlags();
-					extract( $flags );
+					$stackFlags = $stack->getFlags();
+					if ( isset( $stackFlags['findEquals'] ) ) {
+						$findEquals = $stackFlags['findEquals'];
+					}
+					if ( isset( $stackFlags['findPipe'] ) ) {
+						$findPipe = $stackFlags['findPipe'];
+					}
+					if ( isset( $stackFlags['inHeading'] ) ) {
+						$inHeading = $stackFlags['inHeading'];
+					}
 					$i += $count;
 				}
 			} elseif ( $found == 'line-end' ) {
 				$piece = $stack->top;
 				// A heading must be open, otherwise \n wouldn't have been in the search list
+				// FIXME: Don't use assert()
+				// phpcs:ignore MediaWiki.Usage.ForbiddenFunctions.assert
 				assert( $piece->open === "\n" );
 				$part = $piece->getCurrentPart();
 				// Search back through the input to see if it has a proper close.
@@ -602,8 +612,16 @@ class Preprocessor_DOM extends Preprocessor {
 				// Unwind the stack
 				$stack->pop();
 				$accum =& $stack->getAccum();
-				$flags = $stack->getFlags();
-				extract( $flags );
+				$stackFlags = $stack->getFlags();
+				if ( isset( $stackFlags['findEquals'] ) ) {
+					$findEquals = $stackFlags['findEquals'];
+				}
+				if ( isset( $stackFlags['findPipe'] ) ) {
+					$findPipe = $stackFlags['findPipe'];
+				}
+				if ( isset( $stackFlags['inHeading'] ) ) {
+					$inHeading = $stackFlags['inHeading'];
+				}
 
 				// Append the result to the enclosing accumulator
 				$accum .= $element;
@@ -615,7 +633,22 @@ class Preprocessor_DOM extends Preprocessor {
 			} elseif ( $found == 'open' ) {
 				# count opening brace characters
 				$curLen = strlen( $curChar );
-				$count = ( $curLen > 1 ) ? 1 : strspn( $text, $curChar, $i );
+				$count = ( $curLen > 1 ) ?
+					# allow the final character to repeat
+					strspn( $text, $curChar[$curLen - 1], $i + 1 ) + 1 :
+					strspn( $text, $curChar, $i );
+
+				$savedPrefix = '';
+				$lineStart = ( $i > 0 && $text[$i - 1] == "\n" );
+
+				if ( $curChar === "-{" && $count > $curLen ) {
+					// -{ => {{ transition because rightmost wins
+					$savedPrefix = '-';
+					$i++;
+					$curChar = '{';
+					$count--;
+					$rule = $this->rules[$curChar];
+				}
 
 				# we need to add to stack only if opening brace count is enough for one of the rules
 				if ( $count >= $rule['min'] ) {
@@ -623,25 +656,38 @@ class Preprocessor_DOM extends Preprocessor {
 					$piece = [
 						'open' => $curChar,
 						'close' => $rule['end'],
+						'savedPrefix' => $savedPrefix,
 						'count' => $count,
-						'lineStart' => ( $i > 0 && $text[$i - 1] == "\n" ),
+						'lineStart' => $lineStart,
 					];
 
 					$stack->push( $piece );
 					$accum =& $stack->getAccum();
-					$flags = $stack->getFlags();
-					extract( $flags );
+					$stackFlags = $stack->getFlags();
+					if ( isset( $stackFlags['findEquals'] ) ) {
+						$findEquals = $stackFlags['findEquals'];
+					}
+					if ( isset( $stackFlags['findPipe'] ) ) {
+						$findPipe = $stackFlags['findPipe'];
+					}
+					if ( isset( $stackFlags['inHeading'] ) ) {
+						$inHeading = $stackFlags['inHeading'];
+					}
 				} else {
 					# Add literal brace(s)
-					$accum .= htmlspecialchars( str_repeat( $curChar, $count ) );
+					$accum .= htmlspecialchars( $savedPrefix . str_repeat( $curChar, $count ) );
 				}
-				$i += $curLen * $count;
+				$i += $count;
 			} elseif ( $found == 'close' ) {
 				$piece = $stack->top;
 				# lets check if there are enough characters for closing brace
 				$maxCount = $piece->count;
+				if ( $piece->close === '}-' && $curChar === '}' ) {
+					$maxCount--; # don't try to match closing '-' as a '}'
+				}
 				$curLen = strlen( $curChar );
-				$count = ( $curLen > 1 ) ? 1 : strspn( $text, $curChar, $i, $maxCount );
+				$count = ( $curLen > 1 ) ? $curLen :
+					strspn( $text, $curChar, $i, $maxCount );
 
 				# check for maximum matching characters (if there are 5 closing
 				# characters, we will probably need only 3 - depending on the rules)
@@ -663,14 +709,16 @@ class Preprocessor_DOM extends Preprocessor {
 				if ( $matchingCount <= 0 ) {
 					# No matching element found in callback array
 					# Output a literal closing brace and continue
-					$accum .= htmlspecialchars( str_repeat( $curChar, $count ) );
-					$i += $curLen * $count;
+					$endText = substr( $text, $i, $count );
+					$accum .= htmlspecialchars( $endText );
+					$i += $count;
 					continue;
 				}
 				$name = $rule['names'][$matchingCount];
 				if ( $name === null ) {
 					// No element, just literal text
-					$element = $piece->breakSyntax( $matchingCount ) . str_repeat( $rule['end'], $matchingCount );
+					$endText = substr( $text, $i, $matchingCount );
+					$element = $piece->breakSyntax( $matchingCount ) . $endText;
 				} else {
 					# Create XML element
 					# Note: $parts is already XML, does not need to be encoded further
@@ -680,7 +728,9 @@ class Preprocessor_DOM extends Preprocessor {
 
 					# The invocation is at the start of the line if lineStart is set in
 					# the stack, and all opening brackets are used up.
-					if ( $maxCount == $matchingCount && !empty( $piece->lineStart ) ) {
+					if ( $maxCount == $matchingCount &&
+							!empty( $piece->lineStart ) &&
+							strlen( $piece->savedPrefix ) == 0 ) {
 						$attr = ' lineStart="1"';
 					} else {
 						$attr = '';
@@ -703,7 +753,7 @@ class Preprocessor_DOM extends Preprocessor {
 				}
 
 				# Advance input pointer
-				$i += $curLen * $matchingCount;
+				$i += $matchingCount;
 
 				# Unwind the stack
 				$stack->pop();
@@ -718,12 +768,35 @@ class Preprocessor_DOM extends Preprocessor {
 					if ( $piece->count >= $min ) {
 						$stack->push( $piece );
 						$accum =& $stack->getAccum();
+					} elseif ( $piece->count == 1 && $piece->open === '{' && $piece->savedPrefix === '-' ) {
+						$piece->savedPrefix = '';
+						$piece->open = '-{';
+						$piece->count = 2;
+						$piece->close = $this->rules[$piece->open]['end'];
+						$stack->push( $piece );
+						$accum =& $stack->getAccum();
 					} else {
-						$accum .= str_repeat( $piece->open, $piece->count );
+						$s = substr( $piece->open, 0, -1 );
+						$s .= str_repeat(
+							substr( $piece->open, -1 ),
+							$piece->count - strlen( $s )
+						);
+						$accum .= $piece->savedPrefix . $s;
 					}
+				} elseif ( $piece->savedPrefix !== '' ) {
+					$accum .= $piece->savedPrefix;
 				}
-				$flags = $stack->getFlags();
-				extract( $flags );
+
+				$stackFlags = $stack->getFlags();
+				if ( isset( $stackFlags['findEquals'] ) ) {
+					$findEquals = $stackFlags['findEquals'];
+				}
+				if ( isset( $stackFlags['findPipe'] ) ) {
+					$findPipe = $stackFlags['findPipe'];
+				}
+				if ( isset( $stackFlags['inHeading'] ) ) {
+					$inHeading = $stackFlags['inHeading'];
+				}
 
 				# Add XML element to the enclosing accumulator
 				$accum .= $element;
@@ -736,9 +809,6 @@ class Preprocessor_DOM extends Preprocessor {
 				$findEquals = false; // shortcut for getFlags()
 				$stack->getCurrentPart()->eqpos = strlen( $accum );
 				$accum .= '=';
-				++$i;
-			} elseif ( $found == 'dash' ) {
-				$accum .= '-';
 				++$i;
 			}
 		}
@@ -766,7 +836,7 @@ class PPDStack {
 	 */
 	public $top;
 	public $out;
-	public $elementClass = 'PPDStackElement';
+	public $elementClass = PPDStackElement::class;
 
 	public static $false = false;
 
@@ -788,6 +858,9 @@ class PPDStack {
 		return $this->accum;
 	}
 
+	/**
+	 * @return bool|PPDPart
+	 */
 	public function getCurrentPart() {
 		if ( $this->top === false ) {
 			return false;
@@ -808,7 +881,7 @@ class PPDStack {
 	}
 
 	public function pop() {
-		if ( !count( $this->stack ) ) {
+		if ( $this->stack === [] ) {
 			throw new MWException( __METHOD__ . ': no elements remaining' );
 		}
 		$temp = array_pop( $this->stack );
@@ -832,7 +905,7 @@ class PPDStack {
 	 * @return array
 	 */
 	public function getFlags() {
-		if ( !count( $this->stack ) ) {
+		if ( $this->stack === [] ) {
 			return [
 				'findEquals' => false,
 				'findPipe' => false,
@@ -859,6 +932,12 @@ class PPDStackElement {
 	public $close;
 
 	/**
+	 * @var string Saved prefix that may affect later processing,
+	 *  e.g. to differentiate `-{{{{` and `{{{{` after later seeing `}}}`.
+	 */
+	public $savedPrefix = '';
+
+	/**
 	 * @var int Number of opening characters found (number of "=" for heading)
 	 */
 	public $count;
@@ -874,7 +953,7 @@ class PPDStackElement {
 	 */
 	public $lineStart;
 
-	public $partClass = 'PPDPart';
+	public $partClass = PPDPart::class;
 
 	public function __construct( $data = [] ) {
 		$class = $this->partClass;
@@ -894,6 +973,9 @@ class PPDStackElement {
 		$this->parts[] = new $class( $s );
 	}
 
+	/**
+	 * @return PPDPart
+	 */
 	public function getCurrentPart() {
 		return $this->parts[count( $this->parts ) - 1];
 	}
@@ -919,12 +1001,17 @@ class PPDStackElement {
 	 */
 	public function breakSyntax( $openingCount = false ) {
 		if ( $this->open == "\n" ) {
-			$s = $this->parts[0]->out;
+			$s = $this->savedPrefix . $this->parts[0]->out;
 		} else {
 			if ( $openingCount === false ) {
 				$openingCount = $this->count;
 			}
-			$s = str_repeat( $this->open, $openingCount );
+			$s = substr( $this->open, 0, -1 );
+			$s .= str_repeat(
+				substr( $this->open, -1 ),
+				$openingCount - strlen( $s )
+			);
+			$s = $this->savedPrefix . $s;
 			$first = true;
 			foreach ( $this->parts as $part ) {
 				if ( $first ) {
@@ -962,9 +1049,8 @@ class PPDPart {
  * An expansion frame, used as a context to expand the result of preprocessToObj()
  * @ingroup Parser
  */
-// @codingStandardsIgnoreStart Squiz.Classes.ValidClassName.NotCamelCaps
+// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPFrame_DOM implements PPFrame {
-	// @codingStandardsIgnoreEnd
 
 	/**
 	 * @var Preprocessor
@@ -1467,7 +1553,7 @@ class PPFrame_DOM implements PPFrame {
 		if ( $level === false ) {
 			return $this->title->getPrefixedDBkey();
 		} else {
-			return isset( $this->titleCache[$level] ) ? $this->titleCache[$level] : false;
+			return $this->titleCache[$level] ?? false;
 		}
 	}
 
@@ -1580,9 +1666,8 @@ class PPFrame_DOM implements PPFrame {
  * Expansion frame with template arguments
  * @ingroup Parser
  */
-// @codingStandardsIgnoreStart Squiz.Classes.ValidClassName.NotCamelCaps
+// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPTemplateFrame_DOM extends PPFrame_DOM {
-	// @codingStandardsIgnoreEnd
 
 	public $numberedArgs, $namedArgs;
 
@@ -1759,9 +1844,8 @@ class PPTemplateFrame_DOM extends PPFrame_DOM {
  * Expansion frame with custom arguments
  * @ingroup Parser
  */
-// @codingStandardsIgnoreStart Squiz.Classes.ValidClassName.NotCamelCaps
+// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPCustomFrame_DOM extends PPFrame_DOM {
-	// @codingStandardsIgnoreEnd
 
 	public $args;
 
@@ -1798,10 +1882,7 @@ class PPCustomFrame_DOM extends PPFrame_DOM {
 	 * @return string|bool
 	 */
 	public function getArgument( $index ) {
-		if ( !isset( $this->args[$index] ) ) {
-			return false;
-		}
-		return $this->args[$index];
+		return $this->args[$index] ?? false;
 	}
 
 	public function getArguments() {
@@ -1812,9 +1893,8 @@ class PPCustomFrame_DOM extends PPFrame_DOM {
 /**
  * @ingroup Parser
  */
-// @codingStandardsIgnoreStart Squiz.Classes.ValidClassName.NotCamelCaps
+// phpcs:ignore Squiz.Classes.ValidClassName.NotCamelCaps
 class PPNode_DOM implements PPNode {
-	// @codingStandardsIgnoreEnd
 
 	/**
 	 * @var DOMElement

@@ -20,7 +20,8 @@ class FieldsetLayout extends Layout {
 
 	/**
 	 * @param array $config Configuration options
-	 * @param FieldLayout[] $config['items'] Items to add
+	 *      - FieldLayout[] $config['items'] Items to add
+	 * @param-taint $config escapes_htmlnoent
 	 */
 	public function __construct( array $config = [] ) {
 		// Parent constructor
@@ -28,13 +29,11 @@ class FieldsetLayout extends Layout {
 
 		// Traits
 		$this->initializeIconElement( $config );
-		$this->initializeLabelElement( array_merge( $config, [
-			'labelElement' => new Tag( 'div' )
-		] ) );
+		$this->initializeLabelElement( $config );
 		$this->initializeGroupElement( $config );
 
 		// Properties
-		$this->header = new Tag( 'div' );
+		$this->header = new Tag( 'legend' );
 
 		// Initialization
 		$this->header
@@ -47,5 +46,10 @@ class FieldsetLayout extends Layout {
 		if ( isset( $config['items'] ) ) {
 			$this->addItems( $config['items'] );
 		}
+	}
+
+	public function getConfig( &$config ) {
+		$config['$overlay'] = true;
+		return parent::getConfig( $config );
 	}
 }

@@ -6,8 +6,7 @@
  */
 class SearchNearMatcher {
 	/**
-	 * Configuration object.
-	 * @param Config $config
+	 * @var Config
 	 */
 	protected $config;
 
@@ -54,7 +53,6 @@ class SearchNearMatcher {
 	 */
 	protected function getNearMatchInternal( $searchterm ) {
 		$lang = $this->language;
-
 		$allSearchTerms = [ $searchterm ];
 
 		if ( $lang->hasVariants() ) {
@@ -69,8 +67,14 @@ class SearchNearMatcher {
 			return $titleResult;
 		}
 
-		foreach ( $allSearchTerms as $term ) {
+		// Most of our handling here deals with finding a valid title for the search term,
+		// but almost anything starting with '#' is "valid" and points to Main_Page#searchterm.
+		// Rather than doing something completely wrong, do nothing.
+		if ( $searchterm === '' || $searchterm[0] === '#' ) {
+			return null;
+		}
 
+		foreach ( $allSearchTerms as $term ) {
 			# Exact match? No need to look further.
 			$title = Title::newFromText( $term );
 			if ( is_null( $title ) ) {

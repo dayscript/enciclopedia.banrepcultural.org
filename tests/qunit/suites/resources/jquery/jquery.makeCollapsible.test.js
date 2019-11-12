@@ -1,4 +1,4 @@
-( function ( mw, $ ) {
+( function () {
 	var loremIpsum = 'Lorem ipsum dolor sit amet, consectetuer adipiscing elit.';
 
 	QUnit.module( 'jquery.makeCollapsible', QUnit.newMwEnvironment() );
@@ -50,8 +50,8 @@
 			$content = $collapsible.find( '.mw-collapsible-content' ),
 			$toggle = $collapsible.find( '.mw-collapsible-toggle' );
 
-		assert.equal( $content.length, 1, 'content is present' );
-		assert.equal( $content.find( $toggle ).length, 0, 'toggle is not a descendant of content' );
+		assert.strictEqual( $content.length, 1, 'content is present' );
+		assert.strictEqual( $content.find( $toggle ).length, 0, 'toggle is not a descendant of content' );
 
 		assert.assertTrue( $content.is( ':visible' ), 'content is visible' );
 
@@ -80,7 +80,7 @@
 			$contentRow = $collapsible.find( 'tr:last' ),
 			$toggle = $headerRow.find( 'td:last .mw-collapsible-toggle' );
 
-		assert.equal( $toggle.length, 1, 'toggle is added to last cell of first row' );
+		assert.strictEqual( $toggle.length, 1, 'toggle is added to last cell of first row' );
 
 		assert.assertTrue( $headerRow.is( ':visible' ), 'headerRow is visible' );
 		assert.assertTrue( $contentRow.is( ':visible' ), 'contentRow is visible' );
@@ -106,7 +106,7 @@
 			$contentRow = $collapsible.find( 'tr:last' ),
 			$toggle = $caption.find( '.mw-collapsible-toggle' );
 
-		assert.equal( $toggle.length, 1, 'toggle is added to the end of the caption' );
+		assert.strictEqual( $toggle.length, 1, 'toggle is added to the end of the caption' );
 
 		assert.assertTrue( $caption.is( ':visible' ), 'caption is visible' );
 		assert.assertTrue( $headerRow.is( ':visible' ), 'headerRow is visible' );
@@ -162,7 +162,7 @@
 			$contentItem = $collapsible.find( 'li:last' ),
 			$toggle = $toggleItem.find( '.mw-collapsible-toggle' );
 
-		assert.equal( $toggle.length, 1, 'toggle is present, added inside new zeroth list item' );
+		assert.strictEqual( $toggle.length, 1, 'toggle is present, added inside new zeroth list item' );
 
 		assert.assertTrue( $toggleItem.is( ':visible' ), 'toggleItem is visible' );
 		assert.assertTrue( $contentItem.is( ':visible' ), 'contentItem is visible' );
@@ -206,16 +206,16 @@
 
 	QUnit.test( 'mw-made-collapsible data added', function ( assert ) {
 		var $collapsible = prepareCollapsible(
-				'<div>' + loremIpsum + '</div>'
-			);
+			'<div>' + loremIpsum + '</div>'
+		);
 
-		assert.equal( $collapsible.data( 'mw-made-collapsible' ), true, 'mw-made-collapsible data present' );
+		assert.strictEqual( $collapsible.data( 'mw-made-collapsible' ), true, 'mw-made-collapsible data present' );
 	} );
 
 	QUnit.test( 'mw-collapsible added when missing', function ( assert ) {
 		var $collapsible = prepareCollapsible(
-				'<div>' + loremIpsum + '</div>'
-			);
+			'<div>' + loremIpsum + '</div>'
+		);
 
 		assert.assertTrue( $collapsible.hasClass( 'mw-collapsible' ), 'mw-collapsible class present' );
 	} );
@@ -223,8 +223,8 @@
 	QUnit.test( 'mw-collapsed added when missing', function ( assert ) {
 		var $collapsible = prepareCollapsible(
 			'<div>' + loremIpsum + '</div>',
-				{ collapsed: true }
-			);
+			{ collapsed: true }
+		);
 
 		assert.assertTrue( $collapsible.hasClass( 'mw-collapsed' ), 'mw-collapsed class present' );
 	} );
@@ -262,7 +262,7 @@
 		$collapsible.find( '.mw-collapsible-toggle' ).trigger( 'click' );
 	} );
 
-	QUnit.test( 'clicks on links inside toggler pass through (options.linksPassthru)', function ( assert ) {
+	QUnit.test( 'clicks on links inside toggler pass through', function ( assert ) {
 		var $collapsible = prepareCollapsible(
 				'<div class="mw-collapsible">' +
 					'<div class="mw-collapsible-toggle">' +
@@ -282,18 +282,34 @@
 		assert.assertTrue( $content.is( ':hidden' ), 'click event on non-link inside toggle toggles content' );
 	} );
 
+	QUnit.test( 'click on non-link inside toggler counts as trigger', function ( assert ) {
+		var $collapsible = prepareCollapsible(
+				'<div class="mw-collapsible">' +
+					'<div class="mw-collapsible-toggle">' +
+						'Toggle <a>toggle</a> toggle <b>toggle</b>' +
+					'</div>' +
+					'<div class="mw-collapsible-content">' + loremIpsum + '</div>' +
+				'</div>',
+				{ instantHide: true }
+			),
+			$content = $collapsible.find( '.mw-collapsible-content' );
+
+		$collapsible.find( '.mw-collapsible-toggle a' ).trigger( 'click' );
+		assert.assertTrue( $content.is( ':hidden' ), 'click event on link (with no href) inside toggle toggles content' );
+	} );
+
 	QUnit.test( 'collapse/expand text (data-collapsetext, data-expandtext)', function ( assert ) {
 		var $collapsible = prepareCollapsible(
 				'<div class="mw-collapsible" data-collapsetext="Collapse me!" data-expandtext="Expand me!">' +
 					loremIpsum +
 				'</div>'
 			),
-			$toggleLink = $collapsible.find( '.mw-collapsible-toggle a' );
+			$toggleText = $collapsible.find( '.mw-collapsible-text' );
 
-		assert.equal( $toggleLink.text(), 'Collapse me!', 'data-collapsetext is respected' );
+		assert.strictEqual( $toggleText.text(), 'Collapse me!', 'data-collapsetext is respected' );
 
 		$collapsible.on( 'afterCollapse.mw-collapsible', function () {
-			assert.equal( $toggleLink.text(), 'Expand me!', 'data-expandtext is respected' );
+			assert.strictEqual( $toggleText.text(), 'Expand me!', 'data-expandtext is respected' );
 		} );
 
 		$collapsible.find( '.mw-collapsible-toggle' ).trigger( 'click' );
@@ -304,12 +320,39 @@
 				'<div class="mw-collapsible">' + loremIpsum + '</div>',
 				{ collapseText: 'Collapse me!', expandText: 'Expand me!' }
 			),
-			$toggleLink = $collapsible.find( '.mw-collapsible-toggle a' );
+			$toggleText = $collapsible.find( '.mw-collapsible-text' );
 
-		assert.equal( $toggleLink.text(), 'Collapse me!', 'options.collapseText is respected' );
+		assert.strictEqual( $toggleText.text(), 'Collapse me!', 'options.collapseText is respected' );
 
 		$collapsible.on( 'afterCollapse.mw-collapsible', function () {
-			assert.equal( $toggleLink.text(), 'Expand me!', 'options.expandText is respected' );
+			assert.strictEqual( $toggleText.text(), 'Expand me!', 'options.expandText is respected' );
+		} );
+
+		$collapsible.find( '.mw-collapsible-toggle' ).trigger( 'click' );
+	} );
+
+	QUnit.test( 'predefined toggle button and text (.mw-collapsible-toggle/.mw-collapsible-text)', function ( assert ) {
+		var $collapsible = prepareCollapsible(
+				'<div class="mw-collapsible">' +
+					'<div class="mw-collapsible-toggle">' +
+						'<span>[</span><span class="mw-collapsible-text">Toggle</span><span>]</span>' +
+					'</div>' +
+					'<div class="mw-collapsible-content">' + loremIpsum + '</div>' +
+				'</div>',
+				{ collapseText: 'Hide', expandText: 'Show' }
+			),
+			$toggleText = $collapsible.find( '.mw-collapsible-text' );
+
+		assert.strictEqual( $toggleText.text(), 'Toggle', 'predefined text remains' );
+
+		$collapsible.on( 'afterCollapse.mw-collapsible', function () {
+			assert.strictEqual( $toggleText.text(), 'Show', 'predefined text is toggled' );
+
+			$collapsible.on( 'afterExpand.mw-collapsible', function () {
+				assert.strictEqual( $toggleText.text(), 'Hide', 'predefined text is toggled back' );
+			} );
+
+			$collapsible.find( '.mw-collapsible-toggle' ).trigger( 'click' );
 		} );
 
 		$collapsible.find( '.mw-collapsible-toggle' ).trigger( 'click' );
@@ -331,4 +374,24 @@
 
 		$clone.find( '.mw-collapsible-toggle a' ).trigger( 'click' );
 	} );
-}( mediaWiki, jQuery ) );
+
+	QUnit.test( 'T168689 - nested collapsible divs should keep independent state', function ( assert ) {
+		var $collapsible1 = prepareCollapsible(
+				'<div class="mw-collapsible">' + loremIpsum + '</div>'
+			),
+			$collapsible2 = prepareCollapsible(
+				'<div class="mw-collapsible">' + loremIpsum + '</div>'
+			);
+
+		$collapsible1
+			.append( $collapsible2 )
+			.appendTo( '#qunit-fixture' ).makeCollapsible();
+
+		$collapsible1.on( 'afterCollapse.mw-collapsible', function () {
+			assert.assertTrue( $collapsible1.hasClass( 'mw-collapsed' ), 'after collapsing: parent is collapsed' );
+			assert.assertFalse( $collapsible2.hasClass( 'mw-collapsed' ), 'after collapsing: child is not collapsed' );
+			assert.assertTrue( $collapsible1.find( '> .mw-collapsible-toggle' ).hasClass( 'mw-collapsible-toggle-collapsed' ) );
+			assert.assertFalse( $collapsible2.find( '> .mw-collapsible-toggle' ).hasClass( 'mw-collapsible-toggle-collapsed' ) );
+		} ).find( '> .mw-collapsible-toggle a' ).trigger( 'click' );
+	} );
+}() );

@@ -170,21 +170,33 @@ class WikiFilePage extends WikiPage {
 	 */
 	public function doPurge() {
 		$this->loadFile();
+
 		if ( $this->mFile->exists() ) {
 			wfDebug( 'ImagePage::doPurge purging ' . $this->mFile->getName() . "\n" );
-			DeferredUpdates::addUpdate( new HTMLCacheUpdate( $this->mTitle, 'imagelinks' ) );
-			$this->mFile->purgeCache( [ 'forThumbRefresh' => true ] );
+			DeferredUpdates::addUpdate(
+				new HTMLCacheUpdate( $this->mTitle, 'imagelinks', 'file-purge' )
+			);
 		} else {
 			wfDebug( 'ImagePage::doPurge no image for '
 				. $this->mFile->getName() . "; limiting purge to cache only\n" );
-			// even if the file supposedly doesn't exist, force any cached information
-			// to be updated (in case the cached information is wrong)
-			$this->mFile->purgeCache( [ 'forThumbRefresh' => true ] );
 		}
+
+		// even if the file supposedly doesn't exist, force any cached information
+		// to be updated (in case the cached information is wrong)
+
+		// Purge current version and its thumbnails
+		$this->mFile->purgeCache( [ 'forThumbRefresh' => true ] );
+
+		// Purge the old versions and their thumbnails
+		foreach ( $this->mFile->getHistory() as $oldFile ) {
+			$oldFile->purgeCache( [ 'forThumbRefresh' => true ] );
+		}
+
 		if ( $this->mRepo ) {
 			// Purge redirect cache
 			$this->mRepo->invalidateImageRedirect( $this->mTitle );
 		}
+
 		return parent::doPurge();
 	}
 
@@ -223,7 +235,7 @@ class WikiFilePage extends WikiPage {
 			],
 			__METHOD__,
 			[],
-			[ 'categorylinks' => [ 'INNER JOIN', 'page_id = cl_from' ] ]
+			[ 'categorylinks' => [ 'JOIN', 'page_id = cl_from' ] ]
 		);
 
 		return TitleArray::newFromResult( $res );

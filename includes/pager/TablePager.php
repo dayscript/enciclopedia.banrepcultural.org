@@ -26,8 +26,10 @@
  * @ingroup Pager
  */
 abstract class TablePager extends IndexPager {
+	/** @var string */
 	protected $mSort;
 
+	/** @var stdClass */
 	protected $mCurrentRow;
 
 	public function __construct( IContextSource $context = null ) {
@@ -110,7 +112,7 @@ abstract class TablePager extends IndexPager {
 	 * @protected
 	 * @return string
 	 */
-	function getStartBody() {
+	protected function getStartBody() {
 		$sortClass = $this->getSortHeaderClass();
 
 		$s = '';
@@ -119,7 +121,7 @@ abstract class TablePager extends IndexPager {
 		// Make table header
 		foreach ( $fields as $field => $name ) {
 			if ( strval( $name ) == '' ) {
-				$s .= Html::rawElement( 'th', [], '&#160;' ) . "\n";
+				$s .= Html::rawElement( 'th', [], "\u{00A0}" ) . "\n";
 			} elseif ( $this->isFieldSortable( $field ) ) {
 				$query = [ 'sort' => $field, 'limit' => $this->mLimit ];
 				$linkType = null;
@@ -130,12 +132,12 @@ abstract class TablePager extends IndexPager {
 					// We don't actually know in which direction other fields will be sorted by default…
 					if ( $this->mDefaultDirection == IndexPager::DIR_DESCENDING ) {
 						$linkType = 'asc';
-						$class = "$sortClass TablePager_sort-descending";
+						$class = "$sortClass mw-datatable-is-sorted mw-datatable-is-descending";
 						$query['asc'] = '1';
 						$query['desc'] = '';
 					} else {
 						$linkType = 'desc';
-						$class = "$sortClass TablePager_sort-ascending";
+						$class = "$sortClass mw-datatable-is-sorted mw-datatable-is-ascending";
 						$query['asc'] = '';
 						$query['desc'] = '1';
 					}
@@ -150,7 +152,7 @@ abstract class TablePager extends IndexPager {
 
 		$tableClass = $this->getTableClass();
 		$ret = Html::openElement( 'table', [
-			'class' => "mw-datatable $tableClass" ]
+			'class' => " $tableClass" ]
 		);
 		$ret .= Html::rawElement( 'thead', [], Html::rawElement( 'tr', [], "\n" . $s . "\n" ) );
 		$ret .= Html::openElement( 'tbody' ) . "\n";
@@ -162,7 +164,7 @@ abstract class TablePager extends IndexPager {
 	 * @protected
 	 * @return string
 	 */
-	function getEndBody() {
+	protected function getEndBody() {
 		return "</tbody></table>\n";
 	}
 
@@ -188,11 +190,11 @@ abstract class TablePager extends IndexPager {
 		$fieldNames = $this->getFieldNames();
 
 		foreach ( $fieldNames as $field => $name ) {
-			$value = isset( $row->$field ) ? $row->$field : null;
+			$value = $row->$field ?? null;
 			$formatted = strval( $this->formatValue( $field, $value ) );
 
 			if ( $formatted == '' ) {
-				$formatted = '&#160;';
+				$formatted = "\u{00A0}";
 			}
 
 			$s .= Html::rawElement( 'td', $this->getCellAttrs( $field, $value ), $formatted ) . "\n";
@@ -264,10 +266,11 @@ abstract class TablePager extends IndexPager {
 	}
 
 	/**
+	 * TablePager relies on `mw-datatable` for styling, see T214208
 	 * @return string
 	 */
 	protected function getTableClass() {
-		return 'TablePager';
+		return 'mw-datatable';
 	}
 
 	/**
@@ -293,35 +296,38 @@ abstract class TablePager extends IndexPager {
 			return '';
 		}
 
-		$labels = [
-			'first' => 'table_pager_first',
-			'prev' => 'table_pager_prev',
-			'next' => 'table_pager_next',
-			'last' => 'table_pager_last',
-		];
+		$this->getOutput()->enableOOUI();
 
-		$linkTexts = [];
-		$disabledTexts = [];
-		foreach ( $labels as $type => $label ) {
-			$msgLabel = $this->msg( $label )->escaped();
-			$linkTexts[$type] = "<div class='TablePager_nav-enabled'>$msgLabel</div>";
-			$disabledTexts[$type] = "<div class='TablePager_nav-disabled'>$msgLabel</div>";
-		}
-		$links = $this->getPagingLinks( $linkTexts, $disabledTexts );
+		$types = [ 'first', 'prev', 'next', 'last' ];
 
-		$s = Html::openElement( 'table', [ 'class' => $this->getNavClass() ] );
-		$s .= Html::openElement( 'tr' ) . "\n";
-		$width = 100 / count( $links ) . '%';
-		foreach ( $labels as $type => $label ) {
-			// We want every cell to have the same width. We could use table-layout: fixed; in CSS,
-			// but it only works if we specify the width of a cell or the table and we don't want to.
-			// There is no better way. <https://www.w3.org/TR/CSS2/tables.html#fixed-table-layout>
-			$s .= Html::rawElement( 'td',
-				[ 'style' => "width: $width;", 'class' => "TablePager_nav-$type" ],
-				$links[$type] ) . "\n";
+		$queries = $this->getPagingQueries();
+
+		$buttons = [];
+
+		$title = $this->getTitle();
+
+		foreach ( $types as $type ) {
+			$buttons[] = new \OOUI\ButtonWidget( [
+				// Messages used here:
+				// * table_pager_first
+				// * table_pager_prev
+				// * table_pager_next
+				// * table_pager_last
+				'classes' => [ 'TablePager-button-' . $type ],
+				'flags' => [ 'progressive' ],
+				'framed' => false,
+				'label' => $this->msg( 'table_pager_' . $type )->text(),
+				'href' => $queries[ $type ] ?
+					$title->getLinkURL( $queries[ $type ] + $this->getDefaultQuery() ) :
+					null,
+				'icon' => $type === 'prev' ? 'previous' : $type,
+				'disabled' => $queries[ $type ] === false
+			] );
 		}
-		$s .= Html::closeElement( 'tr' ) . Html::closeElement( 'table' ) . "\n";
-		return $s;
+		return new \OOUI\ButtonGroupWidget( [
+			'classes' => [ $this->getNavClass() ],
+			'items' => $buttons,
+		] );
 	}
 
 	/**
@@ -330,7 +336,7 @@ abstract class TablePager extends IndexPager {
 	 * @return string[]
 	 */
 	public function getModuleStyles() {
-		return [ 'mediawiki.pager.tablePager' ];
+		return [ 'mediawiki.pager.tablePager', 'oojs-ui.styles.icons-movement' ];
 	}
 
 	/**

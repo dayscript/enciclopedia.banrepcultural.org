@@ -23,7 +23,7 @@
  * @ingroup Pager
  */
 use MediaWiki\MediaWikiServices;
-use Wikimedia\Rdbms\ResultWrapper;
+use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\FakeResultWrapper;
 
 class ImageListPager extends TablePager {
@@ -50,7 +50,7 @@ class ImageListPager extends TablePager {
 
 	protected $mTableName = 'image';
 
-	function __construct( IContextSource $context, $userName = null, $search = '',
+	public function __construct( IContextSource $context, $userName = null, $search = '',
 		$including = false, $showAll = false
 	) {
 		$this->setContext( $context );
@@ -134,7 +134,16 @@ class ImageListPager extends TablePager {
 		$conds = [];
 
 		if ( !is_null( $this->mUserName ) ) {
-			$conds[$prefix . '_user_text'] = $this->mUserName;
+			// getQueryInfoReal() should have handled the tables and joins.
+			$dbr = wfGetDB( DB_REPLICA );
+			$actorWhere = ActorMigration::newMigration()->getWhere(
+				$dbr,
+				$prefix . '_user',
+				User::newFromName( $this->mUserName, false ),
+				// oldimage doesn't have an index on oi_user, while image does. Set $useId accordingly.
+				$prefix === 'img'
+			);
+			$conds[] = $actorWhere['conds'];
 		}
 
 		if ( $this->mSearch !== '' ) {
@@ -159,6 +168,9 @@ class ImageListPager extends TablePager {
 	}
 
 	/**
+	 * The array keys (but not the array values) are used in sql. Phan
+	 * gets confused by this, so mark this method as being ok for sql in general.
+	 * @return-taint onlysafefor_sql
 	 * @return array
 	 */
 	function getFieldNames() {
@@ -193,9 +205,9 @@ class ImageListPager extends TablePager {
 		}
 		$sortable = [ 'img_timestamp', 'img_name', 'img_size' ];
 		/* For reference, the indicies we can use for sorting are:
-		 * On the image table: img_user_timestamp, img_usertext_timestamp,
+		 * On the image table: img_user_timestamp/img_usertext_timestamp/img_actor_timestamp,
 		 * img_size, img_timestamp
-		 * On oldimage: oi_usertext_timestamp, oi_name_timestamp
+		 * On oldimage: oi_usertext_timestamp/oi_actor_timestamp, oi_name_timestamp
 		 *
 		 * In particular that means we cannot sort by timestamp when not filtering
 		 * by user and including old images in the results. Which is sad.
@@ -241,50 +253,53 @@ class ImageListPager extends TablePager {
 	 * @return array Query info
 	 */
 	protected function getQueryInfoReal( $table ) {
+		$dbr = wfGetDB( DB_REPLICA );
 		$prefix = $table === 'oldimage' ? 'oi' : 'img';
 
 		$tables = [ $table ];
 		$fields = array_keys( $this->getFieldNames() );
+		$fields = array_combine( $fields, $fields );
+		unset( $fields['img_description'] );
+		unset( $fields['img_user_text'] );
 
 		if ( $table === 'oldimage' ) {
-			foreach ( $fields as $id => &$field ) {
-				if ( substr( $field, 0, 4 ) !== 'img_' ) {
-					continue;
+			foreach ( $fields as $id => $field ) {
+				if ( substr( $id, 0, 4 ) === 'img_' ) {
+					$fields[$id] = $prefix . substr( $field, 3 );
 				}
-				$field = $prefix . substr( $field, 3 ) . ' AS ' . $field;
 			}
-			$fields[array_search( 'top', $fields )] = "'no' AS top";
-		} else {
-			if ( $this->mShowAll ) {
-				$fields[array_search( 'top', $fields )] = "'yes' AS top";
-			}
+			$fields['top'] = $dbr->addQuotes( 'no' );
+		} elseif ( $this->mShowAll ) {
+			$fields['top'] = $dbr->addQuotes( 'yes' );
 		}
-		$fields[] = $prefix . '_user AS img_user';
-		$fields[array_search( 'thumb', $fields )] = $prefix . '_name AS thumb';
+		$fields['thumb'] = $prefix . '_name';
 
 		$options = $join_conds = [];
 
+		# Description field
+		$commentQuery = CommentStore::getStore()->getJoin( $prefix . '_description' );
+		$tables += $commentQuery['tables'];
+		$fields += $commentQuery['fields'];
+		$join_conds += $commentQuery['joins'];
+		$fields['description_field'] = $dbr->addQuotes( "{$prefix}_description" );
+
+		# User fields
+		$actorQuery = ActorMigration::newMigration()->getJoin( $prefix . '_user' );
+		$tables += $actorQuery['tables'];
+		$join_conds += $actorQuery['joins'];
+		$fields['img_user'] = $actorQuery['fields'][$prefix . '_user'];
+		$fields['img_user_text'] = $actorQuery['fields'][$prefix . '_user_text'];
+		$fields['img_actor'] = $actorQuery['fields'][$prefix . '_actor'];
+
 		# Depends on $wgMiserMode
 		# Will also not happen if mShowAll is true.
-		if ( isset( $this->mFieldNames['count'] ) ) {
-			$tables[] = 'oldimage';
-
-			# Need to rewrite this one
-			foreach ( $fields as &$field ) {
-				if ( $field == 'count' ) {
-					$field = 'COUNT(oi_archive_name) AS count';
-				}
-			}
-			unset( $field );
-
-			$dbr = wfGetDB( DB_REPLICA );
-			if ( $dbr->implicitGroupby() ) {
-				$options = [ 'GROUP BY' => 'img_name' ];
-			} else {
-				$columnlist = preg_grep( '/^img/', array_keys( $this->getFieldNames() ) );
-				$options = [ 'GROUP BY' => array_merge( [ 'img_user' ], $columnlist ) ];
-			}
-			$join_conds = [ 'oldimage' => [ 'LEFT JOIN', 'oi_name = img_name' ] ];
+		if ( isset( $fields['count'] ) ) {
+			$fields['count'] = $dbr->buildSelectSubquery(
+				'oldimage',
+				'COUNT(oi_archive_name)',
+				'oi_name = img_name',
+				__METHOD__
+			);
 		}
 
 		return [
@@ -304,15 +319,15 @@ class ImageListPager extends TablePager {
 	 *   is descending, so I renamed it to $asc here.
 	 * @param int $offset
 	 * @param int $limit
-	 * @param bool $asc
-	 * @return array
+	 * @param bool $order IndexPager::QUERY_ASCENDING or IndexPager::QUERY_DESCENDING
+	 * @return FakeResultWrapper
 	 * @throws MWException
 	 */
-	function reallyDoQuery( $offset, $limit, $asc ) {
+	function reallyDoQuery( $offset, $limit, $order ) {
 		$prevTableName = $this->mTableName;
 		$this->mTableName = 'image';
 		list( $tables, $fields, $conds, $fname, $options, $join_conds ) =
-			$this->buildQueryInfo( $offset, $limit, $asc );
+			$this->buildQueryInfo( $offset, $limit, $order );
 		$imageRes = $this->mDb->select( $tables, $fields, $conds, $fname, $options, $join_conds );
 		$this->mTableName = $prevTableName;
 
@@ -330,13 +345,13 @@ class ImageListPager extends TablePager {
 		$this->mIndexField = 'oi_' . substr( $this->mIndexField, 4 );
 
 		list( $tables, $fields, $conds, $fname, $options, $join_conds ) =
-			$this->buildQueryInfo( $offset, $limit, $asc );
+			$this->buildQueryInfo( $offset, $limit, $order );
 		$oldimageRes = $this->mDb->select( $tables, $fields, $conds, $fname, $options, $join_conds );
 
 		$this->mTableName = $prevTableName;
 		$this->mIndexField = $oldIndex;
 
-		return $this->combineResult( $imageRes, $oldimageRes, $limit, $asc );
+		return $this->combineResult( $imageRes, $oldimageRes, $limit, $order );
 	}
 
 	/**
@@ -344,8 +359,8 @@ class ImageListPager extends TablePager {
 	 *
 	 * Note: This will throw away some results
 	 *
-	 * @param ResultWrapper $res1
-	 * @param ResultWrapper $res2
+	 * @param IResultWrapper $res1
+	 * @param IResultWrapper $res2
 	 * @param int $limit
 	 * @param bool $ascending See note about $asc in $this->reallyDoQuery
 	 * @return FakeResultWrapper $res1 and $res2 combined
@@ -365,27 +380,21 @@ class ImageListPager extends TablePager {
 					$resultArray[] = $topRes2;
 					$topRes2 = $res2->next();
 				}
+			} elseif ( !$ascending ) {
+				$resultArray[] = $topRes2;
+				$topRes2 = $res2->next();
 			} else {
-				if ( !$ascending ) {
-					$resultArray[] = $topRes2;
-					$topRes2 = $res2->next();
-				} else {
-					$resultArray[] = $topRes1;
-					$topRes1 = $res1->next();
-				}
+				$resultArray[] = $topRes1;
+				$topRes1 = $res1->next();
 			}
 		}
 
-		// @codingStandardsIgnoreStart Squiz.WhiteSpace.SemicolonSpacing.Incorrect
 		for ( ; $i < $limit && $topRes1; $i++ ) {
-			// @codingStandardsIgnoreEnd
 			$resultArray[] = $topRes1;
 			$topRes1 = $res1->next();
 		}
 
-		// @codingStandardsIgnoreStart Squiz.WhiteSpace.SemicolonSpacing.Incorrect
 		for ( ; $i < $limit && $topRes2; $i++ ) {
-			// @codingStandardsIgnoreEnd
 			$resultArray[] = $topRes2;
 			$topRes2 = $res2->next();
 		}
@@ -402,7 +411,7 @@ class ImageListPager extends TablePager {
 		}
 	}
 
-	function doBatchLookups() {
+	protected function doBatchLookups() {
 		$userIds = [];
 		$this->mResult->seek( 0 );
 		foreach ( $this->mResult as $row ) {
@@ -438,7 +447,7 @@ class ImageListPager extends TablePager {
 					if ( $thumb ) {
 						return $thumb->toHtml( [ 'desc-link' => true ] );
 					} else {
-						return wfMessage( 'thumbnail_error', '' )->escaped();
+						return $this->msg( 'thumbnail_error', '' )->escaped();
 					}
 				} else {
 					return htmlspecialchars( $value );
@@ -497,6 +506,8 @@ class ImageListPager extends TablePager {
 			case 'img_size':
 				return htmlspecialchars( $this->getLanguage()->formatSize( $value ) );
 			case 'img_description':
+				$field = $this->mCurrentRow->description_field;
+				$value = CommentStore::getStore()->getComment( $field, $this->mCurrentRow )->text;
 				return Linker::formatComment( $value );
 			case 'count':
 				return $this->getLanguage()->formatNum( intval( $value ) + 1 );
@@ -509,8 +520,8 @@ class ImageListPager extends TablePager {
 	}
 
 	function getForm() {
-		$fields = [];
-		$fields['limit'] = [
+		$formDescriptor = [];
+		$formDescriptor['limit'] = [
 			'type' => 'select',
 			'name' => 'limit',
 			'label-message' => 'table_pager_limit_label',
@@ -519,7 +530,7 @@ class ImageListPager extends TablePager {
 		];
 
 		if ( !$this->getConfig()->get( 'MiserMode' ) ) {
-			$fields['ilsearch'] = [
+			$formDescriptor['ilsearch'] = [
 				'type' => 'text',
 				'name' => 'ilsearch',
 				'id' => 'mw-ilsearch',
@@ -530,19 +541,17 @@ class ImageListPager extends TablePager {
 			];
 		}
 
-		$this->getOutput()->addModules( 'mediawiki.userSuggest' );
-		$fields['user'] = [
-			'type' => 'text',
+		$formDescriptor['user'] = [
+			'type' => 'user',
 			'name' => 'user',
 			'id' => 'mw-listfiles-user',
 			'label-message' => 'username',
 			'default' => $this->mUserName,
 			'size' => '40',
 			'maxlength' => '255',
-			'cssclass' => 'mw-autocomplete-user', // used by mediawiki.userSuggest
 		];
 
-		$fields['ilshowall'] = [
+		$formDescriptor['ilshowall'] = [
 			'type' => 'check',
 			'name' => 'ilshowall',
 			'id' => 'mw-listfiles-show-all',
@@ -557,17 +566,16 @@ class ImageListPager extends TablePager {
 		unset( $query['ilshowall'] );
 		unset( $query['user'] );
 
-		$form = new HTMLForm( $fields, $this->getContext() );
-
-		$form->setMethod( 'get' );
-		$form->setTitle( $this->getTitle() );
-		$form->setId( 'mw-listfiles-form' );
-		$form->setWrapperLegendMsg( 'listfiles' );
-		$form->setSubmitTextMsg( 'table_pager_limit_submit' );
-		$form->addHiddenFields( $query );
-
-		$form->prepareForm();
-		$form->displayForm( '' );
+		$htmlForm = HTMLForm::factory( 'ooui', $formDescriptor, $this->getContext() );
+		$htmlForm
+			->setMethod( 'get' )
+			->setId( 'mw-listfiles-form' )
+			->setTitle( $this->getTitle() )
+			->setSubmitTextMsg( 'table_pager_limit_submit' )
+			->setWrapperLegendMsg( 'listfiles' )
+			->addHiddenFields( $query )
+			->prepareForm()
+			->displayForm( '' );
 	}
 
 	protected function getTableClass() {

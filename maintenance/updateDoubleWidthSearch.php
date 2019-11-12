@@ -1,6 +1,6 @@
 <?php
 /**
- * Normalize double-byte latin UTF-8 characters
+ * Normalize double-byte Latin UTF-8 characters
  *
  * Usage: php updateDoubleWidthSearch.php
  *
@@ -26,7 +26,7 @@
 require_once __DIR__ . '/Maintenance.php';
 
 /**
- * Maintenance script to normalize double-byte latin UTF-8 characters.
+ * Maintenance script to normalize double-byte Latin UTF-8 characters.
  *
  * @ingroup Maintenance
  */
@@ -34,7 +34,7 @@ class UpdateDoubleWidthSearch extends Maintenance {
 
 	public function __construct() {
 		parent::__construct();
-		$this->addDescription( 'Script to normalize double-byte latin UTF-8 characters' );
+		$this->addDescription( 'Script to normalize double-byte Latin UTF-8 characters' );
 		$this->addOption( 'q', 'quiet', false, true );
 		$this->addOption(
 			'l',
@@ -53,7 +53,7 @@ class UpdateDoubleWidthSearch extends Maintenance {
 
 		$dbw = $this->getDB( DB_MASTER );
 		if ( $dbw->getType() !== 'mysql' ) {
-			$this->error( "This change is only needed on MySQL, quitting.\n", true );
+			$this->fatalError( "This change is only needed on MySQL, quitting.\n" );
 		}
 
 		$res = $this->findRows( $dbw );
@@ -77,5 +77,5 @@ class UpdateDoubleWidthSearch extends Maintenance {
 	}
 }
 
-$maintClass = "UpdateDoubleWidthSearch";
+$maintClass = UpdateDoubleWidthSearch::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

@@ -5,7 +5,7 @@
  * @license The MIT License (MIT); see LICENSE.txt
  */
 /* global moment */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Creates an mw.widgets.DateInputWidget object.
@@ -89,7 +89,7 @@
 	 *     calendar uses relative positioning.
 	 */
 	mw.widgets.DateInputWidget = function MWWDateInputWidget( config ) {
-		var placeholderDateFormat, mustBeAfter, mustBeBefore;
+		var placeholderDateFormat, mustBeAfter, mustBeBefore, $overlay;
 
 		// Config initialization
 		config = $.extend( {
@@ -130,6 +130,7 @@
 		} );
 		this.inCalendar = 0;
 		this.inTextInput = 0;
+		this.closing = false;
 		this.inputFormat = config.inputFormat;
 		this.displayFormat = config.displayFormat;
 		this.longDisplayFormat = config.longDisplayFormat;
@@ -167,12 +168,14 @@
 			focusout: this.onBlur.bind( this )
 		} );
 		this.calendar.$element.on( {
+			focusout: this.onBlur.bind( this ),
 			click: this.onCalendarClick.bind( this ),
 			keypress: this.onCalendarKeyPress.bind( this )
 		} );
 		this.$handle.on( {
 			click: this.onClick.bind( this ),
-			keypress: this.onKeyPress.bind( this )
+			keypress: this.onKeyPress.bind( this ),
+			focus: this.onFocus.bind( this )
 		} );
 
 		// Initialization
@@ -187,24 +190,20 @@
 			.addClass( 'mw-widget-dateInputWidget' )
 			.append( this.$handle, this.textInput.$element, this.calendar.$element );
 
-		// config.overlay is the selector to be used for config.$overlay, specified from PHP
-		if ( config.overlay ) {
-			config.$overlay = $( config.overlay );
-		}
+		$overlay = config.$overlay === true ? OO.ui.getDefaultOverlay() : config.$overlay;
 
-		if ( config.$overlay ) {
+		if ( $overlay ) {
 			this.calendar.setFloatableContainer( this.$element );
-			config.$overlay.append( this.calendar.$element );
+			$overlay.append( this.calendar.$element );
 
 			// The text input and calendar are not in DOM order, so fix up focus transitions.
 			this.textInput.$input.on( 'keydown', function ( e ) {
 				if ( e.which === OO.ui.Keys.TAB ) {
 					if ( e.shiftKey ) {
 						// Tabbing backward from text input: normal browser behavior
-						$.noop();
 					} else {
 						// Tabbing forward from text input: just focus the calendar
-						this.calendar.$element.focus();
+						this.calendar.$element.trigger( 'focus' );
 						return false;
 					}
 				}
@@ -213,12 +212,12 @@
 				if ( e.which === OO.ui.Keys.TAB ) {
 					if ( e.shiftKey ) {
 						// Tabbing backward from calendar: just focus the text input
-						this.textInput.$input.focus();
+						this.textInput.$input.trigger( 'focus' );
 						return false;
 					} else {
 						// Tabbing forward from calendar: focus the text input, then allow normal browser
 						// behavior to move focus to next focusable after it
-						this.textInput.$input.focus();
+						this.textInput.$input.trigger( 'focus' );
 					}
 				}
 			}.bind( this ) );
@@ -240,6 +239,16 @@
 
 	OO.inheritClass( mw.widgets.DateInputWidget, OO.ui.TextInputWidget );
 	OO.mixinClass( mw.widgets.DateInputWidget, OO.ui.mixin.IndicatorElement );
+
+	/* Events */
+
+	/**
+	 * Fired when the widget is deactivated (i.e. the calendar is closed). This can happen because
+	 * the user selected a value, or because the user blurred the widget.
+	 *
+	 * @event deactivate
+	 * @param {boolean} userSelected Whether the deactivation happened because the user selected a value
+	 */
 
 	/* Methods */
 
@@ -385,13 +394,23 @@
 	 * Deactivate this input field for data entry. Closes the calendar and hides the text field.
 	 *
 	 * @private
+	 * @param {boolean} [userSelected] Whether we are deactivating because the user selected a value
 	 */
-	mw.widgets.DateInputWidget.prototype.deactivate = function () {
+	mw.widgets.DateInputWidget.prototype.deactivate = function ( userSelected ) {
 		this.$element.removeClass( 'mw-widget-dateInputWidget-active' );
 		this.$handle.show();
 		this.textInput.toggle( false );
 		this.calendar.toggle( false );
 		this.setValidityFlag();
+
+		if ( userSelected ) {
+			// Prevent focusing the handle from reopening the calendar
+			this.closing = true;
+			this.$handle.trigger( 'focus' );
+			this.closing = false;
+		}
+
+		this.emit( 'deactivate', !!userSelected );
 	};
 
 	/**
@@ -406,7 +425,7 @@
 		this.textInput.toggle( true );
 		this.calendar.toggle( true );
 
-		this.textInput.$input.focus();
+		this.textInput.$input.trigger( 'focus' );
 	};
 
 	/**
@@ -443,7 +462,8 @@
 			format = llll.replace( lll.replace( ll, '' ), '' );
 
 			if ( this.longDisplayFormat ) {
-				format = format.replace( 'MMM', 'MMMM' ).replace( 'ddd', 'dddd' );
+				// Replace MMM to MMMM and ddd to dddd but don't change MMMM and dddd
+				format = format.replace( /MMMM?/, 'MMMM' ).replace( /dddd?/, 'dddd' );
 			}
 
 			return format;
@@ -521,6 +541,17 @@
 	};
 
 	/**
+	 * Handle focus events.
+	 *
+	 * @private
+	 */
+	mw.widgets.DateInputWidget.prototype.onFocus = function () {
+		if ( !this.closing ) {
+			this.activate();
+		}
+	};
+
+	/**
 	 * Handle calendar key press events.
 	 *
 	 * @private
@@ -529,8 +560,7 @@
 	 */
 	mw.widgets.DateInputWidget.prototype.onCalendarKeyPress = function ( e ) {
 		if ( !this.isDisabled() && e.which === OO.ui.Keys.ENTER ) {
-			this.deactivate();
-			this.$handle.focus();
+			this.deactivate( true );
 			return false;
 		}
 	};
@@ -543,13 +573,15 @@
 	 * @return {boolean} False to cancel the default event
 	 */
 	mw.widgets.DateInputWidget.prototype.onCalendarClick = function ( e ) {
+		var targetClass = this.calendar.getPrecision() === 'month' ?
+			'mw-widget-calendarWidget-month' :
+			'mw-widget-calendarWidget-day';
 		if (
 			!this.isDisabled() &&
 			e.which === 1 &&
-			$( e.target ).hasClass( 'mw-widget-calendarWidget-day' )
+			$( e.target ).hasClass( targetClass )
 		) {
-			this.deactivate();
-			this.$handle.focus();
+			this.deactivate( true );
 			return false;
 		}
 	};
@@ -560,8 +592,7 @@
 	 * @private
 	 */
 	mw.widgets.DateInputWidget.prototype.onEnter = function () {
-		this.deactivate();
-		this.$handle.focus();
+		this.deactivate( true );
 	};
 
 	/**
@@ -661,4 +692,4 @@
 		}
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

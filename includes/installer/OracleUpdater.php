@@ -117,11 +117,57 @@ class OracleUpdater extends DatabaseUpdater {
 			[ 'addIndex', 'recentchanges', 'rc_name_type_patrolled_timestamp',
 				'patch-add-rc_name_type_patrolled_timestamp_index.sql' ],
 			[ 'addField', 'change_tag', 'ct_id', 'patch-change_tag-ct_id.sql' ],
-			[ 'addField', 'tag_summary', 'ts_id', 'patch-tag_summary-ts_id.sql' ],
 
 			// 1.29
 			[ 'addField', 'externallinks', 'el_index_60', 'patch-externallinks-el_index_60.sql' ],
 			[ 'addField', 'user_groups', 'ug_expiry', 'patch-user_groups-ug_expiry.sql' ],
+
+			// 1.30
+			[ 'doAutoIncrementTriggers' ],
+			[ 'addIndex', 'site_stats', 'PRIMARY', 'patch-site_stats-pk.sql' ],
+
+			// Should have been in 1.30
+			[ 'addTable', 'comment', 'patch-comment-table.sql' ],
+			// This field was added in 1.31, but is put here so it can be used by 'migrateComments'
+			[ 'addField', 'image', 'img_description_id', 'patch-image-img_description_id.sql' ],
+			// Should have been in 1.30
+			[ 'migrateComments' ],
+
+			// 1.31
+			[ 'addTable', 'slots', 'patch-slots.sql' ],
+			[ 'addField', 'slots', 'slot_origin', 'patch-slot-origin.sql' ],
+			[ 'addTable', 'content', 'patch-content.sql' ],
+			[ 'addTable', 'slot_roles', 'patch-slot_roles.sql' ],
+			[ 'addTable', 'content_models', 'patch-content_models.sql' ],
+			[ 'migrateArchiveText' ],
+			[ 'addTable', 'actor', 'patch-actor-table.sql' ],
+			[ 'migrateActors' ],
+			[ 'modifyTable', 'site_stats', 'patch-site_stats-modify.sql' ],
+			[ 'populateArchiveRevId' ],
+			[ 'addIndex', 'recentchanges', 'rc_namespace_title_timestamp',
+				'patch-recentchanges-nttindex.sql' ],
+
+			// 1.32
+			[ 'addTable', 'change_tag_def', 'patch-change_tag_def.sql' ],
+			[ 'populateExternallinksIndex60' ],
+			[ 'runMaintenance', DeduplicateArchiveRevId::class, 'maintenance/deduplicateArchiveRevId.php' ],
+			[ 'addField', 'change_tag', 'ct_tag_id', 'patch-change_tag-tag_id.sql' ],
+			[ 'addIndex', 'archive', 'ar_revid_uniq', 'patch-archive-ar_rev_id-unique.sql' ],
+			[ 'populateContentTables' ],
+			[ 'addIndex', 'recentchanges', 'rc_this_oldid', 'patch-recentchanges-rc_this_oldid-index.sql' ],
+			[ 'dropTable', 'transcache' ],
+			[ 'runMaintenance', PopulateChangeTagDef::class, 'maintenance/populateChangeTagDef.php' ],
+			[ 'addIndex', 'change_tag', 'change_tag_i03',
+				'patch-change_tag-change_tag_rc_tag_id.sql' ],
+			[ 'addField', 'ipblocks', 'ipb_sitewide', 'patch-ipb_sitewide.sql' ],
+			[ 'addTable', 'ipblocks_restrictions', 'patch-ipblocks_restrictions-table.sql' ],
+			[ 'migrateImageCommentTemp' ],
+
+			// 1.33
+			[ 'dropField', 'change_tag', 'ct_tag', 'patch-drop-ct_tag.sql' ],
+			[ 'dropTable', 'valid_tag' ],
+			[ 'dropTable', 'tag_summary' ],
+			[ 'dropField', 'protected_titles', 'pt_reason', 'patch-drop-comment-fields.sql' ],
 
 			// KEEP THIS AT THE BOTTOM!!
 			[ 'doRebuildDuplicateFunction' ],
@@ -270,6 +316,30 @@ class OracleUpdater extends DatabaseUpdater {
 		}
 
 		$this->applyPatch( 'patch-page_restrictions_pkuk_fix.sql', false );
+		$this->output( "ok\n" );
+	}
+
+	/**
+	 * Add auto-increment triggers
+	 */
+	protected function doAutoIncrementTriggers() {
+		$this->output( "Adding auto-increment triggers ... " );
+
+		$meta = $this->db->query( 'SELECT trigger_name FROM user_triggers WHERE table_owner = \'' .
+			strtoupper( $this->db->getDBname() ) .
+			'\' AND trigger_name = \'' .
+			$this->db->tablePrefix() .
+			'PAGE_DEFAULT_PAGE_ID\''
+		);
+		$row = $meta->fetchRow();
+		if ( $row['column_name'] ) {
+			$this->output( "seems to be up to date.\n" );
+
+			return;
+		}
+
+		$this->applyPatch( 'patch-auto_increment_triggers.sql', false );
+
 		$this->output( "ok\n" );
 	}
 

@@ -73,28 +73,28 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 			'success' => 'revdelete-success',
 			'failure' => 'revdelete-failure',
 			'text' => 'revdelete-text-text',
-			'selected'=> 'revdelete-selected-text',
+			'selected' => 'revdelete-selected-text',
 		],
 		'archive' => [
 			'check-label' => 'revdelete-hide-text',
 			'success' => 'revdelete-success',
 			'failure' => 'revdelete-failure',
 			'text' => 'revdelete-text-text',
-			'selected'=> 'revdelete-selected-text',
+			'selected' => 'revdelete-selected-text',
 		],
 		'oldimage' => [
 			'check-label' => 'revdelete-hide-image',
 			'success' => 'revdelete-success',
 			'failure' => 'revdelete-failure',
 			'text' => 'revdelete-text-file',
-			'selected'=> 'revdelete-selected-file',
+			'selected' => 'revdelete-selected-file',
 		],
 		'filearchive' => [
 			'check-label' => 'revdelete-hide-image',
 			'success' => 'revdelete-success',
 			'failure' => 'revdelete-failure',
 			'text' => 'revdelete-text-file',
-			'selected'=> 'revdelete-selected-file',
+			'selected' => 'revdelete-selected-file',
 		],
 		'logging' => [
 			'check-label' => 'revdelete-hide-name',
@@ -205,7 +205,7 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 
 		# Either submit or create our form
 		if ( $this->mIsAllowed && $this->submitClicked ) {
-			$this->submit( $request );
+			$this->submit();
 		} else {
 			$this->showForm();
 		}
@@ -388,9 +388,7 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 		$numRevisions = 0;
 		// Live revisions...
 		$list = $this->getList();
-		// @codingStandardsIgnoreStart Generic.CodeAnalysis.ForLoopWithTestFunctionCall.NotAllowed
 		for ( $list->reset(); $list->current(); $list->next() ) {
-			// @codingStandardsIgnoreEnd
 			$item = $list->current();
 
 			if ( !$item->canView() ) {
@@ -419,7 +417,9 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 
 		// Show form if the user can submit
 		if ( $this->mIsAllowed ) {
-			$out->addModuleStyles( 'mediawiki.special' );
+			$out->addModules( [ 'mediawiki.special.revisionDelete' ] );
+			$out->addModuleStyles( [ 'mediawiki.special',
+				'mediawiki.interface.helpers.styles' ] );
 
 			$form = Xml::openElement( 'form', [ 'method' => 'post',
 					'action' => $this->getPageTitle()->getLocalURL( [ 'action' => 'submit' ] ),
@@ -443,12 +443,14 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 						Xml::label( $this->msg( 'revdelete-otherreason' )->text(), 'wpReason' ) .
 					'</td>' .
 					'<td class="mw-input">' .
-						Xml::input(
-							'wpReason',
-							60,
-							$this->otherReason,
-							[ 'id' => 'wpReason', 'maxlength' => 100 ]
-						) .
+						Xml::input( 'wpReason', 60, $this->otherReason, [
+							'id' => 'wpReason',
+							// HTML maxlength uses "UTF-16 code units", which means that characters outside BMP
+							// (e.g. emojis) count for two each. This limit is overridden in JS to instead count
+							// Unicode codepoints.
+							// "- 155" is to leave room for the 'wpRevDeleteReasonList' value.
+							'maxlength' => CommentStore::COMMENT_CHARACTER_LIMIT - 155,
+						] ) .
 					'</td>' .
 				"</tr><tr>\n" .
 					'<td></td>' .
@@ -636,9 +638,9 @@ class SpecialRevisionDelete extends UnlistedSpecialPage {
 	protected function failure( $status ) {
 		// Messages: revdelete-failure, logdelete-failure
 		$this->getOutput()->setPageTitle( $this->msg( 'actionfailed' ) );
-		$this->getOutput()->addWikiText( '<div class="errorbox">' .
-			$status->getWikiText( $this->typeLabels['failure'] ) .
-			'</div>'
+		$this->getOutput()->wrapWikiTextAsInterface(
+			'errorbox',
+			$status->getWikiText( $this->typeLabels['failure'] )
 		);
 		$this->showForm();
 	}

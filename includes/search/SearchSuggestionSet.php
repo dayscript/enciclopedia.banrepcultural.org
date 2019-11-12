@@ -36,6 +36,11 @@ class SearchSuggestionSet {
 	private $pageMap = [];
 
 	/**
+	 * @var bool Are more results available?
+	 */
+	private $hasMoreResults;
+
+	/**
 	 * Builds a new set of suggestions.
 	 *
 	 * NOTE: the array should be sorted by score (higher is better),
@@ -45,8 +50,10 @@ class SearchSuggestionSet {
 	 * unexpected behaviors.
 	 *
 	 * @param SearchSuggestion[] $suggestions (must be sorted by score)
+	 * @param bool $hasMoreResults Are more results available?
 	 */
-	public function __construct( array $suggestions ) {
+	public function __construct( array $suggestions, $hasMoreResults = false ) {
+		$this->hasMoreResults = $hasMoreResults;
 		foreach ( $suggestions as $suggestion ) {
 			$pageID = $suggestion->getSuggestedTitleID();
 			if ( $pageID && empty( $this->pageMap[$pageID] ) ) {
@@ -54,6 +61,13 @@ class SearchSuggestionSet {
 			}
 			$this->suggestions[] = $suggestion;
 		}
+	}
+
+	/**
+	 * @return bool Are more results available?
+	 */
+	public function hasMoreResults() {
+		return $this->hasMoreResults;
 	}
 
 	/**
@@ -66,11 +80,23 @@ class SearchSuggestionSet {
 
 	/**
 	 * Call array_map on the suggestions array
-	 * @param callback $callback
+	 * @param callable $callback
 	 * @return array
 	 */
 	public function map( $callback ) {
 		return array_map( $callback, $this->suggestions );
+	}
+
+	/**
+	 * Filter the suggestions array
+	 * @param callable $callback Callable accepting single SearchSuggestion
+	 *  instance returning bool false to remove the item.
+	 * @return int The number of suggestions removed
+	 */
+	public function filter( $callback ) {
+		$before = count( $this->suggestions );
+		$this->suggestions = array_values( array_filter( $this->suggestions, $callback ) );
+		return $before - count( $this->suggestions );
 	}
 
 	/**
@@ -106,6 +132,7 @@ class SearchSuggestionSet {
 
 	/**
 	 * Move the suggestion at index $key to the first position
+	 * @param string $key
 	 */
 	public function rescore( $key ) {
 		$removed = array_splice( $this->suggestions, $key, 1 );
@@ -166,6 +193,7 @@ class SearchSuggestionSet {
 	public function shrink( $limit ) {
 		if ( count( $this->suggestions ) > $limit ) {
 			$this->suggestions = array_slice( $this->suggestions, 0, $limit );
+			$this->hasMoreResults = true;
 		}
 	}
 
@@ -176,14 +204,15 @@ class SearchSuggestionSet {
 	 * NOTE: Suggestion scores will be generated.
 	 *
 	 * @param Title[] $titles
+	 * @param bool $hasMoreResults Are more results available?
 	 * @return SearchSuggestionSet
 	 */
-	public static function fromTitles( array $titles ) {
+	public static function fromTitles( array $titles, $hasMoreResults = false ) {
 		$score = count( $titles );
-		$suggestions = array_map( function( $title ) use ( &$score ) {
+		$suggestions = array_map( function ( $title ) use ( &$score ) {
 			return SearchSuggestion::fromTitle( $score--, $title );
 		}, $titles );
-		return new SearchSuggestionSet( $suggestions );
+		return new SearchSuggestionSet( $suggestions, $hasMoreResults );
 	}
 
 	/**
@@ -192,14 +221,15 @@ class SearchSuggestionSet {
 	 * NOTE: Suggestion scores will be generated.
 	 *
 	 * @param string[] $titles
+	 * @param bool $hasMoreResults Are more results available?
 	 * @return SearchSuggestionSet
 	 */
-	public static function fromStrings( array $titles ) {
+	public static function fromStrings( array $titles, $hasMoreResults = false ) {
 		$score = count( $titles );
-		$suggestions = array_map( function( $title ) use ( &$score ) {
+		$suggestions = array_map( function ( $title ) use ( &$score ) {
 			return SearchSuggestion::fromText( $score--, $title );
 		}, $titles );
-		return new SearchSuggestionSet( $suggestions );
+		return new SearchSuggestionSet( $suggestions, $hasMoreResults );
 	}
 
 	/**

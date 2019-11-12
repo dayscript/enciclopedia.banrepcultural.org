@@ -36,6 +36,26 @@ class VersionChecker {
 	private $coreVersion = false;
 
 	/**
+	 * @var Constraint|bool representing PHP version
+	 */
+	private $phpVersion = false;
+
+	/**
+	 * @var string[] List of installed PHP extensions
+	 */
+	private $phpExtensions = [];
+
+	/**
+	 * @var bool[] List of provided abilities
+	 */
+	private $abilities = [];
+
+	/**
+	 * @var string[] List of provided ability errors
+	 */
+	private $abilityErrors = [];
+
+	/**
 	 * @var array Loaded extensions
 	 */
 	private $loaded = [];
@@ -47,10 +67,21 @@ class VersionChecker {
 
 	/**
 	 * @param string $coreVersion Current version of core
+	 * @param string $phpVersion Current PHP version
+	 * @param string[] $phpExtensions List of installed PHP extensions
+	 * @param bool[] $abilities List of provided abilities
+	 * @param string[] $abilityErrors Error messages for the abilities
 	 */
-	public function __construct( $coreVersion ) {
+	public function __construct(
+		$coreVersion, $phpVersion, array $phpExtensions,
+		array $abilities = [], array $abilityErrors = []
+	) {
 		$this->versionParser = new VersionParser();
 		$this->setCoreVersion( $coreVersion );
+		$this->setPhpVersion( $phpVersion );
+		$this->phpExtensions = $phpExtensions;
+		$this->abilities = $abilities;
+		$this->abilityErrors = $abilityErrors;
 	}
 
 	/**
@@ -83,6 +114,21 @@ class VersionChecker {
 	}
 
 	/**
+	 * Set PHP version.
+	 *
+	 * @param string $phpVersion Current PHP version. Must be well-formed.
+	 * @throws UnexpectedValueException
+	 */
+	private function setPhpVersion( $phpVersion ) {
+		// normalize to make this throw an exception if the version is invalid
+		$this->phpVersion = new Constraint(
+			'==',
+			$this->versionParser->normalize( $phpVersion )
+		);
+		$this->phpVersion->setPrettyString( $phpVersion );
+	}
+
+	/**
 	 * Check all given dependencies if they are compatible with the named
 	 * installed extensions in the $credits array.
 	 *
@@ -90,6 +136,11 @@ class VersionChecker {
 	 *     {
 	 *       'FooBar' => {
 	 *         'MediaWiki' => '>= 1.25.0',
+	 *         'platform': {
+	 *           'php': '>= 7.0.0',
+	 *           'ext-foo': '*',
+	 *           'ability-bar': true
+	 *         },
 	 *         'extensions' => {
 	 *           'FooBaz' => '>= 1.25.0'
 	 *         },
@@ -108,15 +159,102 @@ class VersionChecker {
 			foreach ( $dependencies as $dependencyType => $values ) {
 				switch ( $dependencyType ) {
 					case ExtensionRegistry::MEDIAWIKI_CORE:
-						$mwError = $this->handleMediaWikiDependency( $values, $extension );
+						$mwError = $this->handleDependency(
+							$this->coreVersion,
+							$values,
+							$extension
+						);
 						if ( $mwError !== false ) {
-							$errors[] = $mwError;
+							$errors[] = [
+								'msg' =>
+									"{$extension} is not compatible with the current MediaWiki "
+									. "core (version {$this->coreVersion->getPrettyString()}), "
+									. "it requires: $values."
+								,
+								'type' => 'incompatible-core',
+							];
+						}
+						break;
+					case 'platform':
+						foreach ( $values as $dependency => $constraint ) {
+							if ( $dependency === 'php' ) {
+								// PHP version
+								$phpError = $this->handleDependency(
+									$this->phpVersion,
+									$constraint,
+									$extension
+								);
+								if ( $phpError !== false ) {
+									$errors[] = [
+										'msg' =>
+											"{$extension} is not compatible with the current PHP "
+											. "version {$this->phpVersion->getPrettyString()}), "
+											. "it requires: $constraint."
+										,
+										'type' => 'incompatible-php',
+									];
+								}
+							} elseif ( substr( $dependency, 0, 4 ) === 'ext-' ) {
+								// PHP extensions
+								$phpExtension = substr( $dependency, 4 );
+								if ( $constraint !== '*' ) {
+									throw new UnexpectedValueException( 'Version constraints for '
+										. 'PHP extensions are not supported in ' . $extension );
+								}
+								if ( !in_array( $phpExtension, $this->phpExtensions, true ) ) {
+									$errors[] = [
+										'msg' =>
+											"{$extension} requires {$phpExtension} PHP extension "
+											. "to be installed."
+										,
+										'type' => 'missing-phpExtension',
+										'missing' => $phpExtension,
+									];
+								}
+							} elseif ( substr( $dependency, 0, 8 ) === 'ability-' ) {
+								// Other abilities the environment might provide.
+								$ability = substr( $dependency, 8 );
+								if ( !isset( $this->abilities[$ability] ) ) {
+									throw new UnexpectedValueException( 'Dependency type '
+									. $dependency . ' unknown in ' . $extension );
+								}
+								if ( !is_bool( $constraint ) ) {
+									throw new UnexpectedValueException( 'Only booleans are '
+										. 'allowed to to indicate the presence of abilities '
+										. 'in ' . $extension );
+								}
+
+								if ( $constraint === true &&
+									$this->abilities[$ability] !== true
+								) {
+									// add custom error message for missing ability if specified
+									$customMessage = '';
+									if ( isset( $this->abilityErrors[$ability] ) ) {
+										$customMessage = ': ' . $this->abilityErrors[$ability];
+									}
+
+									$errors[] = [
+										'msg' =>
+											"{$extension} requires \"{$ability}\" ability"
+											. $customMessage
+										,
+										'type' => 'missing-ability',
+										'missing' => $ability,
+									];
+								}
+							} else {
+								// add other platform dependencies here
+								throw new UnexpectedValueException( 'Dependency type ' . $dependency .
+									' unknown in ' . $extension );
+							}
 						}
 						break;
 					case 'extensions':
-					case 'skin':
+					case 'skins':
 						foreach ( $values as $dependency => $constraint ) {
-							$extError = $this->handleExtensionDependency( $dependency, $constraint, $extension );
+							$extError = $this->handleExtensionDependency(
+								$dependency, $constraint, $extension, $dependencyType
+							);
 							if ( $extError !== false ) {
 								$errors[] = $extError;
 							}
@@ -133,29 +271,27 @@ class VersionChecker {
 	}
 
 	/**
-	 * Handle a dependency to MediaWiki core. It will check, if a MediaWiki version constraint was
-	 * set with self::setCoreVersion before this call (if not, it will return an empty array) and
-	 * checks the version constraint given against it.
+	 * Handle a simple dependency to MediaWiki core or PHP. See handleMediaWikiDependency and
+	 * handlePhpDependency for details.
 	 *
+	 * @param Constraint|bool $version The version installed
 	 * @param string $constraint The required version constraint for this dependency
 	 * @param string $checkedExt The Extension, which depends on this dependency
-	 * @return bool|string false if no error, or a string with the message
+	 * @return bool false if no error, true else
 	 */
-	private function handleMediaWikiDependency( $constraint, $checkedExt ) {
-		if ( $this->coreVersion === false ) {
-			// Couldn't parse the core version, so we can't check anything
+	private function handleDependency( $version, $constraint, $checkedExt ) {
+		if ( $version === false ) {
+			// Couldn't parse the version, so we can't check anything
 			return false;
 		}
 
 		// if the installed and required version are compatible, return an empty array
 		if ( $this->versionParser->parseConstraints( $constraint )
-			->matches( $this->coreVersion ) ) {
+			->matches( $version ) ) {
 			return false;
 		}
-		// otherwise mark this as incompatible.
-		return "{$checkedExt} is not compatible with the current "
-			. "MediaWiki core (version {$this->coreVersion->getPrettyString()}), it requires: "
-			. "$constraint.";
+
+		return true;
 	}
 
 	/**
@@ -164,25 +300,33 @@ class VersionChecker {
 	 * @param string $dependencyName The name of the dependency
 	 * @param string $constraint The required version constraint for this dependency
 	 * @param string $checkedExt The Extension, which depends on this dependency
-	 * @return bool|string false for no errors, or a string message
+	 * @param string $type Either 'extensions' or 'skins'
+	 * @return bool|array false for no errors, or an array of info
 	 */
-	private function handleExtensionDependency( $dependencyName, $constraint, $checkedExt ) {
+	private function handleExtensionDependency( $dependencyName, $constraint, $checkedExt,
+		$type
+	) {
 		// Check if the dependency is even installed
 		if ( !isset( $this->loaded[$dependencyName] ) ) {
-			return "{$checkedExt} requires {$dependencyName} to be installed.";
+			return [
+				'msg' => "{$checkedExt} requires {$dependencyName} to be installed.",
+				'type' => "missing-$type",
+				'missing' => $dependencyName,
+			];
+		}
+		if ( $constraint === '*' ) {
+			// short-circuit since any version is OK.
+			return false;
 		}
 		// Check if the dependency has specified a version
 		if ( !isset( $this->loaded[$dependencyName]['version'] ) ) {
-			// If we depend upon any version, and none is set, that's fine.
-			if ( $constraint === '*' ) {
-				wfDebug( "{$dependencyName} does not expose it's version, but {$checkedExt}
-					mentions it with constraint '*'. Assume it's ok so." );
-				return false;
-			} else {
-				// Otherwise, mark it as incompatible.
-				return "{$dependencyName} does not expose it's version, but {$checkedExt}
-					requires: {$constraint}.";
-			}
+			$msg = "{$dependencyName} does not expose its version, but {$checkedExt}"
+				. " requires: {$constraint}.";
+			return [
+				'msg' => $msg,
+				'type' => "incompatible-$type",
+				'incompatible' => $checkedExt,
+			];
 		} else {
 			// Try to get a constraint for the dependency version
 			try {
@@ -193,16 +337,24 @@ class VersionChecker {
 			} catch ( UnexpectedValueException $e ) {
 				// Non-parsable version, output an error message that the version
 				// string is invalid
-				return "$dependencyName does not have a valid version string.";
+				return [
+					'msg' => "$dependencyName does not have a valid version string.",
+					'type' => 'invalid-version',
+				];
 			}
 			// Check if the constraint actually matches...
 			if (
 				!$this->versionParser->parseConstraints( $constraint )->matches( $installedVersion )
 			) {
-				return "{$checkedExt} is not compatible with the current "
+				$msg = "{$checkedExt} is not compatible with the current "
 					. "installed version of {$dependencyName} "
 					. "({$this->loaded[$dependencyName]['version']}), "
 					. "it requires: " . $constraint . '.';
+				return [
+					'msg' => $msg,
+					'type' => "incompatible-$type",
+					'incompatible' => $checkedExt,
+				];
 			}
 		}
 

@@ -7,15 +7,22 @@ module.exports = function ( grunt ) {
 
 	grunt.initConfig( {
 		eslint: {
+			options: {
+				reportUnusedDisableDirectives: true,
+				cache: true
+			},
 			all: [
 				'**/*.js',
-				'!node_modules/**'
+				'!node_modules/**',
+				'!vendor/**'
 			]
 		},
 		stylelint: {
 			all: [
 				'**/*.css',
-				'!node_modules/**'
+				'**/*.less',
+				'!node_modules/**',
+				'!vendor/**'
 			]
 		},
 		banana: {
@@ -28,7 +35,8 @@ module.exports = function ( grunt ) {
 			all: [
 				'*.json',
 				'**/*.json',
-				'!node_modules/**'
+				'!node_modules/**',
+				'!vendor/**'
 			]
 		}
 	} );

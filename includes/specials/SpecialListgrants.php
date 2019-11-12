@@ -62,14 +62,14 @@ class SpecialListGrants extends SpecialPage {
 					'<span class="mw-listgrants-right-name">' . $permission . '</span>'
 				)->parse();
 			}
-			if ( !count( $descs ) ) {
+			if ( $descs === [] ) {
 				$grantCellHtml = '';
 			} else {
 				sort( $descs );
 				$grantCellHtml = '<ul><li>' . implode( "</li>\n<li>", $descs ) . '</li></ul>';
 			}
 
-			$id = \Sanitizer::escapeId( $grant );
+			$id = Sanitizer::escapeIdForAttribute( $grant );
 			$out->addHTML( \Html::rawElement( 'tr', [ 'id' => $id ],
 				"<td>" .
 				$this->msg(

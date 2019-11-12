@@ -25,6 +25,8 @@
  * @author Daniel Kinzler
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Content object implementation for representing flat text.
  *
@@ -33,6 +35,11 @@
  * @ingroup Content
  */
 class TextContent extends AbstractContent {
+
+	/**
+	 * @var string
+	 */
+	protected $mText;
 
 	/**
 	 * @param string $text
@@ -66,13 +73,10 @@ class TextContent extends AbstractContent {
 	}
 
 	public function getTextForSummary( $maxlength = 250 ) {
-		global $wgContLang;
+		$text = $this->getText();
 
-		$text = $this->getNativeData();
-
-		$truncatedtext = $wgContLang->truncate(
-			preg_replace( "/[\n\r]/", ' ', $text ),
-			max( 0, $maxlength ) );
+		$truncatedtext = MediaWikiServices::getInstance()->getContentLanguage()->
+			truncateForDatabase( preg_replace( "/[\n\r]/", ' ', $text ), max( 0, $maxlength ) );
 
 		return $truncatedtext;
 	}
@@ -83,7 +87,7 @@ class TextContent extends AbstractContent {
 	 * @return int
 	 */
 	public function getSize() {
-		$text = $this->getNativeData();
+		$text = $this->getText();
 
 		return strlen( $text );
 	}
@@ -114,9 +118,22 @@ class TextContent extends AbstractContent {
 	/**
 	 * Returns the text represented by this Content object, as a string.
 	 *
-	 * @return string The raw text.
+	 * @deprecated since 1.33 use getText() instead.
+	 *
+	 * @return string The raw text. Subclasses may guarantee a specific syntax here.
 	 */
 	public function getNativeData() {
+		return $this->getText();
+	}
+
+	/**
+	 * Returns the text represented by this Content object, as a string.
+	 *
+	 * @since 1.33
+	 *
+	 * @return string The raw text.
+	 */
+	public function getText() {
 		return $this->mText;
 	}
 
@@ -126,7 +143,7 @@ class TextContent extends AbstractContent {
 	 * @return string The raw text.
 	 */
 	public function getTextForSearchIndex() {
-		return $this->getNativeData();
+		return $this->getText();
 	}
 
 	/**
@@ -141,7 +158,7 @@ class TextContent extends AbstractContent {
 		$wikitext = $this->convert( CONTENT_MODEL_WIKITEXT, 'lossy' );
 
 		if ( $wikitext ) {
-			return $wikitext->getNativeData();
+			return $wikitext->getText();
 		} else {
 			return false;
 		}
@@ -157,7 +174,7 @@ class TextContent extends AbstractContent {
 	 * changes.
 	 *
 	 * @since 1.28
-	 * @param $text
+	 * @param string $text
 	 * @return string
 	 */
 	public static function normalizeLineEndings( $text ) {
@@ -177,7 +194,7 @@ class TextContent extends AbstractContent {
 	 * @return Content
 	 */
 	public function preSaveTransform( Title $title, User $user, ParserOptions $popts ) {
-		$text = $this->getNativeData();
+		$text = $this->getText();
 		$pst = self::normalizeLineEndings( $text );
 
 		return ( $text === $pst ) ? $this : new static( $pst, $this->getModel() );
@@ -189,25 +206,23 @@ class TextContent extends AbstractContent {
 	 * @since 1.21
 	 *
 	 * @param Content $that The other content object to compare this content object to.
-	 * @param Language $lang The language object to use for text segmentation.
-	 *    If not given, $wgContentLang is used.
+	 * @param Language|null $lang The language object to use for text segmentation.
+	 *    If not given, the content language is used.
 	 *
 	 * @return Diff A diff representing the changes that would have to be
 	 *    made to this content object to make it equal to $that.
 	 */
 	public function diff( Content $that, Language $lang = null ) {
-		global $wgContLang;
-
 		$this->checkModelID( $that->getModel() );
 
 		// @todo could implement this in DifferenceEngine and just delegate here?
 
 		if ( !$lang ) {
-			$lang = $wgContLang;
+			$lang = MediaWikiServices::getInstance()->getContentLanguage();
 		}
 
-		$otext = $this->getNativeData();
-		$ntext = $that->getNativeData();
+		$otext = $this->getText();
+		$ntext = $that->getText();
 
 		# Note: Use native PHP diff, external engines don't give us abstract output
 		$ota = explode( "\n", $lang->segmentForDiff( $otext ) );
@@ -231,9 +246,9 @@ class TextContent extends AbstractContent {
 	 *
 	 * @param Title $title Context title for parsing
 	 * @param int $revId Revision ID (for {{REVISIONID}})
-	 * @param ParserOptions $options Parser options
+	 * @param ParserOptions $options
 	 * @param bool $generateHtml Whether or not to generate HTML
-	 * @param ParserOutput $output The output object to fill (reference).
+	 * @param ParserOutput &$output The output object to fill (reference).
 	 */
 	protected function fillParserOutput( Title $title, $revId,
 		ParserOptions $options, $generateHtml, ParserOutput &$output
@@ -242,7 +257,7 @@ class TextContent extends AbstractContent {
 
 		if ( in_array( $this->getModel(), $wgTextModelsToParse ) ) {
 			// parse just to get links etc into the database, HTML is replaced below.
-			$output = $wgParser->parse( $this->getNativeData(), $title, $options, true, true, $revId );
+			$output = $wgParser->parse( $this->getText(), $title, $options, true, true, $revId );
 		}
 
 		if ( $generateHtml ) {
@@ -251,6 +266,7 @@ class TextContent extends AbstractContent {
 			$html = '';
 		}
 
+		$output->clearWrapperDivClass();
 		$output->setText( $html );
 	}
 
@@ -288,7 +304,7 @@ class TextContent extends AbstractContent {
 	 * @return string An HTML representation of the content
 	 */
 	protected function getHighlightHtml() {
-		return htmlspecialchars( $this->getNativeData() );
+		return htmlspecialchars( $this->getText() );
 	}
 
 	/**
@@ -315,7 +331,7 @@ class TextContent extends AbstractContent {
 
 		if ( $toHandler instanceof TextContentHandler ) {
 			// NOTE: ignore content serialization format - it's just text anyway.
-			$text = $this->getNativeData();
+			$text = $this->getText();
 			$converted = $toHandler->unserializeContent( $text );
 		}
 

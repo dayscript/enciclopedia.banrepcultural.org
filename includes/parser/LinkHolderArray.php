@@ -21,6 +21,8 @@
  * @ingroup Parser
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @ingroup Parser
  */
@@ -134,7 +136,7 @@ class LinkHolderArray {
 				$maxId = $newKey > $maxId ? $newKey : $maxId;
 			}
 		}
-		$texts = preg_replace_callback( '/(<!--LINK \d+:)(\d+)(-->)/',
+		$texts = preg_replace_callback( '/(<!--LINK\'" \d+:)(\d+)(-->)/',
 			[ $this, 'mergeForeignCallback' ], $texts );
 
 		# Renumber interwiki links
@@ -143,7 +145,7 @@ class LinkHolderArray {
 			$this->interwikis[$newKey] = $entry;
 			$maxId = $newKey > $maxId ? $newKey : $maxId;
 		}
-		$texts = preg_replace_callback( '/(<!--IWLINK )(\d+)(-->)/',
+		$texts = preg_replace_callback( '/(<!--IWLINK\'" )(\d+)(-->)/',
 			[ $this, 'mergeForeignCallback' ], $texts );
 
 		# Set the parent link ID to be beyond the highest used ID
@@ -172,7 +174,7 @@ class LinkHolderArray {
 		# Internal links
 		$pos = 0;
 		while ( $pos < strlen( $text ) ) {
-			if ( !preg_match( '/<!--LINK (\d+):(\d+)-->/',
+			if ( !preg_match( '/<!--LINK\'" (\d+):(\d+)-->/',
 				$text, $m, PREG_OFFSET_CAPTURE, $pos )
 			) {
 				break;
@@ -186,7 +188,7 @@ class LinkHolderArray {
 		# Interwiki links
 		$pos = 0;
 		while ( $pos < strlen( $text ) ) {
-			if ( !preg_match( '/<!--IWLINK (\d+)-->/', $text, $m, PREG_OFFSET_CAPTURE, $pos ) ) {
+			if ( !preg_match( '/<!--IWLINK\'" (\d+)-->/', $text, $m, PREG_OFFSET_CAPTURE, $pos ) ) {
 				break;
 			}
 			$key = $m[1][0];
@@ -249,12 +251,12 @@ class LinkHolderArray {
 				// Use a globally unique ID to keep the objects mergable
 				$key = $this->parent->nextLinkID();
 				$this->interwikis[$key] = $entry;
-				$retVal = "<!--IWLINK $key-->{$trail}";
+				$retVal = "<!--IWLINK'\" $key-->{$trail}";
 			} else {
 				$key = $this->parent->nextLinkID();
 				$ns = $nt->getNamespace();
 				$this->internals[$ns][$key] = $entry;
-				$retVal = "<!--LINK $ns:$key-->{$trail}";
+				$retVal = "<!--LINK'\" $ns:$key-->{$trail}";
 			}
 			$this->size++;
 		}
@@ -264,7 +266,7 @@ class LinkHolderArray {
 	/**
 	 * Replace <!--LINK--> link placeholders with actual links, in the buffer
 	 *
-	 * @param string $text
+	 * @param string &$text
 	 */
 	public function replace( &$text ) {
 		$this->replaceInternal( $text );
@@ -273,17 +275,16 @@ class LinkHolderArray {
 
 	/**
 	 * Replace internal links
-	 * @param string $text
+	 * @suppress SecurityCheck-XSS Gets confused with $entry['pdbk']
+	 * @param string &$text
 	 */
 	protected function replaceInternal( &$text ) {
 		if ( !$this->internals ) {
 			return;
 		}
 
-		global $wgContLang;
-
 		$colours = [];
-		$linkCache = LinkCache::singleton();
+		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
 		$output = $this->parent->getOutput();
 		$linkRenderer = $this->parent->getLinkRenderer();
 
@@ -358,11 +359,11 @@ class LinkHolderArray {
 		}
 		if ( count( $linkcolour_ids ) ) {
 			// pass an array of page_ids to an extension
-			Hooks::run( 'GetLinkColours', [ $linkcolour_ids, &$colours ] );
+			Hooks::run( 'GetLinkColours', [ $linkcolour_ids, &$colours, $this->parent->getTitle() ] );
 		}
 
 		# Do a second query for different language variants of links and categories
-		if ( $wgContLang->hasVariants() ) {
+		if ( $this->parent->getContentLanguage()->hasVariants() ) {
 			$this->doVariants( $colours );
 		}
 
@@ -372,9 +373,9 @@ class LinkHolderArray {
 			foreach ( $entries as $index => $entry ) {
 				$pdbk = $entry['pdbk'];
 				$title = $entry['title'];
-				$query = isset( $entry['query'] ) ? $entry['query'] : [];
+				$query = $entry['query'] ?? [];
 				$key = "$ns:$index";
-				$searchkey = "<!--LINK $key-->";
+				$searchkey = "<!--LINK'\" $key-->";
 				$displayText = $entry['text'];
 				if ( isset( $entry['selflink'] ) ) {
 					$replacePairs[$searchkey] = Linker::makeSelfLinkObj( $title, $displayText, $query );
@@ -404,19 +405,21 @@ class LinkHolderArray {
 				$replacePairs[$searchkey] = $link;
 			}
 		}
-		$replacer = new HashtableReplacer( $replacePairs, 1 );
 
 		# Do the thing
 		$text = preg_replace_callback(
-			'/(<!--LINK .*?-->)/',
-			$replacer->cb(),
+			'/(<!--LINK\'" .*?-->)/',
+			function ( array $matches ) use ( $replacePairs ) {
+				return $replacePairs[$matches[1]];
+			},
 			$text
 		);
 	}
 
 	/**
 	 * Replace interwiki links
-	 * @param string $text
+	 * @param string &$text
+	 * @suppress SecurityCheck-XSS Gets confused with $this->interwikis['pdbk']
 	 */
 	protected function replaceInterwiki( &$text ) {
 		if ( empty( $this->interwikis ) ) {
@@ -434,24 +437,25 @@ class LinkHolderArray {
 			);
 			$output->addInterwikiLink( $link['title'] );
 		}
-		$replacer = new HashtableReplacer( $replacePairs, 1 );
 
 		$text = preg_replace_callback(
-			'/<!--IWLINK (.*?)-->/',
-			$replacer->cb(),
-			$text );
+			'/<!--IWLINK\'" (.*?)-->/',
+			function ( array $matches ) use ( $replacePairs ) {
+				return $replacePairs[$matches[1]];
+			},
+			$text
+		);
 	}
 
 	/**
 	 * Modify $this->internals and $colours according to language variant linking rules
-	 * @param array $colours
+	 * @param array &$colours
 	 */
 	protected function doVariants( &$colours ) {
-		global $wgContLang;
 		$linkBatch = new LinkBatch();
 		$variantMap = []; // maps $pdbkey_Variant => $keys (of link holders)
 		$output = $this->parent->getOutput();
-		$linkCache = LinkCache::singleton();
+		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
 		$titlesToBeConverted = '';
 		$titlesAttrs = [];
 
@@ -475,7 +479,8 @@ class LinkHolderArray {
 		}
 
 		// Now do the conversion and explode string to text of titles
-		$titlesAllVariants = $wgContLang->autoConvertToAllVariants( rtrim( $titlesToBeConverted, "\0" ) );
+		$titlesAllVariants = $this->parent->getContentLanguage()->
+			autoConvertToAllVariants( rtrim( $titlesToBeConverted, "\0" ) );
 		$allVariantsName = array_keys( $titlesAllVariants );
 		foreach ( $titlesAllVariants as &$titlesVariant ) {
 			$titlesVariant = explode( "\0", $titlesVariant );
@@ -516,7 +521,7 @@ class LinkHolderArray {
 		foreach ( $output->getCategoryLinks() as $category ) {
 			$categoryTitle = Title::makeTitleSafe( NS_CATEGORY, $category );
 			$linkBatch->addObj( $categoryTitle );
-			$variants = $wgContLang->autoConvertToAllVariants( $category );
+			$variants = $this->parent->getContentLanguage()->autoConvertToAllVariants( $category );
 			foreach ( $variants as $variant ) {
 				if ( $variant !== $category ) {
 					$variantTitle = Title::makeTitleSafe( NS_CATEGORY, $variant );
@@ -584,7 +589,7 @@ class LinkHolderArray {
 					}
 				}
 			}
-			Hooks::run( 'GetLinkColours', [ $linkcolour_ids, &$colours ] );
+			Hooks::run( 'GetLinkColours', [ $linkcolour_ids, &$colours, $this->parent->getTitle() ] );
 
 			// rebuild the categories in original order (if there are replacements)
 			if ( count( $varCategories ) > 0 ) {
@@ -612,7 +617,7 @@ class LinkHolderArray {
 	 */
 	public function replaceText( $text ) {
 		$text = preg_replace_callback(
-			'/<!--(LINK|IWLINK) (.*?)-->/',
+			'/<!--(LINK|IWLINK)\'" (.*?)-->/',
 			[ $this, 'replaceTextCallback' ],
 			$text );
 
@@ -627,8 +632,7 @@ class LinkHolderArray {
 	 * @private
 	 */
 	public function replaceTextCallback( $matches ) {
-		$type = $matches[1];
-		$key = $matches[2];
+		list( , $type, $key ) = $matches;
 		if ( $type == 'LINK' ) {
 			list( $ns, $index ) = explode( ':', $key, 2 );
 			if ( isset( $this->internals[$ns][$index]['text'] ) ) {

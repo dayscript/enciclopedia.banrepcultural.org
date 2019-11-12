@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on July 7, 2007
- *
  * Copyright © 2007 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -45,10 +41,13 @@ class ApiQueryAllUsers extends ApiQueryBase {
 	}
 
 	public function execute() {
+		global $wgActorTableSchemaMigrationStage;
+
 		$params = $this->extractRequestParams();
 		$activeUserDays = $this->getConfig()->get( 'ActiveUserDays' );
 
 		$db = $this->getDB();
+		$commentStore = CommentStore::getStore();
 
 		$prop = $params['prop'];
 		if ( !is_null( $prop ) ) {
@@ -95,7 +94,7 @@ class ApiQueryAllUsers extends ApiQueryBase {
 			}
 
 			// no group with the given right(s) exists, no need for a query
-			if ( !count( $groups ) ) {
+			if ( $groups === [] ) {
 				$this->getResult()->addIndexedTagName( [ 'query', $this->getModuleName() ], '' );
 
 				return;
@@ -118,7 +117,7 @@ class ApiQueryAllUsers extends ApiQueryBase {
 			$this->addTables( 'user_groups', 'ug1' );
 			$this->addJoinConds( [
 				'ug1' => [
-					'INNER JOIN',
+					'JOIN',
 					[
 						'ug1.ug_user=user_id',
 						'ug1.ug_group' => $params['group'],
@@ -142,7 +141,7 @@ class ApiQueryAllUsers extends ApiQueryBase {
 					LIST_OR
 				) ];
 			}
-			$this->addJoinConds( [ 'ug1' => [ 'LEFT OUTER JOIN',
+			$this->addJoinConds( [ 'ug1' => [ 'LEFT JOIN',
 				array_merge( [
 					'ug1.ug_user=user_id',
 					'ug1.ug_expiry IS NULL OR ug1.ug_expiry >= ' . $db->addQuotes( $db->timestamp() )
@@ -173,7 +172,7 @@ class ApiQueryAllUsers extends ApiQueryBase {
 			// There shouldn't be any duplicate rows in querycachetwo here.
 			$this->addTables( 'querycachetwo' );
 			$this->addJoinConds( [ 'querycachetwo' => [
-				'INNER JOIN', [
+				'JOIN', [
 					'qcc_type' => 'activeusers',
 					'qcc_namespace' => NS_USER,
 					'qcc_title=user_name',
@@ -181,17 +180,29 @@ class ApiQueryAllUsers extends ApiQueryBase {
 			] ] );
 
 			// Actually count the actions using a subquery (T66505 and T66507)
+			$tables = [ 'recentchanges' ];
+			$joins = [];
+			if ( $wgActorTableSchemaMigrationStage & SCHEMA_COMPAT_READ_OLD ) {
+				$userCond = 'rc_user_text = user_name';
+			} else {
+				$tables[] = 'actor';
+				$joins['actor'] = [ 'JOIN', 'rc_actor = actor_id' ];
+				$userCond = 'actor_user = user_id';
+			}
 			$timestamp = $db->timestamp( wfTimestamp( TS_UNIX ) - $activeUserSeconds );
 			$this->addFields( [
 				'recentactions' => '(' . $db->selectSQLText(
-					'recentchanges',
+					$tables,
 					'COUNT(*)',
 					[
-						'rc_user_text = user_name',
+						$userCond,
 						'rc_type != ' . $db->addQuotes( RC_EXTERNAL ), // no wikidata
 						'rc_log_type IS NULL OR rc_log_type != ' . $db->addQuotes( 'newusers' ),
 						'rc_timestamp >= ' . $db->addQuotes( $timestamp ),
-					]
+					],
+					__METHOD__,
+					[],
+					$joins
 				) . ')'
 			] );
 		}
@@ -263,17 +274,17 @@ class ApiQueryAllUsers extends ApiQueryBase {
 				$data['blockedby'] = $row->ipb_by_text;
 				$data['blockedbyid'] = (int)$row->ipb_by;
 				$data['blockedtimestamp'] = wfTimestamp( TS_ISO_8601, $row->ipb_timestamp );
-				$data['blockreason'] = $row->ipb_reason;
+				$data['blockreason'] = $commentStore->getComment( 'ipb_reason', $row )->text;
 				$data['blockexpiry'] = $row->ipb_expiry;
 			}
 			if ( $row->ipb_deleted ) {
 				$data['hidden'] = true;
 			}
 			if ( $fld_editcount ) {
-				$data['editcount'] = intval( $row->user_editcount );
+				$data['editcount'] = (int)$row->user_editcount;
 			}
 			if ( $params['activeusers'] ) {
-				$data['recentactions'] = intval( $row->recentactions );
+				$data['recentactions'] = (int)$row->recentactions;
 				// @todo 'recenteditcount' is set for BC, remove in 1.25
 				$data['recenteditcount'] = $data['recentactions'];
 			}

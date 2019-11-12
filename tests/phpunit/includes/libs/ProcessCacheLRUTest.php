@@ -1,22 +1,22 @@
 <?php
 
 /**
- * Test for ProcessCacheLRU class.
- *
  * Note that it uses the ProcessCacheLRUTestable class which extends some
  * properties and methods visibility. That class is defined at the end of the
  * file containing this class.
  *
  * @group Cache
  */
-class ProcessCacheLRUTest extends PHPUnit_Framework_TestCase {
+class ProcessCacheLRUTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
 
 	/**
 	 * Helper to verify emptiness of a cache object.
 	 * Compare against an array so we get the cache content difference.
 	 */
 	protected function assertCacheEmpty( $cache, $msg = 'Cache should be empty' ) {
-		$this->assertAttributeEquals( [], 'cache', $cache, $msg );
+		$this->assertEquals( 0, $cache->getEntriesCount(), $msg );
 	}
 
 	/**
@@ -58,6 +58,7 @@ class ProcessCacheLRUTest extends PHPUnit_Framework_TestCase {
 
 	/**
 	 * Highlight diff between assertEquals and assertNotSame
+	 * @coversNothing
 	 */
 	public function testPhpUnitArrayEquality() {
 		$one = [ 'A' => 1, 'B' => 2 ];
@@ -253,13 +254,11 @@ class ProcessCacheLRUTest extends PHPUnit_Framework_TestCase {
  * Overrides some ProcessCacheLRU methods and properties accessibility.
  */
 class ProcessCacheLRUTestable extends ProcessCacheLRU {
-	public $cache = [];
-
 	public function getCache() {
-		return $this->cache;
+		return $this->cache->toArray();
 	}
 
 	public function getEntriesCount() {
-		return count( $this->cache );
+		return count( $this->cache->toArray() );
 	}
 }

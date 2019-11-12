@@ -1,11 +1,8 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
-
 /**
  * @group Database
  */
-
 class LinkerTest extends MediaWikiLangTestCase {
 
 	/**
@@ -133,7 +130,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 	public function provideCasesForFormatComment() {
 		$wikiId = 'enwiki'; // $wgConf has a fake entry for this
 
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			// Linker::formatComment
 			[
@@ -154,58 +151,58 @@ class LinkerTest extends MediaWikiLangTestCase {
 			],
 			// Linker::formatAutocomments
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a></span></span>',
 				"/* autocomment */",
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#linkie.3F" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment"><a href="/wiki/index.php?title=Linkie%3F&amp;action=edit&amp;redlink=1" class="new" title="Linkie? (page does not exist)">linkie?</a></span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#linkie.3F" title="Special:BlankPage">→‎&#91;[linkie?]]</a></span></span>',
 				"/* [[linkie?]] */",
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment: </span> post</span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a>: </span> post</span>',
 				"/* autocomment */ post",
 			],
 			[
-				'pre <a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'pre <span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a></span></span>',
 				"pre /* autocomment */",
 			],
 			[
-				'pre <a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment: </span> post</span>',
+				'pre <span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a>: </span> post</span>',
 				"pre /* autocomment */ post",
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment: </span> multiple? <a href="/wiki/Special:BlankPage#autocomment2" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment2: </span> </span></span>',
-				"/* autocomment */ multiple? /* autocomment2 */ ",
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a>: </span> multiple? <span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment2" title="Special:BlankPage">→‎autocomment2</a></span></span></span>',
+				"/* autocomment */ multiple? /* autocomment2 */",
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment_containing_.2F.2A" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment containing /*: </span> T70361</span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment_containing_.2F.2A" title="Special:BlankPage">→‎autocomment containing /*</a>: </span> T70361</span>',
 				"/* autocomment containing /* */ T70361"
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment_containing_.22quotes.22" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment containing &quot;quotes&quot;</span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment_containing_.22quotes.22" title="Special:BlankPage">→‎autocomment containing &quot;quotes&quot;</a></span></span>',
 				"/* autocomment containing \"quotes\" */"
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment_containing_.3Cscript.3Etags.3C.2Fscript.3E" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment containing &lt;script&gt;tags&lt;/script&gt;</span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment_containing_.3Cscript.3Etags.3C.2Fscript.3E" title="Special:BlankPage">→‎autocomment containing &lt;script&gt;tags&lt;/script&gt;</a></span></span>',
 				"/* autocomment containing <script>tags</script> */"
 			],
 			[
-				'<a href="#autocomment">→</a>‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="#autocomment">→‎autocomment</a></span></span>',
 				"/* autocomment */",
 				false, true
 			],
 			[
-				'‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'<span dir="auto"><span class="autocomment">autocomment</span></span>',
 				"/* autocomment */",
 				null
 			],
 			[
-				'<a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→</a>‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'<span dir="auto"><span class="autocomment"><a href="/wiki/Special:BlankPage#autocomment" title="Special:BlankPage">→‎autocomment</a></span></span>',
 				"/* autocomment */",
 				false, false
 			],
 			[
-				'<a class="external" rel="nofollow" href="//en.example.org/w/Special:BlankPage#autocomment">→</a>‎<span dir="auto"><span class="autocomment">autocomment</span></span>',
+				'<span dir="auto"><span class="autocomment"><a class="external" rel="nofollow" href="//en.example.org/w/Special:BlankPage#autocomment">→‎autocomment</a></span></span>',
 				"/* autocomment */",
 				false, false, $wikiId
 			],
@@ -257,7 +254,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 				false, false, $wikiId
 			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
@@ -265,7 +262,6 @@ class LinkerTest extends MediaWikiLangTestCase {
 	 * @dataProvider provideCasesForFormatLinksInComment
 	 */
 	public function testFormatLinksInComment( $expected, $input, $wiki ) {
-
 		$conf = new SiteConfiguration();
 		$conf->settings = [
 			'wgServer' => [
@@ -289,12 +285,59 @@ class LinkerTest extends MediaWikiLangTestCase {
 		);
 	}
 
+	/**
+	 * @covers Linker::generateRollback
+	 * @dataProvider provideCasesForRollbackGeneration
+	 */
+	public function testGenerateRollback( $rollbackEnabled, $expectedModules ) {
+		$this->markTestSkippedIfDbType( 'postgres' );
+
+		$context = RequestContext::getMain();
+		$user = $context->getUser();
+		$user->setOption( 'showrollbackconfirmation', $rollbackEnabled );
+
+		$pageData = $this->insertPage( 'Rollback_Test_Page' );
+		$page = WikiPage::factory( $pageData['title'] );
+
+		$updater = $page->newPageUpdater( $user );
+		$updater->setContent( \MediaWiki\Revision\SlotRecord::MAIN,
+			new TextContent( 'Technical Wishes 123!' )
+		);
+		$summary = CommentStoreComment::newUnsavedComment( 'Some comment!' );
+		$updater->saveRevision( $summary );
+
+		$rollbackOutput = Linker::generateRollback( $page->getRevision(), $context );
+		$modules = $context->getOutput()->getModules();
+
+		$this->assertEquals( $expectedModules, $modules );
+		$this->assertContains( 'rollback 1 edit', $rollbackOutput );
+	}
+
+	public static function provideCasesForRollbackGeneration() {
+		return [
+			[
+				true,
+				[ 'mediawiki.page.rollback.confirmation' ]
+
+			],
+			[
+				false,
+				[]
+			]
+		];
+	}
+
 	public static function provideCasesForFormatLinksInComment() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			[
 				'foo bar <a href="/wiki/Special:BlankPage" title="Special:BlankPage">Special:BlankPage</a>',
 				'foo bar [[Special:BlankPage]]',
+				null,
+			],
+			[
+				'<a href="/wiki/Special:BlankPage" title="Special:BlankPage">Special:BlankPage</a>',
+				'[[ :Special:BlankPage]]',
 				null,
 			],
 			[
@@ -307,44 +350,49 @@ class LinkerTest extends MediaWikiLangTestCase {
 				'foo bar [[Special:BlankPage]]',
 				'enwiki',
 			],
+			[
+				'foo bar <a class="external" rel="nofollow" href="//en.example.org/w/File:Example">Image:Example</a>',
+				'foo bar [[Image:Example]]',
+				'enwiki',
+			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	public static function provideLinkBeginHook() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			// Modify $html
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$html = 'foobar';
 				},
 				'<a href="/wiki/Special:BlankPage" title="Special:BlankPage">foobar</a>'
 			],
 			// Modify $attribs
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$attribs['bar'] = 'baz';
 				},
 				'<a href="/wiki/Special:BlankPage" title="Special:BlankPage" bar="baz">Special:BlankPage</a>'
 			],
 			// Modify $query
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$query['bar'] = 'baz';
 				},
 				'<a href="/w/index.php?title=Special:BlankPage&amp;bar=baz" title="Special:BlankPage">Special:BlankPage</a>'
 			],
 			// Force HTTP $options
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$options = [ 'http' ];
 				},
 				'<a href="http://example.org/wiki/Special:BlankPage" title="Special:BlankPage">Special:BlankPage</a>'
 			],
 			// Force 'forcearticlepath' in $options
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$options = [ 'forcearticlepath' ];
 					$query['foo'] = 'bar';
 				},
@@ -352,14 +400,14 @@ class LinkerTest extends MediaWikiLangTestCase {
 			],
 			// Abort early
 			[
-				function( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
+				function ( $dummy, $title, &$html, &$attribs, &$query, &$options, &$ret ) {
 					$ret = 'foobar';
 					return false;
 				},
 				'foobar'
 			],
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
@@ -367,6 +415,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 	 * @dataProvider provideLinkBeginHook
 	 */
 	public function testLinkBeginHook( $callback, $expected ) {
+		$this->hideDeprecated( 'LinkBegin hook (used in hook-LinkBegin-closure)' );
 		$this->setMwGlobals( [
 			'wgArticlePath' => '/wiki/$1',
 			'wgServer' => '//example.org',
@@ -385,21 +434,21 @@ class LinkerTest extends MediaWikiLangTestCase {
 		return [
 			// Override $html
 			[
-				function( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
+				function ( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
 					$html = 'foobar';
 				},
 				'<a href="/wiki/Special:BlankPage" title="Special:BlankPage">foobar</a>'
 			],
 			// Modify $attribs
 			[
-				function( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
+				function ( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
 					$attribs['bar'] = 'baz';
 				},
 				'<a href="/wiki/Special:BlankPage" title="Special:BlankPage" bar="baz">Special:BlankPage</a>'
 			],
 			// Fully override return value and abort hook
 			[
-				function( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
+				function ( $dummy, $title, $options, &$html, &$attribs, &$ret ) {
 					$ret = 'blahblahblah';
 					return false;
 				},
@@ -414,6 +463,7 @@ class LinkerTest extends MediaWikiLangTestCase {
 	 * @dataProvider provideLinkEndHook
 	 */
 	public function testLinkEndHook( $callback, $expected ) {
+		$this->hideDeprecated( 'LinkEnd hook (used in hook-LinkEnd-closure)' );
 		$this->setMwGlobals( [
 			'wgArticlePath' => '/wiki/$1',
 		] );
@@ -423,55 +473,5 @@ class LinkerTest extends MediaWikiLangTestCase {
 		$title = SpecialPage::getTitleFor( 'Blankpage' );
 		$out = Linker::link( $title );
 		$this->assertEquals( $expected, $out );
-	}
-
-	/**
-	 * @covers Linker::getLinkColour
-	 */
-	public function testGetLinkColour() {
-		$this->hideDeprecated( 'Linker::getLinkColour' );
-		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
-		$foobarTitle = Title::makeTitle( NS_MAIN, 'FooBar' );
-		$redirectTitle = Title::makeTitle( NS_MAIN, 'Redirect' );
-		$userTitle = Title::makeTitle( NS_USER, 'Someuser' );
-		$linkCache->addGoodLinkObj(
-			1, // id
-			$foobarTitle,
-			10, // len
-			0 // redir
-		);
-		$linkCache->addGoodLinkObj(
-			2, // id
-			$redirectTitle,
-			10, // len
-			1 // redir
-		);
-
-		$linkCache->addGoodLinkObj(
-			3, // id
-			$userTitle,
-			10, // len
-			0 // redir
-		);
-
-		$this->assertEquals(
-			'',
-			Linker::getLinkColour( $foobarTitle, 0 )
-		);
-
-		$this->assertEquals(
-			'stub',
-			Linker::getLinkColour( $foobarTitle, 20 )
-		);
-
-		$this->assertEquals(
-			'mw-redirect',
-			Linker::getLinkColour( $redirectTitle, 0 )
-		);
-
-		$this->assertEquals(
-			'',
-			Linker::getLinkColour( $userTitle, 20 )
-		);
 	}
 }

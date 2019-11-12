@@ -26,7 +26,7 @@ class WebRequestTest extends MediaWikiTestCase {
 	public function testDetectServer( $expected, $input, $description ) {
 		$this->setMwGlobals( 'wgAssumeProxiesUseDefaultProtocolPorts', true );
 
-		$_SERVER = $input;
+		$this->setServerVars( $input );
 		$result = WebRequest::detectServer();
 		$this->assertEquals( $expected, $result, $description );
 	}
@@ -123,19 +123,27 @@ class WebRequestTest extends MediaWikiTestCase {
 		];
 	}
 
-	protected function mockWebRequest( $data = [] ) {
+	/**
+	 * @param array $data Request data
+	 * @param array $config
+	 *  - float 'requestTime': Mock value for `$_SERVER['REQUEST_TIME_FLOAT']`.
+	 * @return WebRequest
+	 */
+	protected function mockWebRequest( array $data = [], array $config = [] ) {
 		// Cannot use PHPUnit getMockBuilder() as it does not support
 		// overriding protected properties afterwards
-		$reflection = new ReflectionClass( 'WebRequest' );
+		$reflection = new ReflectionClass( WebRequest::class );
 		$req = $reflection->newInstanceWithoutConstructor();
 
 		$prop = $reflection->getProperty( 'data' );
 		$prop->setAccessible( true );
 		$prop->setValue( $req, $data );
 
-		$prop = $reflection->getProperty( 'requestTime' );
-		$prop->setAccessible( true );
-		$prop->setValue( $req, microtime( true ) );
+		if ( isset( $config['requestTime'] ) ) {
+			$prop = $reflection->getProperty( 'requestTime' );
+			$prop->setAccessible( true );
+			$prop->setValue( $req, $config['requestTime'] );
+		}
 
 		return $req;
 	}
@@ -144,9 +152,11 @@ class WebRequestTest extends MediaWikiTestCase {
 	 * @covers WebRequest::getElapsedTime
 	 */
 	public function testGetElapsedTime() {
-		$req = $this->mockWebRequest();
-		$this->assertGreaterThanOrEqual( 0.0, $req->getElapsedTime() );
-		$this->assertEquals( 0.0, $req->getElapsedTime(), '', /*delta*/ 0.2 );
+		$now = microtime( true ) - 10.0;
+		$req = $this->mockWebRequest( [], [ 'requestTime' => $now ] );
+		$this->assertGreaterThanOrEqual( 10.0, $req->getElapsedTime() );
+		// Catch common errors, but don't fail on slow hardware or VMs (T199764).
+		$this->assertEquals( 10.0, $req->getElapsedTime(), '', 60.0 );
 	}
 
 	/**
@@ -363,7 +373,7 @@ class WebRequestTest extends MediaWikiTestCase {
 	 * @covers WebRequest::getIP
 	 */
 	public function testGetIP( $expected, $input, $squid, $xffList, $private, $description ) {
-		$_SERVER = $input;
+		$this->setServerVars( $input );
 		$this->setMwGlobals( [
 			'wgUsePrivateIPs' => $private,
 			'wgHooks' => [
@@ -608,8 +618,19 @@ class WebRequestTest extends MediaWikiTestCase {
 	 * @covers WebRequest::getAcceptLang
 	 */
 	public function testAcceptLang( $acceptLanguageHeader, $expectedLanguages, $description ) {
-		$_SERVER = [ 'HTTP_ACCEPT_LANGUAGE' => $acceptLanguageHeader ];
+		$this->setServerVars( [ 'HTTP_ACCEPT_LANGUAGE' => $acceptLanguageHeader ] );
 		$request = new WebRequest();
 		$this->assertSame( $request->getAcceptLang(), $expectedLanguages, $description );
+	}
+
+	protected function setServerVars( $vars ) {
+		// Don't remove vars which should be available in all SAPI.
+		if ( !isset( $vars['REQUEST_TIME_FLOAT'] ) ) {
+			$vars['REQUEST_TIME_FLOAT'] = $_SERVER['REQUEST_TIME_FLOAT'];
+		}
+		if ( !isset( $vars['REQUEST_TIME'] ) ) {
+			$vars['REQUEST_TIME'] = $_SERVER['REQUEST_TIME'];
+		}
+		$_SERVER = $vars;
 	}
 }

@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Sep 19, 2006
- *
  * Copyright © 2006-2007 Yuri Astrakhan "<Firstname><Lastname>@gmail.com",
  * Daniel Cannon (cannon dot danielc at gmail dot com)
  *
@@ -41,11 +37,28 @@ class ApiLogin extends ApiBase {
 		parent::__construct( $main, $action, 'lg' );
 	}
 
-	protected function getDescriptionMessage() {
+	protected function getExtendedDescription() {
 		if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
-			return 'apihelp-login-description';
+			return 'apihelp-login-extended-description';
 		} else {
-			return 'apihelp-login-description-nobotpasswords';
+			return 'apihelp-login-extended-description-nobotpasswords';
+		}
+	}
+
+	/**
+	 * Format a message for the response
+	 * @param Message|string|array $message
+	 * @return string|array
+	 */
+	private function formatMessage( $message ) {
+		$message = Message::newFromSpecifier( $message );
+		$errorFormatter = $this->getErrorFormatter();
+		if ( $errorFormatter instanceof ApiErrorFormatter_BackCompat ) {
+			return ApiErrorFormatter::stripMarkup(
+				$message->useDatabase( false )->inLanguage( 'en' )->text()
+			);
+		} else {
+			return $errorFormatter->formatMessage( $message );
 		}
 	}
 
@@ -64,7 +77,7 @@ class ApiLogin extends ApiBase {
 		if ( $this->lacksSameOriginSecurity() ) {
 			$this->getResult()->addValue( null, 'login', [
 				'result' => 'Aborted',
-				'reason' => 'Cannot log in when the same-origin policy is not applied',
+				'reason' => $this->formatMessage( 'api-login-fail-sameorigin' ),
 			] );
 
 			return;
@@ -84,15 +97,16 @@ class ApiLogin extends ApiBase {
 		if ( !$session->canSetUser() ) {
 			$this->getResult()->addValue( null, 'login', [
 				'result' => 'Aborted',
-				'reason' => 'Cannot log in when using ' .
-					$session->getProvider()->describe( Language::factory( 'en' ) ),
+				'reason' => $this->formatMessage( [
+					'api-login-fail-badsessionprovider',
+					$session->getProvider()->describe( $this->getErrorFormatter()->getLanguage() ),
+				] )
 			] );
 
 			return;
 		}
 
 		$authRes = false;
-		$context = new DerivativeContext( $this->getContext() );
 		$loginType = 'N/A';
 
 		// Check login token
@@ -115,13 +129,18 @@ class ApiLogin extends ApiBase {
 				$session = $status->getValue();
 				$authRes = 'Success';
 				$loginType = 'BotPassword';
-			} elseif ( !$botLoginData[2] ) {
+			} elseif (
+				$status->hasMessage( 'login-throttled' ) ||
+				$status->hasMessage( 'botpasswords-needs-reset' ) ||
+				$status->hasMessage( 'botpasswords-locked' )
+			) {
 				$authRes = 'Failed';
 				$message = $status->getMessage();
 				LoggerFactory::getInstance( 'authentication' )->info(
 					'BotPassword login failed: ' . $status->getWikiText( false, false, 'en' )
 				);
 			}
+			// For other errors, let's see if it's a valid non-bot login
 		}
 
 		if ( $authRes === false ) {
@@ -177,7 +196,7 @@ class ApiLogin extends ApiBase {
 				$injected_html = '';
 				Hooks::run( 'UserLoginComplete', [ &$user, &$injected_html, true ] );
 
-				$result['lguserid'] = intval( $user->getId() );
+				$result['lguserid'] = (int)$user->getId();
 				$result['lgusername'] = $user->getName();
 				break;
 
@@ -190,36 +209,26 @@ class ApiLogin extends ApiBase {
 				break;
 
 			case 'Failed':
-				$errorFormatter = $this->getErrorFormatter();
-				if ( $errorFormatter instanceof ApiErrorFormatter_BackCompat ) {
-					$result['reason'] = ApiErrorFormatter::stripMarkup(
-						$message->useDatabase( false )->inLanguage( 'en' )->text()
-					);
-				} else {
-					$result['reason'] = $errorFormatter->formatMessage( $message );
-				}
+				$result['reason'] = $this->formatMessage( $message );
 				break;
 
 			case 'Aborted':
-				$result['reason'] = 'Authentication requires user interaction, ' .
-					'which is not supported by action=login.';
-				if ( $this->getConfig()->get( 'EnableBotPasswords' ) ) {
-					$result['reason'] .= ' To be able to login with action=login, see [[Special:BotPasswords]].';
-					$result['reason'] .= ' To continue using main-account login, see action=clientlogin.';
-				} else {
-					$result['reason'] .= ' To log in, see action=clientlogin.';
-				}
+				$result['reason'] = $this->formatMessage(
+					$this->getConfig()->get( 'EnableBotPasswords' )
+						? 'api-login-fail-aborted'
+						: 'api-login-fail-aborted-nobotpw'
+				);
 				break;
 
+			// @codeCoverageIgnoreStart
+			// Unreachable
 			default:
 				ApiBase::dieDebug( __METHOD__, "Unhandled case value: {$authRes}" );
+			// @codeCoverageIgnoreEnd
 		}
 
 		$this->getResult()->addValue( null, 'login', $result );
 
-		if ( $loginType === 'LoginForm' && isset( LoginForm::$statusCodes[$authRes] ) ) {
-			$authRes = LoginForm::$statusCodes[$authRes];
-		}
 		LoggerFactory::getInstance( 'authevents' )->info( 'Login attempt', [
 			'event' => 'login',
 			'successful' => $authRes === 'Success',

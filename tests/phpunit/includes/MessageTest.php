@@ -1,7 +1,11 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
 use Wikimedia\TestingAccessWrapper;
 
+/**
+ * @group Database
+ */
 class MessageTest extends MediaWikiLangTestCase {
 
 	protected function setUp() {
@@ -22,9 +26,9 @@ class MessageTest extends MediaWikiLangTestCase {
 
 		$this->assertSame( $key, $message->getKey() );
 		$this->assertSame( $params, $message->getParams() );
-		$this->assertEquals( $expectedLang, $message->getLanguage() );
+		$this->assertSame( $expectedLang->getCode(), $message->getLanguage()->getCode() );
 
-		$messageSpecifier = $this->getMockForAbstractClass( 'MessageSpecifier' );
+		$messageSpecifier = $this->getMockForAbstractClass( MessageSpecifier::class );
 		$messageSpecifier->expects( $this->any() )
 			->method( 'getKey' )->will( $this->returnValue( $key ) );
 		$messageSpecifier->expects( $this->any() )
@@ -33,7 +37,7 @@ class MessageTest extends MediaWikiLangTestCase {
 
 		$this->assertSame( $key, $message->getKey() );
 		$this->assertSame( $params, $message->getParams() );
-		$this->assertEquals( $expectedLang, $message->getLanguage() );
+		$this->assertSame( $expectedLang->getCode(), $message->getLanguage()->getCode() );
 	}
 
 	public static function provideConstructor() {
@@ -197,16 +201,16 @@ class MessageTest extends MediaWikiLangTestCase {
 	 * @covers ::wfMessage
 	 */
 	public function testWfMessage() {
-		$this->assertInstanceOf( 'Message', wfMessage( 'mainpage' ) );
-		$this->assertInstanceOf( 'Message', wfMessage( 'i-dont-exist-evar' ) );
+		$this->assertInstanceOf( Message::class, wfMessage( 'mainpage' ) );
+		$this->assertInstanceOf( Message::class, wfMessage( 'i-dont-exist-evar' ) );
 	}
 
 	/**
 	 * @covers Message::newFromKey
 	 */
 	public function testNewFromKey() {
-		$this->assertInstanceOf( 'Message', Message::newFromKey( 'mainpage' ) );
-		$this->assertInstanceOf( 'Message', Message::newFromKey( 'i-dont-exist-evar' ) );
+		$this->assertInstanceOf( Message::class, Message::newFromKey( 'mainpage' ) );
+		$this->assertInstanceOf( Message::class, Message::newFromKey( 'i-dont-exist-evar' ) );
 	}
 
 	/**
@@ -396,15 +400,16 @@ class MessageTest extends MediaWikiLangTestCase {
 		$this->assertSame( 'example &amp;', $msg->escaped() );
 	}
 
+	/**
+	 * @covers CoreTagHooks::html
+	 */
 	public function testRawHtmlInMsg() {
-		global $wgParserConf;
 		$this->setMwGlobals( 'wgRawHtml', true );
 		// We have to reset the core hook registration.
 		// to register the html hook
 		MessageCache::destroyInstance();
 		$this->setMwGlobals( 'wgParser',
-			ObjectFactory::constructClassInstance( $wgParserConf['class'], [ $wgParserConf ] )
-		);
+			MediaWikiServices::getInstance()->getParserFactory()->create() );
 
 		$msg = new RawMessage( '<html><script>alert("xss")</script></html>' );
 		$txt = '<span class="error">&lt;html&gt; tags cannot be' .
@@ -467,7 +472,6 @@ class MessageTest extends MediaWikiLangTestCase {
 
 	/**
 	 * FIXME: This should not need database, but Language#formatExpiry does (T57912)
-	 * @group Database
 	 * @covers Message::expiryParam
 	 * @covers Message::expiryParams
 	 */
@@ -810,7 +814,7 @@ class MessageTest extends MediaWikiLangTestCase {
 		$msg = unserialize( serialize( $msg ) );
 		$this->assertSame( '(<a>foo</a>)', $msg->parse() );
 		$title = TestingAccessWrapper::newFromObject( $msg )->title;
-		$this->assertInstanceOf( 'Title', $title );
+		$this->assertInstanceOf( Title::class, $title );
 		$this->assertSame( 'Testing', $title->getFullText() );
 
 		$msg = new Message( 'mainpage' );

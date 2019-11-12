@@ -8,12 +8,9 @@ class LocalIdLookupTest extends MediaWikiTestCase {
 	private $localUsers = [];
 
 	protected function setUp() {
-		global $wgGroupPermissions;
-
 		parent::setUp();
 
-		$this->stashMwGlobals( [ 'wgGroupPermissions' ] );
-		$wgGroupPermissions['local-id-lookup-test']['hideuser'] = true;
+		$this->setGroupPermissions( 'local-id-lookup-test', 'hideuser', true );
 	}
 
 	public function addDBData() {
@@ -127,9 +124,8 @@ class LocalIdLookupTest extends MediaWikiTestCase {
 	 * @param bool $localDBSet $wgLocalDatabases contains the shared DB
 	 */
 	public function testIsAttachedShared( $sharedDB, $sharedTable, $localDBSet ) {
-		global $wgDBName;
 		$this->setMwGlobals( [
-			'wgSharedDB' => $sharedDB ? $wgDBName : null,
+			'wgSharedDB' => $sharedDB ? "dummy" : null,
 			'wgSharedTables' => $sharedTable ? [ 'user' ] : [],
 			'wgLocalDatabases' => $localDBSet ? [ 'shared' ] : [],
 		] );

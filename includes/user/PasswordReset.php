@@ -46,14 +46,14 @@ class PasswordReset implements LoggerAwareInterface {
 	/**
 	 * In-process cache for isAllowed lookups, by username.
 	 * Contains a StatusValue object
-	 * @var HashBagOStuff
+	 * @var MapCacheLRU
 	 */
 	private $permissionCache;
 
 	public function __construct( Config $config, AuthManager $authManager ) {
 		$this->config = $config;
 		$this->authManager = $authManager;
-		$this->permissionCache = new HashBagOStuff( [ 'maxKeys' => 1 ] );
+		$this->permissionCache = new MapCacheLRU( 1 );
 		$this->logger = LoggerFactory::getInstance( 'authentication' );
 	}
 
@@ -81,9 +81,7 @@ class PasswordReset implements LoggerAwareInterface {
 			$resetRoutes = $this->config->get( 'PasswordResetRoutes' );
 			$status = StatusValue::newGood();
 
-			if ( !is_array( $resetRoutes ) ||
-				 !in_array( true, array_values( $resetRoutes ), true )
-			) {
+			if ( !is_array( $resetRoutes ) || !in_array( true, $resetRoutes, true ) ) {
 				// Maybe password resets are disabled, or there are no allowable routes
 				$status = StatusValue::newFatal( 'passwordreset-disabled' );
 			} elseif (
@@ -100,9 +98,10 @@ class PasswordReset implements LoggerAwareInterface {
 			} elseif ( !$user->isAllowed( 'editmyprivateinfo' ) ) {
 				// Maybe not all users have permission to change private data
 				$status = StatusValue::newFatal( 'badaccess' );
-			} elseif ( $user->isBlocked() ) {
+			} elseif ( $this->isBlocked( $user ) ) {
 				// Maybe the user is blocked (check this here rather than relying on the parent
-				// method as we have a more specific error message to use here
+				// method as we have a more specific error message to use here and we want to
+				// ignore some types of blocks)
 				$status = StatusValue::newFatal( 'blocked-mailpassword' );
 			}
 
@@ -121,8 +120,8 @@ class PasswordReset implements LoggerAwareInterface {
 	 *
 	 * @since 1.29 Fourth argument for displayPassword removed.
 	 * @param User $performingUser The user that does the password reset
-	 * @param string $username The user whose password is reset
-	 * @param string $email Alternative way to specify the user
+	 * @param string|null $username The user whose password is reset
+	 * @param string|null $email Alternative way to specify the user
 	 * @return StatusValue Will contain the passwords as a username => password array if the
 	 *   $displayPassword flag was set
 	 * @throws LogicException When the user is not allowed to perform the action
@@ -239,7 +238,9 @@ class PasswordReset implements LoggerAwareInterface {
 
 		$passwords = [];
 		foreach ( $reqs as $req ) {
-			$this->authManager->changeAuthenticationData( $req );
+			// This is adding a new temporary password, not intentionally changing anything
+			// (even though it might technically invalidate an old temporary password).
+			$this->authManager->changeAuthenticationData( $req, /* $isAddition */ true );
 		}
 
 		$this->logger->info(
@@ -251,16 +252,34 @@ class PasswordReset implements LoggerAwareInterface {
 	}
 
 	/**
+	 * Check whether the user is blocked.
+	 * Ignores certain types of system blocks that are only meant to force users to log in.
+	 * @param User $user
+	 * @return bool
+	 * @since 1.30
+	 */
+	protected function isBlocked( User $user ) {
+		$block = $user->getBlock() ?: $user->getGlobalBlock();
+		if ( !$block ) {
+			return false;
+		}
+		return $block->appliesToPasswordReset();
+	}
+
+	/**
 	 * @param string $email
 	 * @return User[]
 	 * @throws MWException On unexpected database errors
 	 */
 	protected function getUsersByEmail( $email ) {
+		$userQuery = User::getQueryInfo();
 		$res = wfGetDB( DB_REPLICA )->select(
-			'user',
-			User::selectFields(),
+			$userQuery['tables'],
+			$userQuery['fields'],
 			[ 'user_email' => $email ],
-			__METHOD__
+			__METHOD__,
+			[],
+			$userQuery['joins']
 		);
 
 		if ( !$res ) {

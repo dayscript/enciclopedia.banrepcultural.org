@@ -26,7 +26,12 @@ namespace Wikimedia\Rdbms;
 use InvalidArgumentException;
 
 /**
- * Trivial LoadBalancer that always returns an injected connection handle
+ * Trivial LoadBalancer that always returns an injected connection handle.
+ *
+ * Note that, while this LoadBalancer does not open any connections itself,
+ * it still closes the injected connection at times, including during destruction.
+ * It is therefore unsuitable for use in tests unless you have a Database instance
+ * separate from the main test database (which is expected to stay open).
  */
 class LoadBalancerSingle extends LoadBalancer {
 	/** @var IDatabase */
@@ -52,9 +57,11 @@ class LoadBalancerSingle extends LoadBalancer {
 					'load' => 1,
 				]
 			],
-			'trxProfiler' => isset( $params['trxProfiler'] ) ? $params['trxProfiler'] : null,
-			'srvCache' => isset( $params['srvCache'] ) ? $params['srvCache'] : null,
-			'wanCache' => isset( $params['wanCache'] ) ? $params['wanCache'] : null
+			'trxProfiler' => $params['trxProfiler'] ?? null,
+			'srvCache' => $params['srvCache'] ?? null,
+			'wanCache' => $params['wanCache'] ?? null,
+			'localDomain' => $params['localDomain'] ?? $this->db->getDomainID(),
+			'readOnlyReason' => $params['readOnlyReason'] ?? false,
 		] );
 
 		if ( isset( $params['readOnlyReason'] ) ) {
@@ -69,12 +76,19 @@ class LoadBalancerSingle extends LoadBalancer {
 	 * @since 1.28
 	 */
 	public static function newFromConnection( IDatabase $db, array $params = [] ) {
-		return new static( [ 'connection' => $db ] + $params );
+		return new static( array_merge(
+			[ 'localDomain' => $db->getDomainID() ],
+			$params,
+			[ 'connection' => $db ]
+		) );
 	}
 
-	protected function reallyOpenConnection( array $server, $dbNameOverride = false ) {
+	protected function reallyOpenConnection( array $server, DatabaseDomain $domain ) {
 		return $this->db;
 	}
 }
 
-class_alias( 'Wikimedia\Rdbms\LoadBalancerSingle', 'LoadBalancerSingle' );
+/**
+ * @deprecated since 1.29
+ */
+class_alias( LoadBalancerSingle::class, 'LoadBalancerSingle' );

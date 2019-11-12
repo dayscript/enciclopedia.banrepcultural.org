@@ -4,7 +4,7 @@ namespace MediaWiki\Auth;
 
 /**
  * @group AuthManager
- * @covers MediaWiki\Auth\AuthenticationRequest
+ * @covers \MediaWiki\Auth\AuthenticationRequest
  */
 class AuthenticationRequestTest extends \MediaWikiTestCase {
 	public function testBasics() {
@@ -17,9 +17,9 @@ class AuthenticationRequestTest extends \MediaWikiTestCase {
 		$ret = $mock->describeCredentials();
 		$this->assertInternalType( 'array', $ret );
 		$this->assertArrayHasKey( 'provider', $ret );
-		$this->assertInstanceOf( 'Message', $ret['provider'] );
+		$this->assertInstanceOf( \Message::class, $ret['provider'] );
 		$this->assertArrayHasKey( 'account', $ret );
-		$this->assertInstanceOf( 'Message', $ret['account'] );
+		$this->assertInstanceOf( \Message::class, $ret['account'] );
 	}
 
 	public function testLoadRequestsFromSubmission() {

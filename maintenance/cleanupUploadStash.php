@@ -33,7 +33,7 @@ require_once __DIR__ . '/Maintenance.php';
  *
  * @ingroup Maintenance
  */
-class UploadStashCleanup extends Maintenance {
+class CleanupUploadStash extends Maintenance {
 
 	public function __construct() {
 		parent::__construct();
@@ -103,7 +103,7 @@ class UploadStashCleanup extends Maintenance {
 		foreach ( $iterator as $file ) {
 			if ( wfTimestamp( TS_UNIX, $tempRepo->getFileTimestamp( "$dir/$file" ) ) < $cutoff ) {
 				$batch[] = [ 'op' => 'delete', 'src' => "$dir/$file" ];
-				if ( count( $batch ) >= $this->mBatchSize ) {
+				if ( count( $batch ) >= $this->getBatchSize() ) {
 					$this->doOperations( $tempRepo, $batch );
 					$i += count( $batch );
 					$batch = [];
@@ -122,14 +122,14 @@ class UploadStashCleanup extends Maintenance {
 		$iterator = $tempRepo->getBackend()->getFileList( [ 'dir' => $dir, 'adviseStat' => 1 ] );
 		$this->output( "Deleting orphaned temp files...\n" );
 		if ( strpos( $dir, '/local-temp' ) === false ) { // sanity check
-			$this->error( "Temp repo is not using the temp container.", 1 ); // die
+			$this->fatalError( "Temp repo is not using the temp container." );
 		}
 		$i = 0;
 		$batch = []; // operation batch
 		foreach ( $iterator as $file ) {
 			if ( wfTimestamp( TS_UNIX, $tempRepo->getFileTimestamp( "$dir/$file" ) ) < $cutoff ) {
 				$batch[] = [ 'op' => 'delete', 'src' => "$dir/$file" ];
-				if ( count( $batch ) >= $this->mBatchSize ) {
+				if ( count( $batch ) >= $this->getBatchSize() ) {
 					$this->doOperations( $tempRepo, $batch );
 					$i += count( $batch );
 					$batch = [];
@@ -152,5 +152,5 @@ class UploadStashCleanup extends Maintenance {
 	}
 }
 
-$maintClass = "UploadStashCleanup";
+$maintClass = CleanupUploadStash::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

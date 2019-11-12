@@ -21,6 +21,8 @@
  * @ingroup Search
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Highlight bits of wikitext
  *
@@ -32,6 +34,7 @@ class SearchHighlighter {
 	/**
 	 * @warning If you pass false to this constructor, then
 	 *  the caller is responsible for HTML escaping.
+	 * @param bool $cleanupWikitext
 	 */
 	function __construct( $cleanupWikitext = true ) {
 		$this->mCleanWikitext = $cleanupWikitext;
@@ -48,7 +51,7 @@ class SearchHighlighter {
 	 * @return string
 	 */
 	public function highlightText( $text, $terms, $contextlines, $contextchars ) {
-		global $wgContLang, $wgSearchHighlightBoundaries;
+		global $wgSearchHighlightBoundaries;
 
 		if ( $text == '' ) {
 			return '';
@@ -83,7 +86,10 @@ class SearchHighlighter {
 						if ( $key == 2 ) {
 							// see if this is an image link
 							$ns = substr( $val[0], 2, -1 );
-							if ( $wgContLang->getNsIndex( $ns ) != NS_FILE ) {
+							if (
+								MediaWikiServices::getInstance()->getContentLanguage()->
+								getNsIndex( $ns ) != NS_FILE
+							) {
 								break;
 							}
 
@@ -291,8 +297,8 @@ class SearchHighlighter {
 	/**
 	 * Split text into lines and add it to extracts array
 	 *
-	 * @param array $extracts Index -> $line
-	 * @param int $count
+	 * @param array &$extracts Index -> $line
+	 * @param int &$count
 	 * @param string $text
 	 */
 	function splitAndAdd( &$extracts, &$count, $text ) {
@@ -312,9 +318,10 @@ class SearchHighlighter {
 	 * @return string
 	 */
 	function caseCallback( $matches ) {
-		global $wgContLang;
 		if ( strlen( $matches[0] ) > 1 ) {
-			return '[' . $wgContLang->lc( $matches[0] ) . $wgContLang->uc( $matches[0] ) . ']';
+			$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+			return '[' . $contLang->lc( $matches[0] ) .
+				$contLang->uc( $matches[0] ) . ']';
 		} else {
 			return $matches[0];
 		}
@@ -326,8 +333,8 @@ class SearchHighlighter {
 	 * @param string $text
 	 * @param int $start
 	 * @param int $end
-	 * @param int $posStart (out) actual start position
-	 * @param int $posEnd (out) actual end position
+	 * @param int|null &$posStart (out) actual start position
+	 * @param int|null &$posEnd (out) actual end position
 	 * @return string
 	 */
 	function extract( $text, $start, $end, &$posStart = null, &$posEnd = null ) {
@@ -397,10 +404,10 @@ class SearchHighlighter {
 	 *
 	 * @param string $pattern Regexp for matching lines
 	 * @param array $extracts Extracts to search
-	 * @param int $linesleft Number of extracts to make
-	 * @param int $contextchars Length of snippet
-	 * @param array $out Map for highlighted snippets
-	 * @param array $offsets Map of starting points of snippets
+	 * @param int &$linesleft Number of extracts to make
+	 * @param int &$contextchars Length of snippet
+	 * @param array &$out Map for highlighted snippets
+	 * @param array &$offsets Map of starting points of snippets
 	 * @protected
 	 */
 	function process( $pattern, $extracts, &$linesleft, &$contextchars, &$out, &$offsets ) {
@@ -479,9 +486,8 @@ class SearchHighlighter {
 		if ( $colon === false ) {
 			return $matches[2]; // replace with caption
 		}
-		global $wgContLang;
 		$ns = substr( $matches[1], 0, $colon );
-		$index = $wgContLang->getNsIndex( $ns );
+		$index = MediaWikiServices::getInstance()->getContentLanguage()->getNsIndex( $ns );
 		if ( $index !== false && ( $index == NS_FILE || $index == NS_CATEGORY ) ) {
 			return $matches[0]; // return the whole thing
 		} else {
@@ -502,8 +508,6 @@ class SearchHighlighter {
 	 * @return string
 	 */
 	public function highlightSimple( $text, $terms, $contextlines, $contextchars ) {
-		global $wgContLang;
-
 		$lines = explode( "\n", $text );
 
 		$terms = implode( '|', $terms );
@@ -513,8 +517,9 @@ class SearchHighlighter {
 		$lineno = 0;
 
 		$extract = "";
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
 		foreach ( $lines as $line ) {
-			if ( 0 == $contextlines ) {
+			if ( $contextlines == 0 ) {
 				break;
 			}
 			++$lineno;
@@ -524,12 +529,12 @@ class SearchHighlighter {
 			}
 			--$contextlines;
 			// truncate function changes ... to relevant i18n message.
-			$pre = $wgContLang->truncate( $m[1], - $contextchars, '...', false );
+			$pre = $contLang->truncateForVisual( $m[1], - $contextchars, '...', false );
 
 			if ( count( $m ) < 3 ) {
 				$post = '';
 			} else {
-				$post = $wgContLang->truncate( $m[3], $contextchars, '...', false );
+				$post = $contLang->truncateForVisual( $m[3], $contextchars, '...', false );
 			}
 
 			$found = $m[2];

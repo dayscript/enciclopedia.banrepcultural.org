@@ -19,6 +19,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -44,15 +46,14 @@ class DeleteEqualMessages extends Maintenance {
 	 * @param array &$messageInfo
 	 */
 	protected function fetchMessageInfo( $langCode, array &$messageInfo ) {
-		global $wgContLang;
-
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
 		if ( $langCode ) {
 			$this->output( "\n... fetching message info for language: $langCode" );
-			$nonContLang = true;
+			$nonContentLanguage = true;
 		} else {
 			$this->output( "\n... fetching message info for content language" );
-			$langCode = $wgContLang->getCode();
-			$nonContLang = false;
+			$langCode = $contLang->getCode();
+			$nonContentLanguage = false;
 		}
 
 		/* Based on SpecialAllmessages::reallyDoQuery #filter=modified */
@@ -60,12 +61,12 @@ class DeleteEqualMessages extends Maintenance {
 		$l10nCache = Language::getLocalisationCache();
 		$messageNames = $l10nCache->getSubitemList( 'en', 'messages' );
 		// Normalise message names for NS_MEDIAWIKI page_title
-		$messageNames = array_map( [ $wgContLang, 'ucfirst' ], $messageNames );
+		$messageNames = array_map( [ $contLang, 'ucfirst' ], $messageNames );
 
 		$statuses = AllMessagesTablePager::getCustomisedStatuses(
-			$messageNames, $langCode, $nonContLang );
+			$messageNames, $langCode, $nonContentLanguage );
 		// getCustomisedStatuses is stripping the sub page from the page titles, add it back
-		$titleSuffix = $nonContLang ? "/$langCode" : '';
+		$titleSuffix = $nonContentLanguage ? "/$langCode" : '';
 
 		foreach ( $messageNames as $key ) {
 			$customised = isset( $statuses['pages'][$key] );
@@ -123,7 +124,7 @@ class DeleteEqualMessages extends Maintenance {
 				$this->fetchMessageInfo( false, $messageInfo );
 			} else {
 				if ( !isset( $langCodes[$langCode] ) ) {
-					$this->error( 'Invalid language code: ' . $langCode, 1 );
+					$this->fatalError( 'Invalid language code: ' . $langCode );
 				}
 				$this->fetchMessageInfo( $langCode, $messageInfo );
 			}
@@ -164,7 +165,7 @@ class DeleteEqualMessages extends Maintenance {
 
 		$user = User::newSystemUser( 'MediaWiki default', [ 'steal' => true ] );
 		if ( !$user ) {
-			$this->error( "Invalid username", true );
+			$this->fatalError( "Invalid username" );
 		}
 		global $wgUser;
 		$wgUser = $user;
@@ -202,5 +203,5 @@ class DeleteEqualMessages extends Maintenance {
 	}
 }
 
-$maintClass = "DeleteEqualMessages";
+$maintClass = DeleteEqualMessages::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

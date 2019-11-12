@@ -37,7 +37,7 @@ class BenchmarkPurge extends Benchmarker {
 	public function execute() {
 		global $wgUseSquid, $wgSquidServers;
 		if ( !$wgUseSquid ) {
-			$this->error( "Squid purge benchmark doesn't do much without squid support on.", true );
+			$this->fatalError( "Squid purge benchmark doesn't do much without squid support on." );
 		} else {
 			$this->output( "There are " . count( $wgSquidServers ) . " defined squid servers:\n" );
 			if ( $this->hasOption( 'count' ) ) {
@@ -54,7 +54,7 @@ class BenchmarkPurge extends Benchmarker {
 	}
 
 	/**
-	 * Run a bunch of URLs through SquidUpdate::purge()
+	 * Run a bunch of URLs through CdnCacheUpdate::purge()
 	 * to benchmark Squid response times.
 	 * @param array $urls A bunch of URLs to purge
 	 * @param int $trials How many times to run the test?
@@ -114,5 +114,5 @@ class BenchmarkPurge extends Benchmarker {
 	}
 }
 
-$maintClass = "BenchmarkPurge";
+$maintClass = BenchmarkPurge::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

@@ -56,6 +56,7 @@ class SpecialExpandTemplates extends SpecialPage {
 		global $wgParser;
 
 		$this->setHeaders();
+		$this->addHelpLink( 'Help:ExpandTemplates' );
 
 		$request = $this->getRequest();
 		$titleStr = $request->getText( 'wpContextTitle' );
@@ -114,8 +115,10 @@ class SpecialExpandTemplates extends SpecialPage {
 			}
 
 			$config = $this->getConfig();
-			if ( $config->get( 'UseTidy' ) && $options->getTidy() ) {
+			if ( MWTidy::isEnabled() && $options->getTidy() ) {
 				$tmp = MWTidy::tidy( $tmp );
+			} else {
+				wfDeprecated( 'disabling tidy', '1.33' );
 			}
 
 			$out->addHTML( $tmp );
@@ -151,7 +154,6 @@ class SpecialExpandTemplates extends SpecialPage {
 	 *
 	 * @param string $title Value for context title field
 	 * @param string $input Value for input textbox
-	 * @return string
 	 */
 	private function makeForm( $title, $input ) {
 		$fields = [
@@ -163,7 +165,6 @@ class SpecialExpandTemplates extends SpecialPage {
 				'size' => 60,
 				'default' => $title,
 				'autofocus' => true,
-				'cssclass' => 'mw-ui-input-inline',
 			],
 			'input' => [
 				'type' => 'textarea',
@@ -172,6 +173,7 @@ class SpecialExpandTemplates extends SpecialPage {
 				'rows' => 10,
 				'default' => $input,
 				'id' => 'input',
+				'useeditfont' => true,
 			],
 			'removecomments' => [
 				'type' => 'check',
@@ -226,7 +228,11 @@ class SpecialExpandTemplates extends SpecialPage {
 			$output,
 			10,
 			10,
-			[ 'id' => 'output', 'readonly' => 'readonly' ]
+			[
+				'id' => 'output',
+				'readonly' => 'readonly',
+				'class' => 'mw-editfont-' . $this->getUser()->getOption( 'editfont' )
+			]
 		);
 
 		return $out;

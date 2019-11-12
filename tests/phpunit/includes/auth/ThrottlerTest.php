@@ -4,7 +4,6 @@ namespace MediaWiki\Auth;
 
 use BagOStuff;
 use HashBagOStuff;
-use InvalidArgumentException;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -12,7 +11,7 @@ use Wikimedia\TestingAccessWrapper;
 
 /**
  * @group AuthManager
- * @covers MediaWiki\Auth\Throttler
+ * @covers \MediaWiki\Auth\Throttler
  */
 class ThrottlerTest extends \MediaWikiTestCase {
 	public function testConstructor() {
@@ -200,7 +199,7 @@ class ThrottlerTest extends \MediaWikiTestCase {
 		$logger->expects( $this->once() )->method( 'log' )->with( $this->anything(), $this->anything(), [
 			'throttle' => 'custom',
 			'index' => 0,
-			'ip' => '1.2.3.4',
+			'ipKey' => '1.2.3.4',
 			'username' => 'SomeUser',
 			'count' => 1,
 			'expiry' => 10,

@@ -26,6 +26,12 @@ if ( PHP_SAPI != 'cli' ) {
 	die( "This script can only be run from the command line.\n" );
 }
 
+// class Collator is provided by the intl extension.
+// It is only suggested in composer.json, so remind here when not loaded.
+if ( !extension_loaded( 'intl' ) ) {
+	die( "This script needs the 'intl' extension to be loaded." );
+}
+
 $CREDITS = 'CREDITS';
 $START_CONTRIBUTORS = '<!-- BEGIN CONTRIBUTOR LIST -->';
 $END_CONTRIBUTORS = '<!-- END CONTRIBUTOR LIST -->';
@@ -59,7 +65,7 @@ unset( $lines );
 
 $lines = explode( "\n", shell_exec( 'git log --format="%aN"' ) );
 foreach ( $lines as $line ) {
-	if ( empty( $line ) )  {
+	if ( empty( $line ) ) {
 		continue;
 	}
 	if ( substr( $line, 0, 5 ) === '[BOT]' ) {
@@ -69,7 +75,8 @@ foreach ( $lines as $line ) {
 }
 
 $contributors = array_keys( $contributors );
-$collator = Collator::create( 'uca-default-u-kn' );
+$collator = Collator::create( 'root' );
+$collator->setAttribute( Collator::NUMERIC_COLLATION, Collator::ON );
 $collator->sort( $contributors );
 array_walk( $contributors, function ( &$v, $k ) {
 	$v = "* {$v}";

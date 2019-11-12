@@ -1,5 +1,7 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @group ContentHandler
  * @group Database
@@ -10,6 +12,10 @@ class TextContentTest extends MediaWikiLangTestCase {
 
 	protected function setUp() {
 		parent::setUp();
+
+		// trigger purging of all page related tables
+		$this->tablesUsed[] = 'page';
+		$this->tablesUsed[] = 'revision';
 
 		// Anon user
 		$user = new User();
@@ -26,7 +32,7 @@ class TextContentTest extends MediaWikiLangTestCase {
 				CONTENT_MODEL_CSS,
 				CONTENT_MODEL_JAVASCRIPT,
 			],
-			'wgUseTidy' => false,
+			'wgTidyConfig' => [ 'driver' => 'RemexHtml' ],
 			'wgCapitalLinks' => true,
 			'wgHooks' => [], // bypass hook ContentGetParserOutput that force custom rendering
 		] );
@@ -39,6 +45,10 @@ class TextContentTest extends MediaWikiLangTestCase {
 		parent::tearDown();
 	}
 
+	/**
+	 * @param string $text
+	 * @return TextContent
+	 */
 	public function newContent( $text ) {
 		return new TextContent( $text );
 	}
@@ -115,9 +125,8 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 * @covers TextContent::preSaveTransform
 	 */
 	public function testPreSaveTransform( $text, $expected ) {
-		global $wgContLang;
-
-		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(), $wgContLang );
+		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(),
+			MediaWikiServices::getInstance()->getContentLanguage() );
 
 		$content = $this->newContent( $text );
 		$content = $content->preSaveTransform(
@@ -126,7 +135,7 @@ class TextContentTest extends MediaWikiLangTestCase {
 			$options
 		);
 
-		$this->assertEquals( $expected, $content->getNativeData() );
+		$this->assertEquals( $expected, $content->getText() );
 	}
 
 	public static function dataPreloadTransform() {
@@ -143,13 +152,13 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 * @covers TextContent::preloadTransform
 	 */
 	public function testPreloadTransform( $text, $expected ) {
-		global $wgContLang;
-		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(), $wgContLang );
+		$options = ParserOptions::newFromUserAndLang( $this->context->getUser(),
+			MediaWikiServices::getInstance()->getContentLanguage() );
 
 		$content = $this->newContent( $text );
 		$content = $content->preloadTransform( $this->context->getTitle(), $options );
 
-		$this->assertEquals( $expected, $content->getNativeData() );
+		$this->assertEquals( $expected, $content->getText() );
 	}
 
 	public static function dataGetRedirectTarget() {
@@ -197,22 +206,11 @@ class TextContentTest extends MediaWikiLangTestCase {
 				'any',
 				true
 			],
-			[ 'Foo',
-				null,
-				'comma',
-				false
-			],
-			[ 'Foo, bar',
-				null,
-				'comma',
-				false
-			],
 		];
 	}
 
 	/**
 	 * @dataProvider dataIsCountable
-	 * @group Database
 	 * @covers TextContent::isCountable
 	 */
 	public function testIsCountable( $text, $hasLinks, $mode, $expected ) {
@@ -275,7 +273,7 @@ class TextContentTest extends MediaWikiLangTestCase {
 		$copy = $content->copy();
 
 		$this->assertTrue( $content->equals( $copy ), 'copy must be equal to original' );
-		$this->assertEquals( 'hello world.', $copy->getNativeData() );
+		$this->assertEquals( 'hello world.', $copy->getText() );
 	}
 
 	/**
@@ -288,12 +286,21 @@ class TextContentTest extends MediaWikiLangTestCase {
 	}
 
 	/**
+	 * @covers TextContent::getText
+	 */
+	public function testGetText() {
+		$content = $this->newContent( 'hello world.' );
+
+		$this->assertEquals( 'hello world.', $content->getText() );
+	}
+
+	/**
 	 * @covers TextContent::getNativeData
 	 */
 	public function testGetNativeData() {
 		$content = $this->newContent( 'hello world.' );
 
-		$this->assertEquals( 'hello world.', $content->getNativeData() );
+		$this->assertEquals( 'hello world.', $content->getText() );
 	}
 
 	/**
@@ -362,11 +369,11 @@ class TextContentTest extends MediaWikiLangTestCase {
 
 	public static function dataGetDeletionUpdates() {
 		return [
-			[ "TextContentTest_testGetSecondaryDataUpdates_1",
+			[
 				CONTENT_MODEL_TEXT, "hello ''world''\n",
 				[]
 			],
-			[ "TextContentTest_testGetSecondaryDataUpdates_2",
+			[
 				CONTENT_MODEL_TEXT, "hello [[world test 21344]]\n",
 				[]
 			],
@@ -378,13 +385,11 @@ class TextContentTest extends MediaWikiLangTestCase {
 	 * @dataProvider dataGetDeletionUpdates
 	 * @covers TextContent::getDeletionUpdates
 	 */
-	public function testDeletionUpdates( $title, $model, $text, $expectedStuff ) {
-		$ns = $this->getDefaultWikitextNS();
-		$title = Title::newFromText( $title, $ns );
+	public function testDeletionUpdates( $model, $text, $expectedStuff ) {
+		$page = $this->getNonexistingTestPage( get_class( $this ) . '-' . $this->getName() );
+		$title = $page->getTitle();
 
 		$content = ContentHandler::makeContent( $text, $title, $model );
-
-		$page = WikiPage::factory( $title );
 		$page->doEditContent( $content, '' );
 
 		$updates = $content->getDeletionUpdates( $page );
@@ -393,11 +398,6 @@ class TextContentTest extends MediaWikiLangTestCase {
 		foreach ( $updates as $update ) {
 			$class = get_class( $update );
 			$updates[$class] = $update;
-		}
-
-		if ( !$expectedStuff ) {
-			$this->assertTrue( true ); // make phpunit happy
-			return;
 		}
 
 		foreach ( $expectedStuff as $class => $fieldValues ) {
@@ -411,7 +411,8 @@ class TextContentTest extends MediaWikiLangTestCase {
 			}
 		}
 
-		$page->doDeleteArticle( '' );
+		// make phpunit happy even if $expectedStuff was empty
+		$this->assertTrue( true );
 	}
 
 	public static function provideConvert() {
@@ -450,13 +451,14 @@ class TextContentTest extends MediaWikiLangTestCase {
 	public function testConvert( $text, $model, $lossy, $expectedNative ) {
 		$content = $this->newContent( $text );
 
+		/** @var TextContent $converted */
 		$converted = $content->convert( $model, $lossy );
 
 		if ( $expectedNative === false ) {
 			$this->assertFalse( $converted, "conversion to $model was expected to fail!" );
 		} else {
-			$this->assertInstanceOf( 'Content', $converted );
-			$this->assertEquals( $expectedNative, $converted->getNativeData() );
+			$this->assertInstanceOf( Content::class, $converted );
+			$this->assertEquals( $expectedNative, $converted->getText() );
 		}
 	}
 
@@ -483,6 +485,16 @@ class TextContentTest extends MediaWikiLangTestCase {
 				"Foobar"
 			]
 		];
+	}
+
+	/**
+	 * @covers TextContent::__construct
+	 * @covers TextContentHandler::serializeContent
+	 */
+	public function testSerialize() {
+		$cnt = $this->newContent( 'testing text' );
+
+		$this->assertSame( 'testing text', $cnt->serialize() );
 	}
 
 }

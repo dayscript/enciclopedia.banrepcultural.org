@@ -25,11 +25,11 @@ class ParserTestResultNormalizer {
 		// guaranteed to give accurate results. For example, it may introduce
 		// differences in the number of line breaks in <pre> tags.
 
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		if ( !$this->doc->loadXML( '<html><body>' . $text . '</body></html>' ) ) {
 			$this->invalid = true;
 		}
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		$this->xpath = new DOMXPath( $this->doc );
 		$this->body = $this->xpath->query( '//body' )->item( 0 );
 	}
@@ -47,7 +47,7 @@ class ParserTestResultNormalizer {
 
 	/**
 	 * The point of this function is to produce a normalized DOM in which
-	 * Tidy's output matches the output of html5depurate. Tidy both trims
+	 * Tidy's output matches the output of RemexHtml. Tidy both trims
 	 * and pretty-prints, so this requires fairly aggressive treatment.
 	 *
 	 * In particular, note that Tidy converts <pre>x</pre> to <pre>\nx\n</pre>,
@@ -78,6 +78,7 @@ class ParserTestResultNormalizer {
 
 	/**
 	 * Serialize the XML DOM for comparison purposes. This does not generate HTML.
+	 * @return string
 	 */
 	protected function serialize() {
 		return strtr( $this->doc->saveXML( $this->body ),

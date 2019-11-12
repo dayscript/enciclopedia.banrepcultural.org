@@ -36,11 +36,14 @@ use Wikimedia\Rdbms\LoadBalancer;
  * Updates that work through this system will be more likely to complete by the time the client
  * makes their next request after this one than with the JobQueue system.
  *
- * In CLI mode, updates run immediately if no DB writes are pending. Otherwise, they run when:
- *   - a) Any waitForReplication() call if no writes are pending on any DB
- *   - b) A commit happens on Maintenance::getDB( DB_MASTER ) if no writes are pending on any DB
- *   - c) EnqueueableDataUpdate tasks may enqueue on commit of Maintenance::getDB( DB_MASTER )
- *   - d) At the completion of Maintenance::execute()
+ * In CLI mode, deferred updates will run:
+ *   - a) During DeferredUpdates::addUpdate if no LBFactory DB handles have writes pending
+ *   - b) On commit of an LBFactory DB handle if no other such handles have writes pending
+ *   - c) During an LBFactory::waitForReplication call if no LBFactory DBs have writes pending
+ *   - d) When the queue is large and an LBFactory DB handle commits (EnqueueableDataUpdate only)
+ *   - e) At the completion of Maintenance::execute()
+ *
+ * @see Maintenance::setLBFactoryTriggers
  *
  * When updates are deferred, they go into one two FIFO "top-queues" (one for pre-send and one
  * for post-send). Updates enqueued *during* doUpdate() of a "top" update go into the "sub-queue"
@@ -71,12 +74,16 @@ class DeferredUpdates {
 	 * In CLI mode, callback magic will also be used to run updates when safe
 	 *
 	 * @param DeferrableUpdate $update Some object that implements doUpdate()
-	 * @param integer $stage DeferredUpdates constant (PRESEND or POSTSEND) (since 1.27)
+	 * @param int $stage DeferredUpdates constant (PRESEND or POSTSEND) (since 1.27)
 	 */
 	public static function addUpdate( DeferrableUpdate $update, $stage = self::POSTSEND ) {
 		global $wgCommandLineMode;
 
-		if ( self::$executeContext && self::$executeContext['stage'] >= $stage ) {
+		if (
+			self::$executeContext &&
+			self::$executeContext['stage'] >= $stage &&
+			!( $update instanceof MergeableUpdate )
+		) {
 			// This is a sub-DeferredUpdate; run it right after its parent update.
 			// Also, while post-send updates are running, push any "pre-send" jobs to the
 			// active post-send queue to make sure they get run this round (or at all).
@@ -105,11 +112,11 @@ class DeferredUpdates {
 	 * @see MWCallableUpdate::__construct()
 	 *
 	 * @param callable $callable
-	 * @param integer $stage DeferredUpdates constant (PRESEND or POSTSEND) (since 1.27)
-	 * @param IDatabase|null $dbw Abort if this DB is rolled back [optional] (since 1.28)
+	 * @param int $stage DeferredUpdates constant (PRESEND or POSTSEND) (since 1.27)
+	 * @param IDatabase|IDatabase[]|null $dbw Abort if this DB is rolled back [optional] (since 1.28)
 	 */
 	public static function addCallableUpdate(
-		$callable, $stage = self::POSTSEND, IDatabase $dbw = null
+		$callable, $stage = self::POSTSEND, $dbw = null
 	) {
 		self::addUpdate( new MWCallableUpdate( $callable, wfGetCaller(), $dbw ), $stage );
 	}
@@ -117,28 +124,25 @@ class DeferredUpdates {
 	/**
 	 * Do any deferred updates and clear the list
 	 *
+	 * If $stage is self::ALL then the queue of PRESEND updates will be resolved,
+	 * followed by the queue of POSTSEND updates
+	 *
 	 * @param string $mode Use "enqueue" to use the job queue when possible [Default: "run"]
-	 * @param integer $stage DeferredUpdates constant (PRESEND, POSTSEND, or ALL) (since 1.27)
+	 * @param int $stage DeferredUpdates constant (PRESEND, POSTSEND, or ALL) (since 1.27)
 	 */
 	public static function doUpdates( $mode = 'run', $stage = self::ALL ) {
 		$stageEffective = ( $stage === self::ALL ) ? self::POSTSEND : $stage;
+		// For ALL mode, make sure that any PRESEND updates added along the way get run.
+		// Normally, these use the subqueue, but that isn't true for MergeableUpdate items.
+		do {
+			if ( $stage === self::ALL || $stage === self::PRESEND ) {
+				self::execute( self::$preSendUpdates, $mode, $stageEffective );
+			}
 
-		if ( $stage === self::ALL || $stage === self::PRESEND ) {
-			self::execute( self::$preSendUpdates, $mode, $stageEffective );
-		}
-
-		if ( $stage === self::ALL || $stage == self::POSTSEND ) {
-			self::execute( self::$postSendUpdates, $mode, $stageEffective );
-		}
-	}
-
-	/**
-	 * @param bool $value Whether to just immediately run updates in addUpdate()
-	 * @since 1.28
-	 * @deprecated 1.29 Causes issues in Web-executed jobs - see T165714 and T100085.
-	 */
-	public static function setImmediateMode( $value ) {
-		wfDeprecated( __METHOD__, '1.29' );
+			if ( $stage === self::ALL || $stage == self::POSTSEND ) {
+				self::execute( self::$postSendUpdates, $mode, $stageEffective );
+			}
+		} while ( $stage === self::ALL && self::$preSendUpdates );
 	}
 
 	/**
@@ -149,9 +153,13 @@ class DeferredUpdates {
 		if ( $update instanceof MergeableUpdate ) {
 			$class = get_class( $update ); // fully-qualified class
 			if ( isset( $queue[$class] ) ) {
-				/** @var $existingUpdate MergeableUpdate */
+				/** @var MergeableUpdate $existingUpdate */
 				$existingUpdate = $queue[$class];
 				$existingUpdate->merge( $update );
+				// Move the update to the end to handle things like mergeable purge
+				// updates that might depend on the prior updates in the queue running
+				unset( $queue[$class] );
+				$queue[$class] = $existingUpdate;
 			} else {
 				$queue[$class] = $update;
 			}
@@ -165,7 +173,7 @@ class DeferredUpdates {
 	 *
 	 * @param DeferrableUpdate[] &$queue List of DeferrableUpdate objects
 	 * @param string $mode Use "enqueue" to use the job queue when possible
-	 * @param integer $stage Class constant (PRESEND, POSTSEND) (since 1.28)
+	 * @param int $stage Class constant (PRESEND, POSTSEND) (since 1.28)
 	 * @throws ErrorPageError Happens on top-level calls
 	 * @throws Exception Happens on second-level calls
 	 */
@@ -206,23 +214,29 @@ class DeferredUpdates {
 			foreach ( $updatesByType as $updatesForType ) {
 				foreach ( $updatesForType as $update ) {
 					self::$executeContext = [ 'stage' => $stage, 'subqueue' => [] ];
-					/** @var DeferrableUpdate $update */
-					$guiError = self::runUpdate( $update, $lbFactory, $mode, $stage );
-					$reportableError = $reportableError ?: $guiError;
-					// Do the subqueue updates for $update until there are none
-					while ( self::$executeContext['subqueue'] ) {
-						$subUpdate = reset( self::$executeContext['subqueue'] );
-						$firstKey = key( self::$executeContext['subqueue'] );
-						unset( self::$executeContext['subqueue'][$firstKey] );
-
-						if ( $subUpdate instanceof DataUpdate ) {
-							$subUpdate->setTransactionTicket( $ticket );
-						}
-
-						$guiError = self::runUpdate( $subUpdate, $lbFactory, $mode, $stage );
+					try {
+						/** @var DeferrableUpdate $update */
+						$guiError = self::runUpdate( $update, $lbFactory, $mode, $stage );
 						$reportableError = $reportableError ?: $guiError;
+						// Do the subqueue updates for $update until there are none
+						while ( self::$executeContext['subqueue'] ) {
+							$subUpdate = reset( self::$executeContext['subqueue'] );
+							$firstKey = key( self::$executeContext['subqueue'] );
+							unset( self::$executeContext['subqueue'][$firstKey] );
+
+							if ( $subUpdate instanceof DataUpdate ) {
+								$subUpdate->setTransactionTicket( $ticket );
+							}
+
+							$guiError = self::runUpdate( $subUpdate, $lbFactory, $mode, $stage );
+							$reportableError = $reportableError ?: $guiError;
+						}
+					} finally {
+						// Make sure we always clean up the context.
+						// Losing updates while rewinding the stack is acceptable,
+						// losing updates that are added later is not.
+						self::$executeContext = null;
 					}
-					self::$executeContext = null;
 				}
 			}
 
@@ -238,7 +252,7 @@ class DeferredUpdates {
 	 * @param DeferrableUpdate $update
 	 * @param LBFactory $lbFactory
 	 * @param string $mode
-	 * @param integer $stage
+	 * @param int $stage
 	 * @return ErrorPageError|null
 	 */
 	private static function runUpdate(
@@ -249,7 +263,10 @@ class DeferredUpdates {
 			if ( $mode === 'enqueue' && $update instanceof EnqueueableDataUpdate ) {
 				// Run only the job enqueue logic to complete the update later
 				$spec = $update->getAsJobSpecification();
-				JobQueueGroup::singleton( $spec['wiki'] )->push( $spec['job'] );
+				$domain = $spec['domain'] ?? $spec['wiki'];
+				JobQueueGroup::singleton( $domain )->push( $spec['job'] );
+			} elseif ( $update instanceof TransactionRoundDefiningUpdate ) {
+				$update->doUpdate();
 			} else {
 				// Run the bulk of the update now
 				$fnameTrxOwner = get_class( $update ) . '::doUpdate';
@@ -263,6 +280,12 @@ class DeferredUpdates {
 				$guiError = $e;
 			}
 			MWExceptionHandler::rollbackMasterChangesAndLog( $e );
+
+			// VW-style hack to work around T190178, so we can make sure
+			// PageMetaDataUpdater doesn't throw exceptions.
+			if ( defined( 'MW_PHPUNIT_TEST' ) ) {
+				throw $e;
+			}
 		}
 
 		return $guiError;
@@ -271,8 +294,9 @@ class DeferredUpdates {
 	/**
 	 * Run all deferred updates immediately if there are no DB writes active
 	 *
-	 * If $mode is 'run' but there are busy databates, EnqueueableDataUpdate
-	 * tasks will be enqueued anyway for the sake of progress.
+	 * If there are many deferred updates pending, $mode is 'run', and there
+	 * are still busy LBFactory database handles, then any EnqueueableDataUpdate
+	 * tasks might be enqueued as jobs to be executed later.
 	 *
 	 * @param string $mode Use "enqueue" to use the job queue when possible
 	 * @return bool Whether updates were allowed to run
@@ -312,7 +336,8 @@ class DeferredUpdates {
 		foreach ( $updates as $update ) {
 			if ( $update instanceof EnqueueableDataUpdate ) {
 				$spec = $update->getAsJobSpecification();
-				JobQueueGroup::singleton( $spec['wiki'] )->push( $spec['job'] );
+				$domain = $spec['domain'] ?? $spec['wiki'];
+				JobQueueGroup::singleton( $domain )->push( $spec['job'] );
 			} else {
 				$remaining[] = $update;
 			}
@@ -322,7 +347,7 @@ class DeferredUpdates {
 	}
 
 	/**
-	 * @return integer Number of enqueued updates
+	 * @return int Number of enqueued updates
 	 * @since 1.28
 	 */
 	public static function pendingUpdatesCount() {
@@ -330,7 +355,8 @@ class DeferredUpdates {
 	}
 
 	/**
-	 * @param integer $stage DeferredUpdates constant (PRESEND, POSTSEND, or ALL)
+	 * @param int $stage DeferredUpdates constant (PRESEND, POSTSEND, or ALL)
+	 * @return DeferrableUpdate[]
 	 * @since 1.29
 	 */
 	public static function getPendingUpdates( $stage = self::ALL ) {
@@ -358,7 +384,7 @@ class DeferredUpdates {
 	 */
 	private static function areDatabaseTransactionsActive() {
 		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
-		if ( $lbFactory->hasTransactionRound() ) {
+		if ( $lbFactory->hasTransactionRound() || !$lbFactory->isReadyForRoundOperations() ) {
 			return true;
 		}
 

@@ -28,7 +28,18 @@ class RevDelRevisionItem extends RevDelItem {
 
 	public function __construct( $list, $row ) {
 		parent::__construct( $list, $row );
-		$this->revision = new Revision( $row );
+		$this->revision = static::initRevision( $list, $row );
+	}
+
+	/**
+	 * Create revision object from $row sourced from $list
+	 *
+	 * @param RevisionListBase $list
+	 * @param mixed $row
+	 * @return Revision
+	 */
+	protected static function initRevision( $list, $row ) {
+		return new Revision( $row );
 	}
 
 	public function getIdField() {
@@ -45,6 +56,10 @@ class RevDelRevisionItem extends RevDelItem {
 
 	public function getAuthorNameField() {
 		return 'rev_user_text';
+	}
+
+	public function getAuthorActorField() {
+		return 'rev_actor';
 	}
 
 	public function canView() {
@@ -79,7 +94,7 @@ class RevDelRevisionItem extends RevDelItem {
 		$dbw->update( 'recentchanges',
 			[
 				'rc_deleted' => $bits,
-				'rc_patrolled' => 1
+				'rc_patrolled' => RecentChange::PRC_AUTOPATROLLED
 			],
 			[
 				'rc_this_oldid' => $this->revision->getId(), // condition

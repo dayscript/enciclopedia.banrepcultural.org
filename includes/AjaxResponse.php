@@ -186,6 +186,7 @@ class AjaxResponse {
 				# Surrogate-Control controls our CDN, Cache-Control downstream caches
 
 				if ( $this->mConfig->get( 'UseESI' ) ) {
+					wfDeprecated( '$wgUseESI = true', '1.33' );
 					header( 'Surrogate-Control: max-age=' . $this->mCacheDuration . ', content="ESI/1.0"' );
 					header( 'Cache-Control: s-maxage=0, must-revalidate, max-age=0' );
 				} else {
@@ -242,7 +243,7 @@ class AjaxResponse {
 			# this breaks strtotime().
 			$modsince = preg_replace( '/;.*$/', '', $_SERVER["HTTP_IF_MODIFIED_SINCE"] );
 			$modsinceTime = strtotime( $modsince );
-			$ismodsince = wfTimestamp( TS_MW, $modsinceTime ? $modsinceTime : 1 );
+			$ismodsince = wfTimestamp( TS_MW, $modsinceTime ?: 1 );
 			wfDebug( "$fname: -- client send If-Modified-Since: $modsince", 'private' );
 			wfDebug( "$fname: --  we might send Last-Modified : $lastmod", 'private' );
 
@@ -281,7 +282,8 @@ class AjaxResponse {
 			return false;
 		}
 
-		$mcvalue = ObjectCache::getMainWANInstance()->get( $mckey );
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$mcvalue = $cache->get( $mckey );
 		if ( $mcvalue ) {
 			# Check to see if the value has been invalidated
 			if ( $touched <= $mcvalue['timestamp'] ) {
@@ -303,11 +305,13 @@ class AjaxResponse {
 	 * @return bool
 	 */
 	function storeInMemcached( $mckey, $expiry = 86400 ) {
-		ObjectCache::getMainWANInstance()->set( $mckey,
+		$cache = MediaWikiServices::getInstance()->getMainWANObjectCache();
+		$cache->set( $mckey,
 			[
 				'timestamp' => wfTimestampNow(),
 				'value' => $this->mText
-			], $expiry
+			],
+			$expiry
 		);
 
 		return true;

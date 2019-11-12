@@ -7,6 +7,8 @@
  * @details
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * Base code for file repositories.
  *
@@ -78,10 +80,6 @@ class FileRepo {
 	 */
 	protected $scriptDirUrl;
 
-	/** @var string Script extension of the MediaWiki installation, equivalent
-	 *    to the old $wgScriptExtension, e.g. .php5 defaults to .php */
-	protected $scriptExtension;
-
 	/** @var string Equivalent to $wgArticlePath, e.g. https://en.wikipedia.org/wiki/$1 */
 	protected $articleUrl;
 
@@ -124,13 +122,23 @@ class FileRepo {
 	protected $isPrivate;
 
 	/** @var array callable Override these in the base class */
-	protected $fileFactory = [ 'UnregisteredLocalFile', 'newFromTitle' ];
+	protected $fileFactory = [ UnregisteredLocalFile::class, 'newFromTitle' ];
 	/** @var array callable|bool Override these in the base class */
 	protected $oldFileFactory = false;
 	/** @var array callable|bool Override these in the base class */
 	protected $fileFactoryKey = false;
 	/** @var array callable|bool Override these in the base class */
 	protected $oldFileFactoryKey = false;
+
+	/** @var string URL of where to proxy thumb.php requests to.
+	 *    Example: http://127.0.0.1:8888/wiki/dev/thumb/
+	 */
+	protected $thumbProxyUrl;
+	/** @var string Secret key to pass as an X-Swift-Secret header to the proxied thumb service */
+	protected $thumbProxySecret;
+
+	/** @var WANObjectCache */
+	protected $wanCache;
 
 	/**
 	 * @param array|null $info
@@ -159,7 +167,7 @@ class FileRepo {
 		$optionalSettings = [
 			'descBaseUrl', 'scriptDirUrl', 'articleUrl', 'fetchDescription',
 			'thumbScriptUrl', 'pathDisclosureProtection', 'descriptionCacheExpiry',
-			'scriptExtension', 'favicon'
+			'favicon', 'thumbProxyUrl', 'thumbProxySecret',
 		];
 		foreach ( $optionalSettings as $var ) {
 			if ( isset( $info[$var] ) ) {
@@ -168,30 +176,20 @@ class FileRepo {
 		}
 
 		// Optional settings that have a default
-		$this->initialCapital = isset( $info['initialCapital'] )
-			? $info['initialCapital']
-			: MWNamespace::isCapitalized( NS_FILE );
-		$this->url = isset( $info['url'] )
-			? $info['url']
-			: false; // a subclass may set the URL (e.g. ForeignAPIRepo)
+		$this->initialCapital = $info['initialCapital'] ?? MWNamespace::isCapitalized( NS_FILE );
+		$this->url = $info['url'] ?? false; // a subclass may set the URL (e.g. ForeignAPIRepo)
 		if ( isset( $info['thumbUrl'] ) ) {
 			$this->thumbUrl = $info['thumbUrl'];
 		} else {
 			$this->thumbUrl = $this->url ? "{$this->url}/thumb" : false;
 		}
-		$this->hashLevels = isset( $info['hashLevels'] )
-			? $info['hashLevels']
-			: 2;
-		$this->deletedHashLevels = isset( $info['deletedHashLevels'] )
-			? $info['deletedHashLevels']
-			: $this->hashLevels;
+		$this->hashLevels = $info['hashLevels'] ?? 2;
+		$this->deletedHashLevels = $info['deletedHashLevels'] ?? $this->hashLevels;
 		$this->transformVia404 = !empty( $info['transformVia404'] );
-		$this->abbrvThreshold = isset( $info['abbrvThreshold'] )
-			? $info['abbrvThreshold']
-			: 255;
+		$this->abbrvThreshold = $info['abbrvThreshold'] ?? 255;
 		$this->isPrivate = !empty( $info['isPrivate'] );
 		// Give defaults for the basic zones...
-		$this->zones = isset( $info['zones'] ) ? $info['zones'] : [];
+		$this->zones = $info['zones'] ?? [];
 		foreach ( [ 'public', 'thumb', 'transcoded', 'temp', 'deleted' ] as $zone ) {
 			if ( !isset( $this->zones[$zone]['container'] ) ) {
 				$this->zones[$zone]['container'] = "{$this->name}-{$zone}";
@@ -205,6 +203,8 @@ class FileRepo {
 		}
 
 		$this->supportsSha1URLs = !empty( $info['supportsSha1URLs'] );
+
+		$this->wanCache = $info['wanCache'] ?? WANObjectCache::newEmpty();
 	}
 
 	/**
@@ -425,7 +425,7 @@ class FileRepo {
 		if ( isset( $options['bypassCache'] ) ) {
 			$options['latest'] = $options['bypassCache']; // b/c
 		}
-		$time = isset( $options['time'] ) ? $options['time'] : false;
+		$time = $options['time'] ?? false;
 		$flags = !empty( $options['latest'] ) ? File::READ_LATEST : 0;
 		# First try the current version of the file to see if it precedes the timestamp
 		$img = $this->newFile( $title );
@@ -531,7 +531,7 @@ class FileRepo {
 	 * @return File|bool False on failure
 	 */
 	public function findFileFromKey( $sha1, $options = [] ) {
-		$time = isset( $options['time'] ) ? $options['time'] : false;
+		$time = $options['time'] ?? false;
 		# First try to find a matching current version of a file...
 		if ( !$this->fileFactoryKey ) {
 			return false; // find-by-sha1 not supported
@@ -575,8 +575,8 @@ class FileRepo {
 	 * Get an array of arrays or iterators of file objects for files that
 	 * have the given SHA-1 content hashes.
 	 *
-	 * @param array $hashes An array of hashes
-	 * @return array An Array of arrays or iterators of file objects and the hash as key
+	 * @param string[] $hashes An array of hashes
+	 * @return array[] An Array of arrays or iterators of file objects and the hash as key
 	 */
 	public function findBySha1s( array $hashes ) {
 		$result = [];
@@ -596,7 +596,7 @@ class FileRepo {
 	 * STUB
 	 * @param string $prefix The prefix to search for
 	 * @param int $limit The maximum amount of files to return
-	 * @return array
+	 * @return LocalFile[]
 	 */
 	public function findFilesByPrefix( $prefix, $limit ) {
 		return [];
@@ -609,6 +609,24 @@ class FileRepo {
 	 */
 	public function getThumbScriptUrl() {
 		return $this->thumbScriptUrl;
+	}
+
+	/**
+	 * Get the URL thumb.php requests are being proxied to
+	 *
+	 * @return string
+	 */
+	public function getThumbProxyUrl() {
+		return $this->thumbProxyUrl;
+	}
+
+	/**
+	 * Get the secret key for the proxied thumb service
+	 *
+	 * @return string
+	 */
+	public function getThumbProxySecret() {
+		return $this->thumbProxySecret;
 	}
 
 	/**
@@ -627,11 +645,10 @@ class FileRepo {
 	 * @return string
 	 */
 	public function getNameFromTitle( Title $title ) {
-		global $wgContLang;
 		if ( $this->initialCapital != MWNamespace::isCapitalized( NS_FILE ) ) {
 			$name = $title->getUserCaseDBKey();
 			if ( $this->initialCapital ) {
-				$name = $wgContLang->ucfirst( $name );
+				$name = MediaWikiServices::getInstance()->getContentLanguage()->ucfirst( $name );
 			}
 		} else {
 			$name = $title->getDBkey();
@@ -669,7 +686,7 @@ class FileRepo {
 	 */
 	public function getTempHashPath( $suffix ) {
 		$parts = explode( '!', $suffix, 2 ); // format is <timestamp>!<name> or just <name>
-		$name = isset( $parts[1] ) ? $parts[1] : $suffix; // hash path is not based on timestamp
+		$name = $parts[1] ?? $suffix; // hash path is not based on timestamp
 		return self::getHashPathForLevel( $name, $this->hashLevels );
 	}
 
@@ -719,9 +736,7 @@ class FileRepo {
 	 */
 	public function makeUrl( $query = '', $entry = 'index' ) {
 		if ( isset( $this->scriptDirUrl ) ) {
-			$ext = isset( $this->scriptExtension ) ? $this->scriptExtension : '.php';
-
-			return wfAppendQuery( "{$this->scriptDirUrl}/{$entry}{$ext}", $query );
+			return wfAppendQuery( "{$this->scriptDirUrl}/{$entry}.php", $query );
 		}
 
 		return false;
@@ -770,13 +785,13 @@ class FileRepo {
 	 * should use File::getDescriptionText().
 	 *
 	 * @param string $name Name of image to fetch
-	 * @param string $lang Language to fetch it in, if any.
+	 * @param string|null $lang Language to fetch it in, if any.
 	 * @return string|false
 	 */
 	public function getDescriptionRenderUrl( $name, $lang = null ) {
 		$query = 'action=render';
 		if ( !is_null( $lang ) ) {
-			$query .= '&uselang=' . $lang;
+			$query .= '&uselang=' . urlencode( $lang );
 		}
 		if ( isset( $this->scriptDirUrl ) ) {
 			return $this->makeUrl(
@@ -800,8 +815,9 @@ class FileRepo {
 	 */
 	public function getDescriptionStylesheetUrl() {
 		if ( isset( $this->scriptDirUrl ) ) {
-			return $this->makeUrl( 'title=MediaWiki:Filepage.css&' .
-				wfArrayToCgi( Skin::getDynamicStylesheetQuery() ) );
+			// Must match canonical query parameter order for optimum caching
+			// See Title::getCdnUrls
+			return $this->makeUrl( 'title=MediaWiki:Filepage.css&action=raw&ctype=text/css' );
 		}
 
 		return false;
@@ -909,7 +925,7 @@ class FileRepo {
 	 * Each file can be a (zone, rel) pair, virtual url, storage path.
 	 * It will try to delete each file, but ignores any errors that may occur.
 	 *
-	 * @param array $files List of files to delete
+	 * @param string[] $files List of files to delete
 	 * @param int $flags Bitwise combination of the following flags:
 	 *   self::SKIP_LOCKING      Skip any file locking when doing the deletions
 	 * @return Status
@@ -1168,11 +1184,7 @@ class FileRepo {
 		if ( $status->successCount == 0 ) {
 			$status->setOK( false );
 		}
-		if ( isset( $status->value[0] ) ) {
-			$status->value = $status->value[0];
-		} else {
-			$status->value = false;
-		}
+		$status->value = $status->value[0] ?? false;
 
 		return $status;
 	}
@@ -1206,7 +1218,7 @@ class FileRepo {
 			list( $src, $dstRel, $archiveRel ) = $ntuple;
 			$srcPath = ( $src instanceof FSFile ) ? $src->getPath() : $src;
 
-			$options = isset( $ntuple[3] ) ? $ntuple[3] : [];
+			$options = $ntuple[3] ?? [];
 			// Resolve source to a storage path if virtual
 			$srcPath = $this->resolveToStoragePath( $srcPath );
 			if ( !$this->validateFilename( $dstRel ) ) {
@@ -1231,7 +1243,7 @@ class FileRepo {
 			}
 
 			// Set any desired headers to be use in GET/HEAD responses
-			$headers = isset( $options['headers'] ) ? $options['headers'] : [];
+			$headers = $options['headers'] ?? [];
 
 			// Archive destination file if it exists.
 			// This will check if the archive file also exists and fail if does.
@@ -1293,9 +1305,9 @@ class FileRepo {
 		}
 		// Cleanup for disk source files...
 		foreach ( $sourceFSFilesToDelete as $file ) {
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			unlink( $file ); // FS cleanup
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 		}
 
 		return $status;
@@ -1345,7 +1357,7 @@ class FileRepo {
 	}
 
 	/**
-	 * Checks existence of a a file
+	 * Checks existence of a file
 	 *
 	 * @param string $file Virtual URL (or storage path) of file to check
 	 * @return bool
@@ -1359,7 +1371,7 @@ class FileRepo {
 	/**
 	 * Checks existence of an array of files.
 	 *
-	 * @param array $files Virtual URLs (or storage paths) of files to check
+	 * @param string[] $files Virtual URLs (or storage paths) of files to check
 	 * @return array Map of files and existence flags, or false
 	 */
 	public function fileExistsBatch( array $files ) {
@@ -1465,7 +1477,7 @@ class FileRepo {
 	 * Delete files in the deleted directory if they are not referenced in the filearchive table
 	 *
 	 * STUB
-	 * @param array $storageKeys
+	 * @param string[] $storageKeys
 	 */
 	public function cleanupDeletedBatch( array $storageKeys ) {
 		$this->assertWritableRepo();
@@ -1500,7 +1512,7 @@ class FileRepo {
 	 * @throws MWException
 	 */
 	protected function resolveToStoragePath( $path ) {
-		if ( $this->isVirtualUrl( $path ) ) {
+		if ( self::isVirtualUrl( $path ) ) {
 			return $this->resolveVirtualUrl( $path );
 		}
 
@@ -1543,7 +1555,7 @@ class FileRepo {
 	 */
 	public function getFileProps( $virtualUrl ) {
 		$fsFile = $this->getLocalReference( $virtualUrl );
-		$mwProps = new MWFileProps( MimeMagic::singleton() );
+		$mwProps = new MWFileProps( MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer() );
 		if ( $fsFile ) {
 			$props = $mwProps->getPropsFromPath( $fsFile->getPath(), true );
 		} else {
@@ -1602,8 +1614,18 @@ class FileRepo {
 		$path = $this->resolveToStoragePath( $virtualUrl );
 		$params = [ 'src' => $path, 'headers' => $headers, 'options' => $optHeaders ];
 
+		// T172851: HHVM does not flush the output properly, causing OOM
+		ob_start( null, 1048576 );
+		ob_implicit_flush( true );
+
 		$status = $this->newGood();
 		$status->merge( $this->backend->streamFile( $params ) );
+
+		// T186565: Close the buffer, unless it has already been closed
+		// in HTTPFileStreamer::resetOutputBuffers().
+		if ( ob_get_status() ) {
+			ob_end_flush();
+		}
 
 		return $status;
 	}
@@ -1675,7 +1697,7 @@ class FileRepo {
 	/**
 	 * Get a callback function to use for cleaning error message parameters
 	 *
-	 * @return array
+	 * @return string[]
 	 */
 	function getErrorCleanupFunction() {
 		switch ( $this->pathDisclosureProtection ) {
@@ -1716,7 +1738,7 @@ class FileRepo {
 	 * @return Status
 	 */
 	public function newFatal( $message /*, parameters...*/ ) {
-		$status = call_user_func_array( [ 'Status', 'newFatal' ], func_get_args() );
+		$status = Status::newFatal( ...func_get_args() );
 		$status->cleanCallback = $this->getErrorCleanupFunction();
 
 		return $status;
@@ -1801,7 +1823,7 @@ class FileRepo {
 	/**
 	 * Get a key on the primary cache for this repository.
 	 * Returns false if the repository's cache is not accessible at this site.
-	 * The parameters are the parts of the key, as for wfMemcKey().
+	 * The parameters are the parts of the key.
 	 *
 	 * STUB
 	 * @return bool
@@ -1813,7 +1835,7 @@ class FileRepo {
 	/**
 	 * Get a key for this repo in the local cache domain. These cache keys are
 	 * not shared with remote instances of the repo.
-	 * The parameters are the parts of the key, as for wfMemcKey().
+	 * The parameters are the parts of the key.
 	 *
 	 * @return string
 	 */
@@ -1821,7 +1843,7 @@ class FileRepo {
 		$args = func_get_args();
 		array_unshift( $args, 'filerepo', $this->getName() );
 
-		return call_user_func_array( 'wfMemcKey', $args );
+		return $this->wanCache->makeKey( ...$args );
 	}
 
 	/**
@@ -1864,7 +1886,7 @@ class FileRepo {
 	/**
 	 * Get an UploadStash associated with this repo.
 	 *
-	 * @param User $user
+	 * @param User|null $user
 	 * @return UploadStash
 	 */
 	public function getUploadStash( User $user = null ) {
@@ -1897,7 +1919,7 @@ class FileRepo {
 
 		$optionalSettings = [
 			'url', 'thumbUrl', 'initialCapital', 'descBaseUrl', 'scriptDirUrl', 'articleUrl',
-			'fetchDescription', 'descriptionCacheExpiry', 'scriptExtension', 'favicon'
+			'fetchDescription', 'descriptionCacheExpiry', 'favicon'
 		];
 		foreach ( $optionalSettings as $k ) {
 			if ( isset( $this->$k ) ) {

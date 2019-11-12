@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileBackend
- * @author Aaron Schulz
  */
 
 /**
@@ -93,12 +92,8 @@ class FileBackendMultiWrite extends FileBackend {
 	 */
 	public function __construct( array $config ) {
 		parent::__construct( $config );
-		$this->syncChecks = isset( $config['syncChecks'] )
-			? $config['syncChecks']
-			: self::CHECK_SIZE;
-		$this->autoResync = isset( $config['autoResync'] )
-			? $config['autoResync']
-			: false;
+		$this->syncChecks = $config['syncChecks'] ?? self::CHECK_SIZE;
+		$this->autoResync = $config['autoResync'] ?? false;
 		$this->asyncWrites = isset( $config['replication'] ) && $config['replication'] === 'async';
 		// Construct backends here rather than via registration
 		// to keep these backends hidden from outside the proxy.
@@ -196,7 +191,7 @@ class FileBackendMultiWrite extends FileBackend {
 				if ( $this->asyncWrites && !$this->hasVolatileSources( $ops ) ) {
 					// Bind $scopeLock to the callback to preserve locks
 					DeferredUpdates::addCallableUpdate(
-						function() use ( $backend, $realOps, $opts, $scopeLock, $relevantPaths ) {
+						function () use ( $backend, $realOps, $opts, $scopeLock, $relevantPaths ) {
 							wfDebugLog( 'FileOperationReplication',
 								"'{$backend->getName()}' async replication; paths: " .
 								FormatJson::encode( $relevantPaths ) );
@@ -262,11 +257,11 @@ class FileBackendMultiWrite extends FileBackend {
 						$status->fatal( 'backend-fail-synced', $path );
 						continue;
 					}
-					if ( $this->syncChecks & self::CHECK_SIZE ) {
-						if ( $cStat['size'] != $mStat['size'] ) { // wrong size
-							$status->fatal( 'backend-fail-synced', $path );
-							continue;
-						}
+					if ( ( $this->syncChecks & self::CHECK_SIZE )
+						&& $cStat['size'] != $mStat['size']
+					) { // wrong size
+						$status->fatal( 'backend-fail-synced', $path );
+						continue;
 					}
 					if ( $this->syncChecks & self::CHECK_TIME ) {
 						$mTs = wfTimestamp( TS_UNIX, $mStat['mtime'] );
@@ -276,16 +271,12 @@ class FileBackendMultiWrite extends FileBackend {
 							continue;
 						}
 					}
-					if ( $this->syncChecks & self::CHECK_SHA1 ) {
-						if ( $cBackend->getFileSha1Base36( $cParams ) !== $mSha1 ) { // wrong SHA1
-							$status->fatal( 'backend-fail-synced', $path );
-							continue;
-						}
-					}
-				} else { // file is not in master
-					if ( $cStat ) { // file should not exist
+					if ( ( $this->syncChecks & self::CHECK_SHA1 ) && $cBackend->getFileSha1Base36( $cParams ) !== $mSha1 ) { // wrong SHA1
 						$status->fatal( 'backend-fail-synced', $path );
+						continue;
 					}
+				} elseif ( $cStat ) { // file is not in master; file should not exist
+					$status->fatal( 'backend-fail-synced', $path );
 				}
 			}
 		}
@@ -508,7 +499,7 @@ class FileBackendMultiWrite extends FileBackend {
 			$realOps = $this->substOpBatchPaths( $ops, $backend );
 			if ( $this->asyncWrites && !$this->hasVolatileSources( $ops ) ) {
 				DeferredUpdates::addCallableUpdate(
-					function() use ( $backend, $realOps ) {
+					function () use ( $backend, $realOps ) {
 						$backend->doQuickOperations( $realOps );
 					}
 				);
@@ -562,7 +553,7 @@ class FileBackendMultiWrite extends FileBackend {
 			$realParams = $this->substOpPaths( $params, $backend );
 			if ( $this->asyncWrites ) {
 				DeferredUpdates::addCallableUpdate(
-					function() use ( $backend, $method, $realParams ) {
+					function () use ( $backend, $method, $realParams ) {
 						$backend->$method( $realParams );
 					}
 				);

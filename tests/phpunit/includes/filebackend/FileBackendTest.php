@@ -101,7 +101,7 @@ class FileBackendTest extends MediaWikiTestCase {
 			'backends' => [
 				[
 					'name' => 'localmultitesting1',
-					'class' => 'FSFileBackend',
+					'class' => FSFileBackend::class,
 					'containerPaths' => [
 						'unittest-cont1' => "{$tmpDir}/localtestingmulti1-cont1",
 						'unittest-cont2' => "{$tmpDir}/localtestingmulti1-cont2" ],
@@ -109,7 +109,7 @@ class FileBackendTest extends MediaWikiTestCase {
 				],
 				[
 					'name' => 'localmultitesting2',
-					'class' => 'FSFileBackend',
+					'class' => FSFileBackend::class,
 					'containerPaths' => [
 						'unittest-cont1' => "{$tmpDir}/localtestingmulti2-cont1",
 						'unittest-cont2' => "{$tmpDir}/localtestingmulti2-cont2" ],
@@ -350,7 +350,7 @@ class FileBackendTest extends MediaWikiTestCase {
 			$this->assertEquals( false, $this->backend->fileExists( [ 'src' => $dest ] ),
 				"Destination file $dest does not exist ($backendName)." );
 
-			return; // done
+			return;
 		}
 
 		$status = $this->backend->doOperation(
@@ -470,7 +470,7 @@ class FileBackendTest extends MediaWikiTestCase {
 			$this->assertEquals( false, $this->backend->fileExists( [ 'src' => $dest ] ),
 				"Destination file $dest does not exist ($backendName)." );
 
-			return; // done
+			return;
 		}
 
 		$status = $this->backend->doOperation(
@@ -2333,28 +2333,29 @@ class FileBackendTest extends MediaWikiTestCase {
 
 	private function doTestLockCalls() {
 		$backendName = $this->backendClass();
+		$base = $this->backend->getContainerStoragePath( 'test' );
 
 		$paths = [
-			"test1.txt",
-			"test2.txt",
-			"test3.txt",
-			"subdir1",
-			"subdir1", // duplicate
-			"subdir1/test1.txt",
-			"subdir1/test2.txt",
-			"subdir2",
-			"subdir2", // duplicate
-			"subdir2/test3.txt",
-			"subdir2/test4.txt",
-			"subdir2/subdir",
-			"subdir2/subdir/test1.txt",
-			"subdir2/subdir/test2.txt",
-			"subdir2/subdir/test3.txt",
-			"subdir2/subdir/test4.txt",
-			"subdir2/subdir/test5.txt",
-			"subdir2/subdir/sub",
-			"subdir2/subdir/sub/test0.txt",
-			"subdir2/subdir/sub/120-px-file.txt",
+			"$base/test1.txt",
+			"$base/test2.txt",
+			"$base/test3.txt",
+			"$base/subdir1",
+			"$base/subdir1", // duplicate
+			"$base/subdir1/test1.txt",
+			"$base/subdir1/test2.txt",
+			"$base/subdir2",
+			"$base/subdir2", // duplicate
+			"$base/subdir2/test3.txt",
+			"$base/subdir2/test4.txt",
+			"$base/subdir2/subdir",
+			"$base/subdir2/subdir/test1.txt",
+			"$base/subdir2/subdir/test2.txt",
+			"$base/subdir2/subdir/test3.txt",
+			"$base/subdir2/subdir/test4.txt",
+			"$base/subdir2/subdir/test5.txt",
+			"$base/subdir2/subdir/sub",
+			"$base/subdir2/subdir/sub/test0.txt",
+			"$base/subdir2/subdir/sub/120-px-file.txt",
 		];
 
 		for ( $i = 0; $i < 25; $i++ ) {
@@ -2411,7 +2412,7 @@ class FileBackendTest extends MediaWikiTestCase {
 
 		$status = Status::newGood();
 		$sl = $this->backend->getScopedFileLocks( $paths, LockManager::LOCK_EX, $status );
-		$this->assertInstanceOf( 'ScopedLock', $sl,
+		$this->assertInstanceOf( ScopedLock::class, $sl,
 			"Scoped locking of files succeeded ($backendName)." );
 		$this->assertEquals( [], $status->getErrors(),
 			"Scoped locking of files succeeded ($backendName)." );
@@ -2436,7 +2437,7 @@ class FileBackendTest extends MediaWikiTestCase {
 		$be = TestingAccessWrapper::newFromObject( new MemoryFileBackend(
 			[
 				'name' => 'testing',
-				'class' => 'MemoryFileBackend',
+				'class' => MemoryFileBackend::class,
 				'wikiId' => 'meow',
 				'mimeCallback' => $mimeCallback
 			]
@@ -2471,13 +2472,13 @@ class FileBackendTest extends MediaWikiTestCase {
 				'backends' => [
 					[ // backend 0
 						'name' => 'multitesting0',
-						'class' => 'MemoryFileBackend',
+						'class' => MemoryFileBackend::class,
 						'isMultiMaster' => false,
 						'readAffinity' => true
 					],
 					[ // backend 1
 						'name' => 'multitesting1',
-						'class' => 'MemoryFileBackend',
+						'class' => MemoryFileBackend::class,
 						'isMultiMaster' => true
 					]
 				]
@@ -2521,12 +2522,12 @@ class FileBackendTest extends MediaWikiTestCase {
 				'backends' => [
 					[ // backend 0
 						'name' => 'multitesting0',
-						'class' => 'MemoryFileBackend',
+						'class' => MemoryFileBackend::class,
 						'isMultiMaster' => false
 					],
 					[ // backend 1
 						'name' => 'multitesting1',
-						'class' => 'MemoryFileBackend',
+						'class' => MemoryFileBackend::class,
 						'isMultiMaster' => true
 					]
 				],
@@ -2584,9 +2585,9 @@ class FileBackendTest extends MediaWikiTestCase {
 			]
 		];
 
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$actual = $be->sanitizeOpHeaders( $input );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 
 		$this->assertEquals( $expected, $actual, "Header sanitized properly" );
 	}

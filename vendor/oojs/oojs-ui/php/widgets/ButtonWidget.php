@@ -53,10 +53,11 @@ class ButtonWidget extends Widget {
 
 	/**
 	 * @param array $config Configuration options
-	 * @param boolean $config['active'] Whether button should be shown as active (default: false)
-	 * @param string $config['href'] Hyperlink to visit when clicked
-	 * @param string $config['target'] Target to open hyperlink in
-	 * @param boolean $config['noFollow'] Search engine traversal hint (default: true)
+	 *      - bool $config['active'] Whether button should be shown as active (default: false)
+	 *      - string $config['href'] Hyperlink to visit when clicked
+	 *      - string $config['target'] Target to open hyperlink in
+	 *      - bool $config['noFollow'] Search engine traversal hint (default: true)
+	 * @param-taint $config escapes_html
 	 */
 	public function __construct( array $config = [] ) {
 		// Parent constructor
@@ -68,12 +69,15 @@ class ButtonWidget extends Widget {
 		$this->initializeIndicatorElement( $config );
 		$this->initializeLabelElement( $config );
 		$this->initializeTitledElement(
-			array_merge( $config, [ 'titled' => $this->button ] ) );
+			array_merge( [ 'titled' => $this->button ], $config )
+		);
 		$this->initializeFlaggedElement( $config );
 		$this->initializeTabIndexedElement(
-			array_merge( $config, [ 'tabIndexed' => $this->button ] ) );
+			array_merge( [ 'tabIndexed' => $this->button ], $config )
+		);
 		$this->initializeAccessKeyedElement(
-			array_merge( $config, [ 'accessKeyed' => $this->button ] ) );
+			array_merge( [ 'accessKeyed' => $this->button ], $config )
+		);
 
 		// Initialization
 		$this->button->appendContent( $this->icon, $this->label, $this->indicator );
@@ -81,10 +85,10 @@ class ButtonWidget extends Widget {
 			->addClasses( [ 'oo-ui-buttonWidget' ] )
 			->appendContent( $this->button );
 
-		$this->setActive( isset( $config['active'] ) ? $config['active'] : false );
-		$this->setHref( isset( $config['href'] ) ? $config['href'] : null );
-		$this->setTarget( isset( $config['target'] ) ? $config['target'] : null );
-		$this->setNoFollow( isset( $config['noFollow'] ) ? $config['noFollow'] : true );
+		$this->setActive( $config['active'] ?? false );
+		$this->setHref( $config['href'] ?? null );
+		$this->setTarget( $config['target'] ?? null );
+		$this->setNoFollow( $config['noFollow'] ?? true );
 	}
 
 	/**
@@ -108,7 +112,7 @@ class ButtonWidget extends Widget {
 	/**
 	 * Get search engine traversal hint.
 	 *
-	 * @return boolean Whether search engines should avoid traversing this hyperlink
+	 * @return bool Whether search engines should avoid traversing this hyperlink
 	 */
 	public function getNoFollow() {
 		return $this->noFollow;
@@ -164,7 +168,7 @@ class ButtonWidget extends Widget {
 	/**
 	 * Set search engine traversal hint.
 	 *
-	 * @param boolean $noFollow True if search engines should avoid traversing this hyperlink
+	 * @param bool $noFollow True if search engines should avoid traversing this hyperlink
 	 * @return $this
 	 */
 	public function setNoFollow( $noFollow ) {
@@ -184,11 +188,11 @@ class ButtonWidget extends Widget {
 	 *
 	 * A button should be marked as active when clicking it would only refresh the page.
 	 *
-	 * @param boolean $active Make button active
+	 * @param bool|null $active Make button active
 	 * @return $this
 	 */
 	public function setActive( $active = null ) {
-		$this->active = !!$active;
+		$this->active = (bool)$active;
 		$this->toggleClasses( [ 'oo-ui-buttonElement-active' ], $this->active );
 		return $this;
 	}
@@ -196,7 +200,7 @@ class ButtonWidget extends Widget {
 	/**
 	 * Check if button is active.
 	 *
-	 * @return boolean Button is active
+	 * @return bool Button is active
 	 */
 	public function isActive() {
 		return $this->active;

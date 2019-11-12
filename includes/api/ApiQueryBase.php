@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Sep 7, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -97,9 +93,7 @@ abstract class ApiQueryBase extends ApiBase {
 		return $this->mQueryModule;
 	}
 
-	/**
-	 * @see ApiBase::getParent()
-	 */
+	/** @inheritDoc */
 	public function getParent() {
 		return $this->getQuery();
 	}
@@ -121,7 +115,7 @@ abstract class ApiQueryBase extends ApiBase {
 	 * See ApiQuery::getNamedDB() for more information
 	 * @param string $name Name to assign to the database connection
 	 * @param int $db One of the DB_* constants
-	 * @param array $groups Query groups
+	 * @param string|string[] $groups Query groups
 	 * @return IDatabase
 	 */
 	public function selectNamedDB( $name, $db, $groups ) {
@@ -163,16 +157,14 @@ abstract class ApiQueryBase extends ApiBase {
 	 */
 	protected function addTables( $tables, $alias = null ) {
 		if ( is_array( $tables ) ) {
-			if ( !is_null( $alias ) ) {
+			if ( $alias !== null ) {
 				ApiBase::dieDebug( __METHOD__, 'Multiple table aliases not supported' );
 			}
 			$this->tables = array_merge( $this->tables, $tables );
+		} elseif ( $alias !== null ) {
+			$this->tables[$alias] = $tables;
 		} else {
-			if ( !is_null( $alias ) ) {
-				$this->tables[$alias] = $tables;
-			} else {
-				$this->tables[] = $tables;
-			}
+			$this->tables[] = $tables;
 		}
 	}
 
@@ -261,14 +253,36 @@ abstract class ApiQueryBase extends ApiBase {
 	/**
 	 * Equivalent to addWhere(array($field => $value))
 	 * @param string $field Field name
-	 * @param string|string[] $value Value; ignored if null or empty array;
+	 * @param string|string[] $value Value; ignored if null or empty array
 	 */
 	protected function addWhereFld( $field, $value ) {
-		// Use count() to its full documented capabilities to simultaneously
-		// test for null, empty array or empty countable object
-		if ( count( $value ) ) {
+		if ( $value !== null && !( is_array( $value ) && !$value ) ) {
 			$this->where[$field] = $value;
 		}
+	}
+
+	/**
+	 * Like addWhereFld for an integer list of IDs
+	 * @since 1.33
+	 * @param string $table Table name
+	 * @param string $field Field name
+	 * @param int[] $ids IDs
+	 * @return int Count of IDs actually included
+	 */
+	protected function addWhereIDsFld( $table, $field, $ids ) {
+		// Use count() to its full documented capabilities to simultaneously
+		// test for null, empty array or empty countable object
+		if ( count( $ids ) ) {
+			$ids = $this->filterIDs( [ [ $table, $field ] ], $ids );
+
+			if ( $ids === [] ) {
+				// Return nothing, no IDs are valid
+				$this->where[] = '0 = 1';
+			} else {
+				$this->where[$field] = $ids;
+			}
+		}
+		return count( $ids );
 	}
 
 	/**
@@ -328,7 +342,7 @@ abstract class ApiQueryBase extends ApiBase {
 	 * Add an option such as LIMIT or USE INDEX. If an option was set
 	 * before, the old value will be overwritten
 	 * @param string $name Option name
-	 * @param string|string[] $value Option value
+	 * @param string|string[]|null $value Option value
 	 */
 	protected function addOption( $name, $value = null ) {
 		if ( is_null( $value ) ) {
@@ -356,7 +370,6 @@ abstract class ApiQueryBase extends ApiBase {
 	 * @return ResultWrapper
 	 */
 	protected function select( $method, $extraQuery = [], array &$hookData = null ) {
-
 		$tables = array_merge(
 			$this->tables,
 			isset( $extraQuery['tables'] ) ? (array)$extraQuery['tables'] : []
@@ -411,13 +424,15 @@ abstract class ApiQueryBase extends ApiBase {
 	}
 
 	/**
-	 * @param string $query
-	 * @param string $protocol
+	 * @deprecated since 1.33, use LinkFilter::getQueryConditions() instead
+	 * @param string|null $query
+	 * @param string|null $protocol
 	 * @return null|string
 	 */
 	public function prepareUrlQuerySearchString( $query = null, $protocol = null ) {
+		wfDeprecated( __METHOD__, '1.33' );
 		$db = $this->getDB();
-		if ( !is_null( $query ) || $query != '' ) {
+		if ( $query !== null && $query !== '' ) {
 			if ( is_null( $protocol ) ) {
 				$protocol = 'http://';
 			}
@@ -445,23 +460,32 @@ abstract class ApiQueryBase extends ApiBase {
 	 * @return void
 	 */
 	public function showHiddenUsersAddBlockInfo( $showBlockInfo ) {
-		$this->addTables( 'ipblocks' );
-		$this->addJoinConds( [
-			'ipblocks' => [ 'LEFT JOIN', 'ipb_user=user_id' ],
-		] );
+		$db = $this->getDB();
 
-		$this->addFields( 'ipb_deleted' );
+		$tables = [ 'ipblocks' ];
+		$fields = [ 'ipb_deleted' ];
+		$joinConds = [
+			'blk' => [ 'LEFT JOIN', [
+				'ipb_user=user_id',
+				'ipb_expiry > ' . $db->addQuotes( $db->timestamp() ),
+			] ],
+		];
 
 		if ( $showBlockInfo ) {
-			$this->addFields( [
+			$actorQuery = ActorMigration::newMigration()->getJoin( 'ipb_by' );
+			$commentQuery = CommentStore::getStore()->getJoin( 'ipb_reason' );
+			$tables += $actorQuery['tables'] + $commentQuery['tables'];
+			$joinConds += $actorQuery['joins'] + $commentQuery['joins'];
+			$fields = array_merge( $fields, [
 				'ipb_id',
-				'ipb_by',
-				'ipb_by_text',
-				'ipb_reason',
 				'ipb_expiry',
 				'ipb_timestamp'
-			] );
+			], $actorQuery['fields'], $commentQuery['fields'] );
 		}
+
+		$this->addTables( [ 'blk' => $tables ] );
+		$this->addFields( $fields );
+		$this->addJoinConds( $joinConds );
 
 		// Don't show hidden names
 		if ( !$this->getUser()->isAllowed( 'hideuser' ) ) {
@@ -479,12 +503,12 @@ abstract class ApiQueryBase extends ApiBase {
 	/**
 	 * Add information (title and namespace) about a Title object to a
 	 * result array
-	 * @param array $arr Result array à la ApiResult
+	 * @param array &$arr Result array à la ApiResult
 	 * @param Title $title
 	 * @param string $prefix Module prefix
 	 */
 	public static function addTitleInfo( &$arr, $title, $prefix = '' ) {
-		$arr[$prefix . 'ns'] = intval( $title->getNamespace() );
+		$arr[$prefix . 'ns'] = (int)$title->getNamespace();
 		$arr[$prefix . 'title'] = $title->getPrefixedText();
 	}
 
@@ -498,7 +522,7 @@ abstract class ApiQueryBase extends ApiBase {
 		$result = $this->getResult();
 		ApiResult::setIndexedTagName( $data, $this->getModulePrefix() );
 
-		return $result->addValue( [ 'query', 'pages', intval( $pageId ) ],
+		return $result->addValue( [ 'query', 'pages', (int)$pageId ],
 			$this->getModuleName(),
 			$data );
 	}
@@ -507,7 +531,7 @@ abstract class ApiQueryBase extends ApiBase {
 	 * Same as addPageSubItems(), but one element of $data at a time
 	 * @param int $pageId Page ID
 	 * @param array $item Data array à la ApiResult
-	 * @param string $elemname XML element name. If null, getModuleName()
+	 * @param string|null $elemname XML element name. If null, getModuleName()
 	 *  is used
 	 * @return bool Whether the element fit in the result
 	 */

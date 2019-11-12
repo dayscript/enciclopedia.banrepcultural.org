@@ -28,6 +28,9 @@ use MediaWiki\Session\Session;
 use MediaWiki\Session\SessionId;
 use MediaWiki\Session\SessionManager;
 
+// The point of this class is to be a wrapper around super globals
+// phpcs:disable MediaWiki.Usage.SuperGlobalsUsage.SuperGlobals
+
 /**
  * The WebRequest class encapsulates getting at data passed in the
  * URL or via a POSTed form stripping illegal input characters and
@@ -88,8 +91,7 @@ class WebRequest {
 	 * @codeCoverageIgnore
 	 */
 	public function __construct() {
-		$this->requestTime = isset( $_SERVER['REQUEST_TIME_FLOAT'] )
-			? $_SERVER['REQUEST_TIME_FLOAT'] : microtime( true );
+		$this->requestTime = $_SERVER['REQUEST_TIME_FLOAT'];
 
 		// POST overrides GET data
 		// We don't use $_REQUEST here to avoid interference from cookies...
@@ -123,11 +125,11 @@ class WebRequest {
 			if ( !preg_match( '!^https?://!', $url ) ) {
 				$url = 'http://unused' . $url;
 			}
-			MediaWiki\suppressWarnings();
+			Wikimedia\suppressWarnings();
 			$a = parse_url( $url );
-			MediaWiki\restoreWarnings();
+			Wikimedia\restoreWarnings();
 			if ( $a ) {
-				$path = isset( $a['path'] ) ? $a['path'] : '';
+				$path = $a['path'] ?? '';
 
 				global $wgScript;
 				if ( $path == $wgScript && $want !== 'all' ) {
@@ -142,7 +144,7 @@ class WebRequest {
 				$router->add( "$wgScript/$1" );
 
 				if ( isset( $_SERVER['SCRIPT_NAME'] )
-					&& preg_match( '/\.php5?/', $_SERVER['SCRIPT_NAME'] )
+					&& preg_match( '/\.php/', $_SERVER['SCRIPT_NAME'] )
 				) {
 					# Check for SCRIPT_NAME, we handle index.php explicitly
 					# But we do have some other .php files such as img_auth.php
@@ -160,11 +162,12 @@ class WebRequest {
 					$router->add( $wgActionPaths, [ 'action' => '$key' ] );
 				}
 
-				global $wgVariantArticlePath, $wgContLang;
+				global $wgVariantArticlePath;
 				if ( $wgVariantArticlePath ) {
 					$router->add( $wgVariantArticlePath,
 						[ 'variant' => '$2' ],
-						[ '$2' => $wgContLang->getVariants() ]
+						[ '$2' => MediaWikiServices::getInstance()->getContentLanguage()->
+						getVariants() ]
 					);
 				}
 
@@ -270,9 +273,10 @@ class WebRequest {
 	 * @since 1.27
 	 */
 	public static function getRequestId() {
+		// This method is called from various error handlers and should be kept simple.
+
 		if ( !self::$reqId ) {
-			self::$reqId = isset( $_SERVER['UNIQUE_ID'] )
-				? $_SERVER['UNIQUE_ID'] : wfRandomString( 24 );
+			self::$reqId = $_SERVER['UNIQUE_ID'] ?? wfRandomString( 24 );
 		}
 
 		return self::$reqId;
@@ -303,7 +307,7 @@ class WebRequest {
 	/**
 	 * Check for title, action, and/or variant data in the URL
 	 * and interpolate it into the GET variables.
-	 * This should only be run after $wgContLang is available,
+	 * This should only be run after the content language is available,
 	 * as we may need the list of language variants to determine
 	 * available variant URLs.
 	 */
@@ -361,9 +365,8 @@ class WebRequest {
 				$data[$key] = $this->normalizeUnicode( $val );
 			}
 		} else {
-			global $wgContLang;
-			$data = isset( $wgContLang ) ?
-				$wgContLang->normalize( $data ) :
+			$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+			$data = $contLang ? $contLang->normalize( $data ) :
 				UtfNormal\Validator::cleanUp( $data );
 		}
 		return $data;
@@ -383,13 +386,11 @@ class WebRequest {
 		# Work around PHP *feature* to avoid *bugs* elsewhere.
 		$name = strtr( $name, '.', '_' );
 		if ( isset( $arr[$name] ) ) {
-			global $wgContLang;
 			$data = $arr[$name];
-			if ( isset( $_GET[$name] ) && !is_array( $data ) ) {
+			if ( isset( $_GET[$name] ) && is_string( $data ) ) {
 				# Check for alternate/legacy character encoding.
-				if ( isset( $wgContLang ) ) {
-					$data = $wgContLang->checkTitleEncoding( $data );
-				}
+				$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+				$data = $contLang->checkTitleEncoding( $data );
 			}
 			$data = $this->normalizeUnicode( $data );
 			return $data;
@@ -407,7 +408,7 @@ class WebRequest {
 	 *
 	 * @since 1.28
 	 * @param string $name
-	 * @param string|null $default Optional default
+	 * @param string|null $default
 	 * @return string|null
 	 */
 	public function getRawVal( $name, $default = null ) {
@@ -431,7 +432,7 @@ class WebRequest {
 	 * selected by a drop-down menu). For freeform input, see getText().
 	 *
 	 * @param string $name
-	 * @param string $default Optional default (or null)
+	 * @param string|null $default Optional default (or null)
 	 * @return string|null
 	 */
 	public function getVal( $name, $default = null ) {
@@ -454,7 +455,7 @@ class WebRequest {
 	 * @return mixed Old value if one was present, null otherwise
 	 */
 	public function setVal( $key, $value ) {
-		$ret = isset( $this->data[$key] ) ? $this->data[$key] : null;
+		$ret = $this->data[$key] ?? null;
 		$this->data[$key] = $value;
 		return $ret;
 	}
@@ -481,7 +482,7 @@ class WebRequest {
 	 * If no source and no default, returns null.
 	 *
 	 * @param string $name
-	 * @param array $default Optional default (or null)
+	 * @param array|null $default Optional default (or null)
 	 * @return array|null
 	 */
 	public function getArray( $name, $default = null ) {
@@ -500,7 +501,7 @@ class WebRequest {
 	 * If an array is returned, contents are guaranteed to be integers.
 	 *
 	 * @param string $name
-	 * @param array $default Option default (or null)
+	 * @param array|null $default Option default (or null)
 	 * @return array Array of ints
 	 */
 	public function getIntArray( $name, $default = null ) {
@@ -654,6 +655,18 @@ class WebRequest {
 	}
 
 	/**
+	 * Get the values passed via POST.
+	 * No transformation is performed on the values.
+	 *
+	 * @since 1.32
+	 * @codeCoverageIgnore
+	 * @return array
+	 */
+	public function getPostValues() {
+		return $_POST;
+	}
+
+	/**
 	 * Return the contents of the Query with no decoding. Use when you need to
 	 * know exactly what was sent, e.g. for an OAuth signature over the elements.
 	 *
@@ -698,7 +711,7 @@ class WebRequest {
 	 * @return string
 	 */
 	public function getMethod() {
-		return isset( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+		return $_SERVER['REQUEST_METHOD'] ?? 'GET';
 	}
 
 	/**
@@ -761,8 +774,8 @@ class WebRequest {
 	 * Get a cookie from the $_COOKIE jar
 	 *
 	 * @param string $key The name of the cookie
-	 * @param string $prefix A prefix to use for the cookie name, if not $wgCookiePrefix
-	 * @param mixed $default What to return if the value isn't found
+	 * @param string|null $prefix A prefix to use for the cookie name, if not $wgCookiePrefix
+	 * @param mixed|null $default What to return if the value isn't found
 	 * @return mixed Cookie value or $default if the cookie not set
 	 */
 	public function getCookie( $key, $prefix = null, $default = null ) {
@@ -781,6 +794,8 @@ class WebRequest {
 	 * @return string
 	 */
 	public static function getGlobalRequestURL() {
+		// This method is called on fatal errors; it should not depend on anything complex.
+
 		if ( isset( $_SERVER['REQUEST_URI'] ) && strlen( $_SERVER['REQUEST_URI'] ) ) {
 			$base = $_SERVER['REQUEST_URI'];
 		} elseif ( isset( $_SERVER['HTTP_X_ORIGINAL_URL'] )
@@ -839,7 +854,7 @@ class WebRequest {
 	 * @return string
 	 */
 	public function getFullRequestURL() {
-		return wfExpandUrl( $this->getRequestURL(), PROTO_CURRENT );
+		return wfGetServerUrl( PROTO_CURRENT ) . $this->getRequestURL();
 	}
 
 	/**
@@ -956,7 +971,7 @@ class WebRequest {
 	public function response() {
 		/* Lazy initialization of response object for this request */
 		if ( !is_object( $this->response ) ) {
-			$class = ( $this instanceof FauxRequest ) ? 'FauxResponse' : 'WebResponse';
+			$class = ( $this instanceof FauxRequest ) ? FauxResponse::class : WebResponse::class;
 			$this->response = new $class();
 		}
 		return $this->response;
@@ -1292,7 +1307,7 @@ HTML;
 	 *
 	 * This means that the client is not requesting any state changes and that database writes
 	 * are not inherently required. Ideally, no visible updates would happen at all. If they
-	 * must, then they should not be publically attributed to the end user.
+	 * must, then they should not be publicly attributed to the end user.
 	 *
 	 * In more detail:
 	 *   - Cache populations and refreshes MAY occur.

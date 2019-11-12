@@ -1,7 +1,5 @@
 <?php
 /**
- * Created on Dec 01, 2007
- *
  * Copyright © 2007 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,6 +20,8 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+
 /**
  * @ingroup API
  */
@@ -36,6 +36,9 @@ class ApiParse extends ApiBase {
 	/** @var Content $pstContent */
 	private $pstContent = null;
 
+	/** @var bool */
+	private $contentIsDeleted = false, $contentIsSuppressed = false;
+
 	public function execute() {
 		// The data is hot but user-dependent, like page views, so we set vary cookies
 		$this->getMain()->setCacheMode( 'anon-public-user-private' );
@@ -43,10 +46,11 @@ class ApiParse extends ApiBase {
 		// Get parameters
 		$params = $this->extractRequestParams();
 
-		// No easy way to say that text & title are allowed together while the
-		// rest aren't, so just do it in two calls.
+		// No easy way to say that text and title or revid are allowed together
+		// while the rest aren't, so just do it in three calls.
 		$this->requireMaxOneParameter( $params, 'page', 'pageid', 'oldid', 'text' );
 		$this->requireMaxOneParameter( $params, 'page', 'pageid', 'oldid', 'title' );
+		$this->requireMaxOneParameter( $params, 'page', 'pageid', 'oldid', 'revid' );
 
 		$text = $params['text'];
 		$title = $params['title'];
@@ -83,6 +87,9 @@ class ApiParse extends ApiBase {
 
 		$redirValues = null;
 
+		$needContent = isset( $prop['wikitext'] ) ||
+			isset( $prop['parsetree'] ) || $params['generatexml'];
+
 		// Return result
 		$result = $this->getResult();
 
@@ -108,27 +115,9 @@ class ApiParse extends ApiBase {
 				$wgTitle = $titleObj;
 				$pageObj = WikiPage::factory( $titleObj );
 				list( $popts, $reset, $suppressCache ) = $this->makeParserOptions( $pageObj, $params );
-
-				// If for some reason the "oldid" is actually the current revision, it may be cached
-				// Deliberately comparing $pageObj->getLatest() with $rev->getId(), rather than
-				// checking $rev->isCurrent(), because $pageObj is what actually ends up being used,
-				// and if its ->getLatest() is outdated, $rev->isCurrent() won't tell us that.
-				if ( !$suppressCache && $rev->getId() == $pageObj->getLatest() ) {
-					// May get from/save to parser cache
-					$p_result = $this->getParsedContent( $pageObj, $popts,
-						$pageid, isset( $prop['wikitext'] ) );
-				} else { // This is an old revision, so get the text differently
-					$this->content = $rev->getContent( Revision::FOR_THIS_USER, $this->getUser() );
-
-					if ( $this->section !== false ) {
-						$this->content = $this->getSectionContent(
-							$this->content, $this->msg( 'revid', $rev->getId() )
-						);
-					}
-
-					// Should we save old revision parses to the parser cache?
-					$p_result = $this->content->getParserOutput( $titleObj, $rev->getId(), $popts );
-				}
+				$p_result = $this->getParsedContent(
+					$pageObj, $popts, $suppressCache, $pageid, $rev, $needContent
+				);
 			} else { // Not $oldid, but $pageid or $page
 				if ( $params['redirects'] ) {
 					$reqParams = [
@@ -170,30 +159,33 @@ class ApiParse extends ApiBase {
 				}
 
 				list( $popts, $reset, $suppressCache ) = $this->makeParserOptions( $pageObj, $params );
-
-				// Don't pollute the parser cache when setting options that aren't
-				// in ParserOptions::optionsHash()
-				/// @todo: This should be handled closer to the actual cache instead of here, see T110269
-				$suppressCache = $suppressCache ||
-					$params['disablepp'] ||
-					$params['disablelimitreport'] ||
-					$params['preview'] ||
-					$params['sectionpreview'] ||
-					$params['disabletidy'];
-
-				if ( $suppressCache ) {
-					$this->content = $this->getContent( $pageObj, $pageid );
-					$p_result = $this->content->getParserOutput( $titleObj, null, $popts );
-				} else {
-					// Potentially cached
-					$p_result = $this->getParsedContent( $pageObj, $popts, $pageid,
-						isset( $prop['wikitext'] ) );
-				}
+				$p_result = $this->getParsedContent(
+					$pageObj, $popts, $suppressCache, $pageid, null, $needContent
+				);
 			}
 		} else { // Not $oldid, $pageid, $page. Hence based on $text
 			$titleObj = Title::newFromText( $title );
 			if ( !$titleObj || $titleObj->isExternal() ) {
 				$this->dieWithError( [ 'apierror-invalidtitle', wfEscapeWikiText( $title ) ] );
+			}
+			$revid = $params['revid'];
+			if ( $revid !== null ) {
+				$rev = Revision::newFromId( $revid );
+				if ( !$rev ) {
+					$this->dieWithError( [ 'apierror-nosuchrevid', $revid ] );
+				}
+				$pTitleObj = $titleObj;
+				$titleObj = $rev->getTitle();
+				if ( $titleProvided ) {
+					if ( !$titleObj->equals( $pTitleObj ) ) {
+						$this->addWarning( [ 'apierror-revwrongpage', $rev->getId(),
+							wfEscapeWikiText( $pTitleObj->getPrefixedText() ) ] );
+					}
+				} else {
+					// Consider the title derived from the revid as having
+					// been provided.
+					$titleProvided = true;
+				}
 			}
 			$wgTitle = $titleObj;
 			if ( $titleObj->canExist() ) {
@@ -209,7 +201,11 @@ class ApiParse extends ApiBase {
 
 			if ( !$textProvided ) {
 				if ( $titleProvided && ( $prop || $params['generatexml'] ) ) {
-					$this->addWarning( 'apiwarn-parse-titlewithouttext' );
+					if ( $revid !== null ) {
+						$this->addWarning( 'apiwarn-parse-revidwithouttext' );
+					} else {
+						$this->addWarning( 'apiwarn-parse-titlewithouttext' );
+					}
 				}
 				// Prevent warning from ContentHandler::makeContent()
 				$text = '';
@@ -267,9 +263,9 @@ class ApiParse extends ApiBase {
 
 			// Not cached (save or load)
 			if ( $params['pst'] ) {
-				$p_result = $this->pstContent->getParserOutput( $titleObj, null, $popts );
+				$p_result = $this->pstContent->getParserOutput( $titleObj, $revid, $popts );
 			} else {
-				$p_result = $this->content->getParserOutput( $titleObj, null, $popts );
+				$p_result = $this->content->getParserOutput( $titleObj, $revid, $popts );
 			}
 		}
 
@@ -277,21 +273,77 @@ class ApiParse extends ApiBase {
 
 		$result_array['title'] = $titleObj->getPrefixedText();
 		$result_array['pageid'] = $pageid ?: $pageObj->getId();
+		if ( $this->contentIsDeleted ) {
+			$result_array['textdeleted'] = true;
+		}
+		if ( $this->contentIsSuppressed ) {
+			$result_array['textsuppressed'] = true;
+		}
+
+		if ( isset( $params['useskin'] ) ) {
+			$factory = MediaWikiServices::getInstance()->getSkinFactory();
+			$skin = $factory->makeSkin( Skin::normalizeKey( $params['useskin'] ) );
+		} else {
+			$skin = null;
+		}
+
+		$outputPage = null;
+		if ( $skin || isset( $prop['headhtml'] ) || isset( $prop['categorieshtml'] ) ) {
+			// Enabling the skin via 'useskin', 'headhtml', or 'categorieshtml'
+			// gets OutputPage and Skin involved, which (among others) applies
+			// these hooks:
+			// - ParserOutputHooks
+			// - Hook: LanguageLinks
+			// - Hook: OutputPageParserOutput
+			// - Hook: OutputPageMakeCategoryLinks
+			$context = new DerivativeContext( $this->getContext() );
+			$context->setTitle( $titleObj );
+			$context->setWikiPage( $pageObj );
+
+			if ( $skin ) {
+				// Use the skin specified by 'useskin'
+				$context->setSkin( $skin );
+				// Context clones the skin, refetch to stay in sync. (T166022)
+				$skin = $context->getSkin();
+			} else {
+				// Make sure the context's skin refers to the context. Without this,
+				// $outputPage->getSkin()->getOutput() !== $outputPage which
+				// confuses some of the output.
+				$context->setSkin( $context->getSkin() );
+			}
+
+			$outputPage = new OutputPage( $context );
+			$outputPage->addParserOutputMetadata( $p_result );
+			if ( $this->content ) {
+				$outputPage->addContentOverride( $titleObj, $this->content );
+			}
+			$context->setOutput( $outputPage );
+
+			if ( $skin ) {
+				// Based on OutputPage::headElement()
+				$skin->setupSkinUserCss( $outputPage );
+				// Based on OutputPage::output()
+				$outputPage->loadSkinModules( $skin );
+			}
+
+			Hooks::run( 'ApiParseMakeOutputPage', [ $this, $outputPage ] );
+		}
 
 		if ( !is_null( $oldid ) ) {
-			$result_array['revid'] = intval( $oldid );
+			$result_array['revid'] = (int)$oldid;
 		}
 
 		if ( $params['redirects'] && !is_null( $redirValues ) ) {
 			$result_array['redirects'] = $redirValues;
 		}
 
-		if ( $params['disabletoc'] ) {
-			$p_result->setTOCEnabled( false );
-		}
-
 		if ( isset( $prop['text'] ) ) {
-			$result_array['text'] = $p_result->getText();
+			$result_array['text'] = $p_result->getText( [
+				'allowTOC' => !$params['disabletoc'],
+				'enableSectionEditLinks' => !$params['disableeditsection'],
+				'wrapperDivClass' => $params['wrapoutputclass'],
+				'deduplicateStyles' => !$params['disablestylededuplication'],
+			] );
 			$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'text';
 		}
 
@@ -303,26 +355,26 @@ class ApiParse extends ApiBase {
 		}
 
 		if ( isset( $prop['langlinks'] ) ) {
-			$langlinks = $p_result->getLanguageLinks();
-
-			if ( $params['effectivelanglinks'] ) {
-				// Link flags are ignored for now, but may in the future be
-				// included in the result.
-				$linkFlags = [];
-				Hooks::run( 'LanguageLinks', [ $titleObj, &$langlinks, &$linkFlags ] );
+			if ( $skin ) {
+				$langlinks = $outputPage->getLanguageLinks();
+			} else {
+				$langlinks = $p_result->getLanguageLinks();
+				// The deprecated 'effectivelanglinks' option depredates OutputPage
+				// support via 'useskin'. If not already applied, then run just this
+				// one hook of OutputPage::addParserOutputMetadata here.
+				if ( $params['effectivelanglinks'] ) {
+					$linkFlags = [];
+					Hooks::run( 'LanguageLinks', [ $titleObj, &$langlinks, &$linkFlags ] );
+				}
 			}
-		} else {
-			$langlinks = false;
-		}
 
-		if ( isset( $prop['langlinks'] ) ) {
 			$result_array['langlinks'] = $this->formatLangLinks( $langlinks );
 		}
 		if ( isset( $prop['categories'] ) ) {
 			$result_array['categories'] = $this->formatCategoryLinks( $p_result->getCategories() );
 		}
 		if ( isset( $prop['categorieshtml'] ) ) {
-			$result_array['categorieshtml'] = $this->categoriesHtml( $p_result->getCategories() );
+			$result_array['categorieshtml'] = $outputPage->getSkin()->getCategories();
 			$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'categorieshtml';
 		}
 		if ( isset( $prop['links'] ) ) {
@@ -345,43 +397,48 @@ class ApiParse extends ApiBase {
 		}
 
 		if ( isset( $prop['displaytitle'] ) ) {
-			$result_array['displaytitle'] = $p_result->getDisplayTitle() ?:
-				$titleObj->getPrefixedText();
+			$result_array['displaytitle'] = $p_result->getDisplayTitle() !== false
+				? $p_result->getDisplayTitle() : $titleObj->getPrefixedText();
 		}
 
 		if ( isset( $prop['headitems'] ) ) {
-			$result_array['headitems'] = $this->formatHeadItems( $p_result->getHeadItems() );
-			$this->addDeprecation( 'apiwarn-deprecation-parse-headitems', 'action=parse&prop=headitems' );
+			if ( $skin ) {
+				$result_array['headitems'] = $this->formatHeadItems( $outputPage->getHeadItemsArray() );
+			} else {
+				$result_array['headitems'] = $this->formatHeadItems( $p_result->getHeadItems() );
+			}
 		}
 
 		if ( isset( $prop['headhtml'] ) ) {
-			$context = new DerivativeContext( $this->getContext() );
-			$context->setTitle( $titleObj );
-			$context->setWikiPage( $pageObj );
-
-			// We need an OutputPage tied to $context, not to the
-			// RequestContext at the root of the stack.
-			$output = new OutputPage( $context );
-			$output->addParserOutputMetadata( $p_result );
-
-			$result_array['headhtml'] = $output->headElement( $context->getSkin() );
+			$result_array['headhtml'] = $outputPage->headElement( $context->getSkin() );
 			$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'headhtml';
 		}
 
 		if ( isset( $prop['modules'] ) ) {
-			$result_array['modules'] = array_values( array_unique( $p_result->getModules() ) );
-			$result_array['modulescripts'] = array_values( array_unique( $p_result->getModuleScripts() ) );
-			$result_array['modulestyles'] = array_values( array_unique( $p_result->getModuleStyles() ) );
+			if ( $skin ) {
+				$result_array['modules'] = $outputPage->getModules();
+				// Deprecated since 1.32 (T188689)
+				$result_array['modulescripts'] = [];
+				$result_array['modulestyles'] = $outputPage->getModuleStyles();
+			} else {
+				$result_array['modules'] = array_values( array_unique( $p_result->getModules() ) );
+				// Deprecated since 1.32 (T188689)
+				$result_array['modulescripts'] = [];
+				$result_array['modulestyles'] = array_values( array_unique( $p_result->getModuleStyles() ) );
+			}
 		}
 
 		if ( isset( $prop['jsconfigvars'] ) ) {
-			$result_array['jsconfigvars'] =
-				ApiResult::addMetadataToResultVars( $p_result->getJsConfigVars() );
+			$jsconfigvars = $skin ? $outputPage->getJsConfigVars() : $p_result->getJsConfigVars();
+			$result_array['jsconfigvars'] = ApiResult::addMetadataToResultVars( $jsconfigvars );
 		}
 
 		if ( isset( $prop['encodedjsconfigvars'] ) ) {
+			$jsconfigvars = $skin ? $outputPage->getJsConfigVars() : $p_result->getJsConfigVars();
 			$result_array['encodedjsconfigvars'] = FormatJson::encode(
-				$p_result->getJsConfigVars(), false, FormatJson::ALL_OK
+				$jsconfigvars,
+				false,
+				FormatJson::ALL_OK
 			);
 			$result_array[ApiResult::META_SUBELEMENTS][] = 'encodedjsconfigvars';
 		}
@@ -392,7 +449,11 @@ class ApiParse extends ApiBase {
 		}
 
 		if ( isset( $prop['indicators'] ) ) {
-			$result_array['indicators'] = (array)$p_result->getIndicators();
+			if ( $skin ) {
+				$result_array['indicators'] = (array)$outputPage->getIndicators();
+			} else {
+				$result_array['indicators'] = (array)$p_result->getIndicators();
+			}
 			ApiResult::setArrayType( $result_array['indicators'], 'BCkvp', 'name' );
 		}
 
@@ -428,12 +489,7 @@ class ApiParse extends ApiBase {
 			}
 
 			$wgParser->startExternalParse( $titleObj, $popts, Parser::OT_PREPROCESS );
-			$dom = $wgParser->preprocessToDom( $this->content->getNativeData() );
-			if ( is_callable( [ $dom, 'saveXML' ] ) ) {
-				$xml = $dom->saveXML();
-			} else {
-				$xml = $dom->__toString();
-			}
+			$xml = $wgParser->preprocessToDom( $this->content->getText() )->__toString();
 			$result_array['parsetree'] = $xml;
 			$result_array[ApiResult::META_BC_SUBELEMENTS][] = 'parsetree';
 		}
@@ -474,9 +530,11 @@ class ApiParse extends ApiBase {
 		$popts->enableLimitReport( !$params['disablepp'] && !$params['disablelimitreport'] );
 		$popts->setIsPreview( $params['preview'] || $params['sectionpreview'] );
 		$popts->setIsSectionPreview( $params['sectionpreview'] );
-		$popts->setEditSection( !$params['disableeditsection'] );
 		if ( $params['disabletidy'] ) {
 			$popts->setTidy( false );
+		}
+		if ( $params['wrapoutputclass'] !== '' ) {
+			$popts->setWrapOutputClass( $params['wrapoutputclass'] );
 		}
 
 		$reset = null;
@@ -484,56 +542,64 @@ class ApiParse extends ApiBase {
 		Hooks::run( 'ApiMakeParserOptions',
 			[ $popts, $pageObj->getTitle(), $params, $this, &$reset, &$suppressCache ] );
 
+		// Force cache suppression when $popts aren't cacheable.
+		$suppressCache = $suppressCache || !$popts->isSafeToCache();
+
 		return [ $popts, $reset, $suppressCache ];
 	}
 
 	/**
 	 * @param WikiPage $page
 	 * @param ParserOptions $popts
+	 * @param bool $suppressCache
 	 * @param int $pageId
-	 * @param bool $getWikitext
+	 * @param Revision|null $rev
+	 * @param bool $getContent
 	 * @return ParserOutput
 	 */
-	private function getParsedContent( WikiPage $page, $popts, $pageId = null, $getWikitext = false ) {
-		$this->content = $this->getContent( $page, $pageId );
+	private function getParsedContent(
+		WikiPage $page, $popts, $suppressCache, $pageId, $rev, $getContent
+	) {
+		$revId = $rev ? $rev->getId() : null;
+		$isDeleted = $rev && $rev->isDeleted( Revision::DELETED_TEXT );
 
-		if ( $this->section !== false && $this->content !== null ) {
-			// Not cached (save or load)
-			return $this->content->getParserOutput( $page->getTitle(), null, $popts );
+		if ( $getContent || $this->section !== false || $isDeleted ) {
+			if ( $rev ) {
+				$this->content = $rev->getContent( Revision::FOR_THIS_USER, $this->getUser() );
+				if ( !$this->content ) {
+					$this->dieWithError( [ 'apierror-missingcontent-revid', $revId ] );
+				}
+			} else {
+				$this->content = $page->getContent( Revision::FOR_THIS_USER, $this->getUser() );
+				if ( !$this->content ) {
+					$this->dieWithError( [ 'apierror-missingcontent-pageid', $page->getId() ] );
+				}
+			}
+			$this->contentIsDeleted = $isDeleted;
+			$this->contentIsSuppressed = $rev &&
+				$rev->isDeleted( Revision::DELETED_TEXT | Revision::DELETED_RESTRICTED );
 		}
 
-		// Try the parser cache first
-		// getParserOutput will save to Parser cache if able
-		$pout = $page->getParserOutput( $popts );
+		if ( $this->section !== false ) {
+			$this->content = $this->getSectionContent(
+				$this->content,
+				$pageId === null ? $page->getTitle()->getPrefixedText() : $this->msg( 'pageid', $pageId )
+			);
+			return $this->content->getParserOutput( $page->getTitle(), $revId, $popts );
+		}
+
+		if ( $isDeleted ) {
+			// getParserOutput can't do revdeled revisions
+			$pout = $this->content->getParserOutput( $page->getTitle(), $revId, $popts );
+		} else {
+			// getParserOutput will save to Parser cache if able
+			$pout = $page->getParserOutput( $popts, $revId, $suppressCache );
+		}
 		if ( !$pout ) {
-			$this->dieWithError( [ 'apierror-nosuchrevid', $page->getLatest() ] );
-		}
-		if ( $getWikitext ) {
-			$this->content = $page->getContent( Revision::RAW );
+			$this->dieWithError( [ 'apierror-nosuchrevid', $revId ?: $page->getLatest() ] ); // @codeCoverageIgnore
 		}
 
 		return $pout;
-	}
-
-	/**
-	 * Get the content for the given page and the requested section.
-	 *
-	 * @param WikiPage $page
-	 * @param int $pageId
-	 * @return Content
-	 */
-	private function getContent( WikiPage $page, $pageId = null ) {
-		$content = $page->getContent( Revision::RAW ); // XXX: really raw?
-
-		if ( $this->section !== false && $content !== null ) {
-			$content = $this->getSectionContent(
-				$content,
-				!is_null( $pageId )
-					? $this->msg( 'pageid', $pageId )
-					: $page->getTitle()->getPrefixedText()
-			);
-		}
-		return $content;
 	}
 
 	/**
@@ -541,7 +607,7 @@ class ApiParse extends ApiBase {
 	 *
 	 * @param Content $content
 	 * @param string|Message $what Identifies the content in error messages, e.g. page title.
-	 * @return Content|bool
+	 * @return Content
 	 */
 	private function getSectionContent( Content $content, $what ) {
 		// Not cached (save or load)
@@ -561,13 +627,13 @@ class ApiParse extends ApiBase {
 	 * This mimicks the behavior of EditPage in formatting a summary
 	 *
 	 * @param Title $title of the page being parsed
-	 * @param Array $params the API parameters of the request
+	 * @param array $params The API parameters of the request
 	 * @return Content|bool
 	 */
 	private function formatSummary( $title, $params ) {
 		global $wgParser;
-		$summary = !is_null( $params['summary'] ) ? $params['summary'] : '';
-		$sectionTitle = !is_null( $params['sectiontitle'] ) ? $params['sectiontitle'] : '';
+		$summary = $params['summary'] ?? '';
+		$sectionTitle = $params['sectiontitle'] ?? '';
 
 		if ( $this->section === 'new' && ( $sectionTitle === '' || $summary === '' ) ) {
 			if ( $sectionTitle !== '' ) {
@@ -633,7 +699,7 @@ class ApiParse extends ApiBase {
 			$hiddencats[$row->page_title] = isset( $row->pp_propname );
 		}
 
-		$linkCache = LinkCache::singleton();
+		$linkCache = MediaWikiServices::getInstance()->getLinkCache();
 
 		foreach ( $links as $link => $sortkey ) {
 			$entry = [];
@@ -657,13 +723,6 @@ class ApiParse extends ApiBase {
 		}
 
 		return $result;
-	}
-
-	private function categoriesHtml( $categories ) {
-		$context = $this->getContext();
-		$context->getOutput()->addCategoryLinks( $categories );
-
-		return $context->getSkin()->getCategories();
 	}
 
 	private function formatLinks( $links ) {
@@ -744,6 +803,9 @@ class ApiParse extends ApiBase {
 			'text' => [
 				ApiBase::PARAM_TYPE => 'text',
 			],
+			'revid' => [
+				ApiBase::PARAM_TYPE => 'integer',
+			],
 			'summary' => null,
 			'page' => null,
 			'pageid' => [
@@ -770,7 +832,6 @@ class ApiParse extends ApiBase {
 					'sections',
 					'revid',
 					'displaytitle',
-					'headitems',
 					'headhtml',
 					'modules',
 					'jsconfigvars',
@@ -782,15 +843,23 @@ class ApiParse extends ApiBase {
 					'limitreportdata',
 					'limitreporthtml',
 					'parsetree',
-					'parsewarnings'
+					'parsewarnings',
+					'headitems',
 				],
 				ApiBase::PARAM_HELP_MSG_PER_VALUE => [
 					'parsetree' => [ 'apihelp-parse-paramvalue-prop-parsetree', CONTENT_MODEL_WIKITEXT ],
 				],
+				ApiBase::PARAM_DEPRECATED_VALUES => [
+					'headitems' => 'apiwarn-deprecation-parse-headitems',
+				],
 			],
+			'wrapoutputclass' => 'mw-parser-output',
 			'pst' => false,
 			'onlypst' => false,
-			'effectivelanglinks' => false,
+			'effectivelanglinks' => [
+				ApiBase::PARAM_DFLT => false,
+				ApiBase::PARAM_DEPRECATED => true,
+			],
 			'section' => null,
 			'sectiontitle' => [
 				ApiBase::PARAM_TYPE => 'string',
@@ -801,7 +870,11 @@ class ApiParse extends ApiBase {
 			],
 			'disablelimitreport' => false,
 			'disableeditsection' => false,
-			'disabletidy' => false,
+			'disabletidy' => [
+				ApiBase::PARAM_DFLT => false,
+				ApiBase::PARAM_DEPRECATED => true, // Since 1.32
+			],
+			'disablestylededuplication' => false,
 			'generatexml' => [
 				ApiBase::PARAM_DFLT => false,
 				ApiBase::PARAM_HELP_MSG => [
@@ -812,6 +885,9 @@ class ApiParse extends ApiBase {
 			'preview' => false,
 			'sectionpreview' => false,
 			'disabletoc' => false,
+			'useskin' => [
+				ApiBase::PARAM_TYPE => array_keys( Skin::getAllowedSkins() ),
+			],
 			'contentformat' => [
 				ApiBase::PARAM_TYPE => ContentHandler::getAllContentFormats(),
 			],

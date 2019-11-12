@@ -29,8 +29,6 @@
 class MemcachedPeclBagOStuff extends MemcachedBagOStuff {
 
 	/**
-	 * Constructor
-	 *
 	 * Available parameters are:
 	 *   - servers:             The list of IP:port combinations holding the memcached servers.
 	 *   - persistent:          Whether to use a persistent connection
@@ -140,35 +138,54 @@ class MemcachedPeclBagOStuff extends MemcachedBagOStuff {
 		return $params;
 	}
 
-	protected function getWithToken( $key, &$casToken, $flags = 0 ) {
+	/**
+	 * @suppress PhanTypeNonVarPassByRef
+	 */
+	protected function doGet( $key, $flags = 0, &$casToken = null ) {
 		$this->debugLog( "get($key)" );
-		$result = $this->client->get( $this->validateKeyEncoding( $key ), null, $casToken );
+		if ( defined( Memcached::class . '::GET_EXTENDED' ) ) { // v3.0.0
+			$flags = Memcached::GET_EXTENDED;
+			$res = $this->client->get( $this->validateKeyEncoding( $key ), null, $flags );
+			if ( is_array( $res ) ) {
+				$result = $res['value'];
+				$casToken = $res['cas'];
+			} else {
+				$result = false;
+				$casToken = null;
+			}
+		} else {
+			$result = $this->client->get( $this->validateKeyEncoding( $key ), null, $casToken );
+		}
 		$result = $this->checkResult( $key, $result );
 		return $result;
 	}
 
 	public function set( $key, $value, $exptime = 0, $flags = 0 ) {
 		$this->debugLog( "set($key)" );
-		return $this->checkResult( $key, parent::set( $key, $value, $exptime ) );
+		$result = parent::set( $key, $value, $exptime, $flags = 0 );
+		if ( $result === false && $this->client->getResultCode() === Memcached::RES_NOTSTORED ) {
+			// "Not stored" is always used as the mcrouter response with AllAsyncRoute
+			return true;
+		}
+		return $this->checkResult( $key, $result );
 	}
 
-	protected function cas( $casToken, $key, $value, $exptime = 0 ) {
+	protected function cas( $casToken, $key, $value, $exptime = 0, $flags = 0 ) {
 		$this->debugLog( "cas($key)" );
-		return $this->checkResult( $key, parent::cas( $casToken, $key, $value, $exptime ) );
+		return $this->checkResult( $key, parent::cas( $casToken, $key, $value, $exptime, $flags ) );
 	}
 
-	public function delete( $key ) {
+	public function delete( $key, $flags = 0 ) {
 		$this->debugLog( "delete($key)" );
 		$result = parent::delete( $key );
 		if ( $result === false && $this->client->getResultCode() === Memcached::RES_NOTFOUND ) {
 			// "Not found" is counted as success in our interface
 			return true;
-		} else {
-			return $this->checkResult( $key, $result );
 		}
+		return $this->checkResult( $key, $result );
 	}
 
-	public function add( $key, $value, $exptime = 0 ) {
+	public function add( $key, $value, $exptime = 0, $flags = 0 ) {
 		$this->debugLog( "add($key)" );
 		return $this->checkResult( $key, parent::add( $key, $value, $exptime ) );
 	}
@@ -234,12 +251,7 @@ class MemcachedPeclBagOStuff extends MemcachedBagOStuff {
 		return $this->checkResult( false, $result );
 	}
 
-	/**
-	 * @param array $data
-	 * @param int $exptime
-	 * @return bool
-	 */
-	public function setMulti( array $data, $exptime = 0 ) {
+	public function setMulti( array $data, $exptime = 0, $flags = 0 ) {
 		$this->debugLog( 'setMulti(' . implode( ', ', array_keys( $data ) ) . ')' );
 		foreach ( array_keys( $data ) as $key ) {
 			$this->validateKeyEncoding( $key );
@@ -248,7 +260,7 @@ class MemcachedPeclBagOStuff extends MemcachedBagOStuff {
 		return $this->checkResult( false, $result );
 	}
 
-	public function changeTTL( $key, $expiry = 0 ) {
+	public function changeTTL( $key, $expiry = 0, $flags = 0 ) {
 		$this->debugLog( "touch($key)" );
 		$result = $this->client->touch( $key, $expiry );
 		return $this->checkResult( $key, $result );

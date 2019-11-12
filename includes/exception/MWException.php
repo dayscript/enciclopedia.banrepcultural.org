@@ -55,23 +55,12 @@ class MWException extends Exception {
 		global $wgLang;
 
 		foreach ( $this->getTrace() as $frame ) {
-			if ( isset( $frame['class'] ) && $frame['class'] === 'LocalisationCache' ) {
+			if ( isset( $frame['class'] ) && $frame['class'] === LocalisationCache::class ) {
 				return false;
 			}
 		}
 
 		return $wgLang instanceof Language;
-	}
-
-	/**
-	 * Run hook to allow extensions to modify the text of the exception
-	 *
-	 * @param string $name Class name of the exception
-	 * @param array $args Arguments to pass to the callback functions
-	 * @return string|null String to output or null if any hook has been called
-	 */
-	public function runHooks( $name, $args = [] ) {
-		return MWExceptionRenderer::runHooks( $this, $name, $args );
 	}
 
 	/**
@@ -84,15 +73,26 @@ class MWException extends Exception {
 	 * @return string Message with arguments replaced
 	 */
 	public function msg( $key, $fallback /*[, params...] */ ) {
+		global $wgSitename;
 		$args = array_slice( func_get_args(), 2 );
 
+		// FIXME: Keep logic in sync with MWExceptionRenderer::msg.
+		$res = false;
 		if ( $this->useMessageCache() ) {
 			try {
-				return wfMessage( $key, $args )->text();
+				$res = wfMessage( $key, $args )->text();
 			} catch ( Exception $e ) {
 			}
 		}
-		return wfMsgReplaceArgs( $fallback, $args );
+		if ( $res === false ) {
+			$res = wfMsgReplaceArgs( $fallback, $args );
+			// If an exception happens inside message rendering,
+			// {{SITENAME}} sometimes won't be replaced.
+			$res = strtr( $res, [
+				'{{SITENAME}}' => $wgSitename,
+			] );
+		}
+		return $res;
 	}
 
 	/**
@@ -113,15 +113,17 @@ class MWException extends Exception {
 		} else {
 			$logId = WebRequest::getRequestId();
 			$type = static::class;
-			return "<div class=\"errorbox\">" .
-			'[' . $logId . '] ' .
-			gmdate( 'Y-m-d H:i:s' ) . ": " .
-			$this->msg( "internalerror-fatal-exception",
-				"Fatal exception of type $1",
-				$type,
-				$logId,
-				MWExceptionHandler::getURL( $this )
-			) . "</div>\n" .
+			return Html::errorBox(
+			htmlspecialchars(
+				'[' . $logId . '] ' .
+				gmdate( 'Y-m-d H:i:s' ) . ": " .
+				$this->msg( "internalerror-fatal-exception",
+					"Fatal exception of type $1",
+					$type,
+					$logId,
+					MWExceptionHandler::getURL()
+				)
+			) ) .
 			"<!-- Set \$wgShowExceptionDetails = true; " .
 			"at the bottom of LocalSettings.php to show detailed " .
 			"debugging information. -->";
@@ -163,13 +165,18 @@ class MWException extends Exception {
 		global $wgOut, $wgSitename;
 		if ( $this->useOutputPage() ) {
 			$wgOut->prepareErrorPage( $this->getPageTitle() );
+			// Manually set the html title, since sometimes
+			// {{SITENAME}} does not get replaced for exceptions
+			// happening inside message rendering.
+			$wgOut->setHTMLTitle(
+				$this->msg(
+					'pagetitle',
+					"$1 - $wgSitename",
+					$this->getPageTitle()
+				)
+			);
 
-			$hookResult = $this->runHooks( static::class );
-			if ( $hookResult ) {
-				$wgOut->addHTML( $hookResult );
-			} else {
-				$wgOut->addHTML( $this->getHTML() );
-			}
+			$wgOut->addHTML( $this->getHTML() );
 
 			$wgOut->output();
 		} else {
@@ -183,12 +190,7 @@ class MWException extends Exception {
 				'<style>body { font-family: sans-serif; margin: 0; padding: 0.5em 2em; }</style>' .
 				"</head><body>\n";
 
-			$hookResult = $this->runHooks( static::class . 'Raw' );
-			if ( $hookResult ) {
-				echo $hookResult;
-			} else {
-				echo $this->getHTML();
-			}
+			echo $this->getHTML();
 
 			echo "</body></html>\n";
 		}
@@ -207,17 +209,27 @@ class MWException extends Exception {
 			wfHttpError( 500, 'Internal Server Error', $this->getText() );
 		} elseif ( self::isCommandLine() ) {
 			$message = $this->getText();
-			// T17602: STDERR may not be available
-			if ( defined( 'STDERR' ) ) {
-				fwrite( STDERR, $message );
-			} else {
-				echo $message;
-			}
+			$this->writeToCommandLine( $message );
 		} else {
 			self::statusHeader( 500 );
 			self::header( "Content-Type: $wgMimeType; charset=utf-8" );
 
 			$this->reportHTML();
+		}
+	}
+
+	/**
+	 * Write a message to stderr falling back to stdout if stderr unavailable
+	 *
+	 * @param string $message
+	 * @suppress SecurityCheck-XSS
+	 */
+	private function writeToCommandLine( $message ) {
+		// T17602: STDERR may not be available
+		if ( !defined( 'MW_PHPUNIT_TEST' ) && defined( 'STDERR' ) ) {
+			fwrite( STDERR, $message );
+		} else {
+			echo $message;
 		}
 	}
 

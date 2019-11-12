@@ -3,8 +3,6 @@
 /**
  * API for MediaWiki 1.12+
  *
- * Created on Mar 16, 2008
- *
  * Copyright © 2008 Vasiliev Victor vasilvv@gmail.com,
  * based on ApiQueryAllPages.php
  *
@@ -87,13 +85,14 @@ class ApiQueryAllImages extends ApiQueryGeneratorBase {
 		$db = $this->getDB();
 
 		$params = $this->extractRequestParams();
-		$userId = !is_null( $params['user'] ) ? User::idFromName( $params['user'] ) : null;
 
 		// Table and return fields
-		$this->addTables( 'image' );
-
 		$prop = array_flip( $params['prop'] );
-		$this->addFields( LocalFile::selectFields() );
+
+		$fileQuery = LocalFile::getQueryInfo();
+		$this->addTables( $fileQuery['tables'] );
+		$this->addFields( $fileQuery['fields'] );
+		$this->addJoinConds( $fileQuery['joins'] );
 
 		$ascendingOrder = true;
 		if ( $params['dir'] == 'descending' || $params['dir'] == 'older' ) {
@@ -130,15 +129,15 @@ class ApiQueryAllImages extends ApiQueryGeneratorBase {
 			if ( !is_null( $params['continue'] ) ) {
 				$cont = explode( '|', $params['continue'] );
 				$this->dieContinueUsageIf( count( $cont ) != 1 );
-				$op = ( $ascendingOrder ? '>' : '<' );
+				$op = $ascendingOrder ? '>' : '<';
 				$continueFrom = $db->addQuotes( $cont[0] );
 				$this->addWhere( "img_name $op= $continueFrom" );
 			}
 
 			// Image filters
-			$from = ( $params['from'] === null ? null : $this->titlePartToKey( $params['from'], NS_FILE ) );
-			$to = ( $params['to'] === null ? null : $this->titlePartToKey( $params['to'], NS_FILE ) );
-			$this->addWhereRange( 'img_name', ( $ascendingOrder ? 'newer' : 'older' ), $from, $to );
+			$from = $params['from'] === null ? null : $this->titlePartToKey( $params['from'], NS_FILE );
+			$to = $params['to'] === null ? null : $this->titlePartToKey( $params['to'], NS_FILE );
+			$this->addWhereRange( 'img_name', $ascendingOrder ? 'newer' : 'older', $from, $to );
 
 			if ( isset( $params['prefix'] ) ) {
 				$this->addWhere( 'img_name' . $db->buildLike(
@@ -192,34 +191,37 @@ class ApiQueryAllImages extends ApiQueryGeneratorBase {
 
 			// Image filters
 			if ( !is_null( $params['user'] ) ) {
-				if ( $userId ) {
-					$this->addWhereFld( 'img_user', $userId );
-				} else {
-					$this->addWhereFld( 'img_user_text', $params['user'] );
-				}
+				$actorQuery = ActorMigration::newMigration()
+					->getWhere( $db, 'img_user', User::newFromName( $params['user'], false ) );
+				$this->addTables( $actorQuery['tables'] );
+				$this->addJoinConds( $actorQuery['joins'] );
+				$this->addWhere( $actorQuery['conds'] );
 			}
 			if ( $params['filterbots'] != 'all' ) {
+				$actorQuery = ActorMigration::newMigration()->getJoin( 'img_user' );
+				$this->addTables( $actorQuery['tables'] );
 				$this->addTables( 'user_groups' );
+				$this->addJoinConds( $actorQuery['joins'] );
 				$this->addJoinConds( [ 'user_groups' => [
 					'LEFT JOIN',
 					[
 						'ug_group' => User::getGroupsWithPermission( 'bot' ),
-						'ug_user = img_user',
+						'ug_user = ' . $actorQuery['fields']['img_user'],
 						'ug_expiry IS NULL OR ug_expiry >= ' . $db->addQuotes( $db->timestamp() )
 					]
 				] ] );
-				$groupCond = ( $params['filterbots'] == 'nobots' ? 'NULL' : 'NOT NULL' );
+				$groupCond = $params['filterbots'] == 'nobots' ? 'NULL' : 'NOT NULL';
 				$this->addWhere( "ug_group IS $groupCond" );
 			}
 		}
 
 		// Filters not depending on sort
 		if ( isset( $params['minsize'] ) ) {
-			$this->addWhere( 'img_size>=' . intval( $params['minsize'] ) );
+			$this->addWhere( 'img_size>=' . (int)$params['minsize'] );
 		}
 
 		if ( isset( $params['maxsize'] ) ) {
-			$this->addWhere( 'img_size<=' . intval( $params['maxsize'] ) );
+			$this->addWhere( 'img_size<=' . (int)$params['maxsize'] );
 		}
 
 		$sha1 = false;
@@ -273,15 +275,6 @@ class ApiQueryAllImages extends ApiQueryGeneratorBase {
 		}
 		if ( $params['sort'] == 'timestamp' ) {
 			$this->addOption( 'ORDER BY', 'img_timestamp' . $sortFlag );
-			if ( !is_null( $params['user'] ) ) {
-				if ( $userId ) {
-					$this->addOption( 'USE INDEX', [ 'image' => 'img_user_timestamp' ] );
-				} else {
-					$this->addOption( 'USE INDEX', [ 'image' => 'img_usertext_timestamp' ] );
-				}
-			} else {
-				$this->addOption( 'USE INDEX', [ 'image' => 'img_timestamp' ] );
-			}
 		} else {
 			$this->addOption( 'ORDER BY', 'img_name' . $sortFlag );
 		}

@@ -75,7 +75,7 @@ class BenchmarkParse extends Maintenance {
 		// Set as a member variable to avoid function calls when we're timing the parse
 		$this->linkCache = MediaWikiServices::getInstance()->getLinkCache();
 
-		$title = Title::newFromText( $this->getArg() );
+		$title = Title::newFromText( $this->getArg( 0 ) );
 		if ( !$title ) {
 			$this->error( "Invalid title" );
 			exit( 1 );
@@ -106,7 +106,7 @@ class BenchmarkParse extends Maintenance {
 
 		$loops = $this->getOption( 'loops', 1 );
 		if ( $loops < 1 ) {
-			$this->error( 'Invalid number of loops specified', true );
+			$this->fatalError( 'Invalid number of loops specified' );
 		}
 		$startUsage = getrusage();
 		$startTime = microtime( true );
@@ -145,7 +145,7 @@ class BenchmarkParse extends Maintenance {
 			],
 			__METHOD__,
 			[ 'ORDER BY' => 'rev_timestamp DESC', 'LIMIT' => 1 ],
-			[ 'revision' => [ 'INNER JOIN', 'rev_page=page_id' ] ]
+			[ 'revision' => [ 'JOIN', 'rev_page=page_id' ] ]
 		);
 
 		return $id;
@@ -188,5 +188,5 @@ class BenchmarkParse extends Maintenance {
 	}
 }
 
-$maintClass = 'BenchmarkParse';
+$maintClass = BenchmarkParse::class;
 require RUN_MAINTENANCE_IF_MAIN;

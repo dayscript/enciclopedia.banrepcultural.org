@@ -32,11 +32,11 @@ class Interwiki {
 	/** @var string The URL of the wiki, with "$1" as a placeholder for an article name. */
 	protected $mURL;
 
-	/** @var string The URL of the file api.php  */
+	/** @var string The URL of the file api.php */
 	protected $mAPI;
 
 	/** @var string The name of the database (for a connection to be established
-	 *    with wfGetLB( 'wikiid' ))
+	 *    with LBFactory::getMainLB( 'domainId' ))
 	 */
 	protected $mWikiID;
 
@@ -66,6 +66,7 @@ class Interwiki {
 	 * @return bool Whether it exists
 	 */
 	public static function isValidInterwiki( $prefix ) {
+		wfDeprecated( __METHOD__, '1.28' );
 		return MediaWikiServices::getInstance()->getInterwikiLookup()->isValidInterwiki( $prefix );
 	}
 
@@ -78,6 +79,7 @@ class Interwiki {
 	 * @return Interwiki|null|bool
 	 */
 	public static function fetch( $prefix ) {
+		wfDeprecated( __METHOD__, '1.28' );
 		return MediaWikiServices::getInstance()->getInterwikiLookup()->fetch( $prefix );
 	}
 
@@ -88,26 +90,28 @@ class Interwiki {
 	 * @since 1.26
 	 */
 	public static function invalidateCache( $prefix ) {
-		return MediaWikiServices::getInstance()->getInterwikiLookup()->invalidateCache( $prefix );
+		wfDeprecated( __METHOD__, '1.28' );
+		MediaWikiServices::getInstance()->getInterwikiLookup()->invalidateCache( $prefix );
 	}
 
 	/**
-	 * Returns all interwiki prefixes
+	 * Returns all interwiki prefix definitions.
 	 *
 	 * @deprecated since 1.28, unused. Use InterwikiLookup instead.
 	 *
 	 * @param string|null $local If set, limits output to local/non-local interwikis
-	 * @return array List of prefixes
+	 * @return array[] List of interwiki rows
 	 * @since 1.19
 	 */
 	public static function getAllPrefixes( $local = null ) {
+		wfDeprecated( __METHOD__, '1.28' );
 		return MediaWikiServices::getInstance()->getInterwikiLookup()->getAllPrefixes( $local );
 	}
 
 	/**
 	 * Get the URL for a particular title (or with $1 if no title given)
 	 *
-	 * @param string $title What text to put for the article name
+	 * @param string|null $title What text to put for the article name
 	 * @return string The URL
 	 * @note Prior to 1.19 The getURL with an argument was broken.
 	 *       If you if you use this arg in an extension that supports MW earlier

@@ -22,11 +22,29 @@
  *
  * @file
  */
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\RevisionStore;
+use MediaWiki\Storage\SqlBlobStore;
 
 /**
  * @ingroup Dump
  */
 class XmlDumpWriter {
+	/**
+	 * @var string[] the schema versions supported for output
+	 * @final
+	 */
+	public static $supportedSchemas = [
+		XML_DUMP_SCHEMA_VERSION_10,
+	];
+
+	/**
+	 * Title of the currently processed page
+	 *
+	 * @var Title|null
+	 */
+	private $currentTitle = null;
+
 	/**
 	 * Opens the XML output stream's root "<mediawiki>" element.
 	 * This does not include an xml directive, so is safe to include
@@ -38,7 +56,6 @@ class XmlDumpWriter {
 	 * @return string
 	 */
 	function openStream() {
-		global $wgContLang;
 		$ver = WikiExporter::schemaVersion();
 		return Xml::element( 'mediawiki', [
 			'xmlns'              => "http://www.mediawiki.org/xml/export-$ver/",
@@ -55,8 +72,8 @@ class XmlDumpWriter {
 			 */
 			'xsi:schemaLocation' => "http://www.mediawiki.org/xml/export-$ver/ " .
 				"http://www.mediawiki.org/xml/export-$ver.xsd",
-			'version'            => $ver,
-			'xml:lang'           => $wgContLang->getHtmlCode() ],
+			'version' => $ver,
+			'xml:lang' => MediaWikiServices::getInstance()->getContentLanguage()->getHtmlCode() ],
 			null ) .
 			"\n" .
 			$this->siteInfo();
@@ -123,9 +140,11 @@ class XmlDumpWriter {
 	 * @return string
 	 */
 	function namespaces() {
-		global $wgContLang;
 		$spaces = "<namespaces>\n";
-		foreach ( $wgContLang->getFormattedNamespaces() as $ns => $title ) {
+		foreach (
+			MediaWikiServices::getInstance()->getContentLanguage()->getFormattedNamespaces()
+			as $ns => $title
+		) {
 			$spaces .= '      ' .
 				Xml::element( 'namespace',
 					[
@@ -156,12 +175,13 @@ class XmlDumpWriter {
 	 */
 	public function openPage( $row ) {
 		$out = "  <page>\n";
-		$title = Title::makeTitle( $row->page_namespace, $row->page_title );
-		$out .= '    ' . Xml::elementClean( 'title', [], self::canonicalTitle( $title ) ) . "\n";
+		$this->currentTitle = Title::makeTitle( $row->page_namespace, $row->page_title );
+		$canonicalTitle = self::canonicalTitle( $this->currentTitle );
+		$out .= '    ' . Xml::elementClean( 'title', [], $canonicalTitle ) . "\n";
 		$out .= '    ' . Xml::element( 'ns', [], strval( $row->page_namespace ) ) . "\n";
 		$out .= '    ' . Xml::element( 'id', [], strval( $row->page_id ) ) . "\n";
 		if ( $row->page_is_redirect ) {
-			$page = WikiPage::factory( $title );
+			$page = WikiPage::factory( $this->currentTitle );
 			$redirect = $page->getRedirectTarget();
 			if ( $redirect instanceof Title && $redirect->isValidRedirectTarget() ) {
 				$out .= '    ';
@@ -175,7 +195,7 @@ class XmlDumpWriter {
 				strval( $row->page_restrictions ) ) . "\n";
 		}
 
-		Hooks::run( 'XmlDumpWriterOpenPage', [ $this, &$out, $row, $title ] );
+		Hooks::run( 'XmlDumpWriterOpenPage', [ $this, &$out, $row, $this->currentTitle ] );
 
 		return $out;
 	}
@@ -183,11 +203,31 @@ class XmlDumpWriter {
 	/**
 	 * Closes a "<page>" section on the output stream.
 	 *
-	 * @access private
+	 * @private
 	 * @return string
 	 */
 	function closePage() {
+		if ( $this->currentTitle !== null ) {
+			$linkCache = MediaWikiServices::getInstance()->getLinkCache();
+			// In rare cases, link cache has the same key for some pages which
+			// might be read as part of the same batch. T220424 and T220316
+			$linkCache->clearLink( $this->currentTitle );
+		}
 		return "  </page>\n";
+	}
+
+	/**
+	 * @return RevisionStore
+	 */
+	private function getRevisionStore() {
+		return MediaWikiServices::getInstance()->getRevisionStore();
+	}
+
+	/**
+	 * @return SqlBlobStore
+	 */
+	private function getBlobStore() {
+		return MediaWikiServices::getInstance()->getBlobStore();
 	}
 
 	/**
@@ -196,10 +236,9 @@ class XmlDumpWriter {
 	 *
 	 * @param object $row
 	 * @return string
-	 * @access private
+	 * @private
 	 */
 	function writeRevision( $row ) {
-
 		$out = "    <revision>\n";
 		$out .= "      " . Xml::element( 'id', null, strval( $row->rev_id ) ) . "\n";
 		if ( isset( $row->rev_parent_id ) && $row->rev_parent_id ) {
@@ -219,20 +258,24 @@ class XmlDumpWriter {
 		}
 		if ( isset( $row->rev_deleted ) && ( $row->rev_deleted & Revision::DELETED_COMMENT ) ) {
 			$out .= "      " . Xml::element( 'comment', [ 'deleted' => 'deleted' ] ) . "\n";
-		} elseif ( $row->rev_comment != '' ) {
-			$out .= "      " . Xml::elementClean( 'comment', [], strval( $row->rev_comment ) ) . "\n";
+		} else {
+			$comment = CommentStore::getStore()->getComment( 'rev_comment', $row )->text;
+			if ( $comment != '' ) {
+				$out .= "      " . Xml::elementClean( 'comment', [], strval( $comment ) ) . "\n";
+			}
 		}
 
+		// TODO: rev_content_model no longer exists with MCR, see T174031
 		if ( isset( $row->rev_content_model ) && !is_null( $row->rev_content_model ) ) {
 			$content_model = strval( $row->rev_content_model );
 		} else {
 			// probably using $wgContentHandlerUseDB = false;
-			$title = Title::makeTitle( $row->page_namespace, $row->page_title );
-			$content_model = ContentHandler::getDefaultModelFor( $title );
+			$content_model = ContentHandler::getDefaultModelFor( $this->currentTitle );
 		}
 
 		$content_handler = ContentHandler::getForModelID( $content_model );
 
+		// TODO: rev_content_format no longer exists with MCR, see T174031
 		if ( isset( $row->rev_content_format ) && !is_null( $row->rev_content_format ) ) {
 			$content_format = strval( $row->rev_content_format );
 		} else {
@@ -249,15 +292,70 @@ class XmlDumpWriter {
 		} elseif ( isset( $row->old_text ) ) {
 			// Raw text from the database may have invalid chars
 			$text = strval( Revision::getRevisionText( $row ) );
-			$text = $content_handler->exportTransform( $text, $content_format );
+			try {
+				$text = $content_handler->exportTransform( $text, $content_format );
+			}
+			catch ( Exception $ex ) {
+				if ( $ex instanceof MWException || $ex instanceof RuntimeException ) {
+					// leave text as is; that's the way it goes
+					wfLogWarning( 'exportTransform failed on text for revid ' . $row->rev_id . "\n" );
+				} else {
+					throw $ex;
+				}
+			}
 			$out .= "      " . Xml::elementClean( 'text',
 				[ 'xml:space' => 'preserve', 'bytes' => intval( $row->rev_len ) ],
 				strval( $text ) ) . "\n";
-		} else {
-			// Stub output
+		} elseif ( isset( $row->_load_content ) ) {
+			// TODO: make this fully MCR aware, see T174031
+			$rev = $this->getRevisionStore()->newRevisionFromRow( $row, 0, $this->currentTitle );
+			$slot = $rev->getSlot( 'main' );
+			try {
+				$content = $slot->getContent();
+
+				if ( $content instanceof TextContent ) {
+					// HACK: For text based models, bypass the serialization step.
+					// This allows extensions (like Flow)that use incompatible combinations
+					// of serialization format and content model.
+					$text = $content->getNativeData();
+				} else {
+					$text = $content->serialize( $content_format );
+				}
+				$text = $content_handler->exportTransform( $text, $content_format );
+				$out .= "      " . Xml::elementClean( 'text',
+					[ 'xml:space' => 'preserve', 'bytes' => intval( $slot->getSize() ) ],
+					strval( $text ) ) . "\n";
+			}
+			catch ( Exception $ex ) {
+				if ( $ex instanceof MWException || $ex instanceof RuntimeException ) {
+					// there's no provsion in the schema for an attribute that will let
+					// the user know this element was unavailable due to error; an empty
+					// tag is the best we can do
+					$out .= "      " . Xml::element( 'text' ) . "\n";
+					wfLogWarning( 'failed to load content for revid ' . $row->rev_id . "\n" );
+				} else {
+					throw $ex;
+				}
+			}
+		} elseif ( isset( $row->rev_text_id ) ) {
+			// Stub output for pre-MCR schema
+			// TODO: MCR: rev_text_id only exists in the pre-MCR schema. Remove this when
+			// we drop support for the old schema.
 			$out .= "      " . Xml::element( 'text',
 				[ 'id' => $row->rev_text_id, 'bytes' => intval( $row->rev_len ) ],
 				"" ) . "\n";
+		} else {
+			// Backwards-compatible stub output for MCR aware schema
+			// TODO: MCR: emit content addresses instead of text ids, see T174031, T199121
+			$rev = $this->getRevisionStore()->newRevisionFromRow( $row, 0, $this->currentTitle );
+			$slot = $rev->getSlot( 'main' );
+
+			// Note that this is currently the ONLY reason we have a BlobStore here at all.
+			// When removing this line, check whether the BlobStore has become unused.
+			$textId = $this->getBlobStore()->getTextIdFromAddress( $slot->getAddress() );
+			$out .= "      " . Xml::element( 'text',
+					[ 'id' => $textId, 'bytes' => intval( $slot->getSize() ) ],
+					"" ) . "\n";
 		}
 
 		if ( isset( $row->rev_sha1 )
@@ -284,10 +382,9 @@ class XmlDumpWriter {
 	 *
 	 * @param object $row
 	 * @return string
-	 * @access private
+	 * @private
 	 */
 	function writeLogItem( $row ) {
-
 		$out = "  <logitem>\n";
 		$out .= "    " . Xml::element( 'id', null, strval( $row->log_id ) ) . "\n";
 
@@ -301,8 +398,11 @@ class XmlDumpWriter {
 
 		if ( $row->log_deleted & LogPage::DELETED_COMMENT ) {
 			$out .= "    " . Xml::element( 'comment', [ 'deleted' => 'deleted' ] ) . "\n";
-		} elseif ( $row->log_comment != '' ) {
-			$out .= "    " . Xml::elementClean( 'comment', null, strval( $row->log_comment ) ) . "\n";
+		} else {
+			$comment = CommentStore::getStore()->getComment( 'log_comment', $row )->text;
+			if ( $comment != '' ) {
+				$out .= "    " . Xml::elementClean( 'comment', null, strval( $comment ) ) . "\n";
+			}
 		}
 
 		$out .= "    " . Xml::element( 'type', null, strval( $row->log_type ) ) . "\n";
@@ -399,7 +499,7 @@ class XmlDumpWriter {
 		if ( $file->isDeleted( File::DELETED_COMMENT ) ) {
 			$comment = Xml::element( 'comment', [ 'deleted' => 'deleted' ] );
 		} else {
-			$comment = Xml::elementClean( 'comment', null, $file->getDescription() );
+			$comment = Xml::elementClean( 'comment', null, strval( $file->getDescription() ) );
 		}
 		return "    <upload>\n" .
 			$this->writeTimestamp( $file->getTimestamp() ) .
@@ -430,8 +530,8 @@ class XmlDumpWriter {
 			return $title->getPrefixedText();
 		}
 
-		global $wgContLang;
-		$prefix = $wgContLang->getFormattedNsText( $title->getNamespace() );
+		$prefix = MediaWikiServices::getInstance()->getContentLanguage()->
+			getFormattedNsText( $title->getNamespace() );
 
 		// @todo Emit some kind of warning to the user if $title->getNamespace() !==
 		// NS_MAIN and $prefix === '' (viz. pages in an unregistered namespace)

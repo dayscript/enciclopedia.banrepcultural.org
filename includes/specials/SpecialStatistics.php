@@ -168,7 +168,11 @@ class SpecialStatistics extends SpecialPage {
 			Xml::tags( 'th', [ 'colspan' => '2' ],
 				$this->msg( 'statistics-header-users' )->parse() ) .
 			Xml::closeElement( 'tr' ) .
-			$this->formatRow( $this->msg( 'statistics-users' )->parse(),
+			$this->formatRow( $this->msg( 'statistics-users' )->parse() . ' ' .
+				$this->getLinkRenderer()->makeKnownLink(
+					SpecialPage::getTitleFor( 'Listusers' ),
+					$this->msg( 'listgrouprights-members' )->text()
+				),
 				$this->getLanguage()->formatNum( $this->users ),
 				[ 'class' => 'mw-statistics-users' ]
 			) .
@@ -253,7 +257,6 @@ class SpecialStatistics extends SpecialPage {
 		foreach ( $stats as $header => $items ) {
 			// Identify the structure used
 			if ( is_array( $items ) ) {
-
 				// Ignore headers that are recursively set as legacy header
 				if ( $header !== 'statistics-header-hooks' ) {
 					$return .= $this->formatRowHeader( $header );

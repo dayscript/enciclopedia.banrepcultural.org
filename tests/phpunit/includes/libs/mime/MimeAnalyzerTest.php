@@ -1,5 +1,12 @@
 <?php
-class MimeMagicTest extends PHPUnit_Framework_TestCase {
+/**
+ * @group Media
+ * @covers MimeAnalyzer
+ */
+class MimeAnalyzerTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
+
 	/** @var MimeAnalyzer */
 	private $mimeAnalyzer;
 
@@ -18,6 +25,13 @@ class MimeMagicTest extends PHPUnit_Framework_TestCase {
 			]
 		] );
 		parent::setUp();
+	}
+
+	function doGuessMimeType( array $parameters = [] ) {
+		$class = new ReflectionClass( get_class( $this->mimeAnalyzer ) );
+		$method = $class->getMethod( 'doGuessMimeType' );
+		$method->setAccessible( true );
+		return $method->invokeArgs( $this->mimeAnalyzer, $parameters );
 	}
 
 	/**
@@ -57,7 +71,7 @@ class MimeMagicTest extends PHPUnit_Framework_TestCase {
 	function testOggRecognize() {
 		$oggFile = __DIR__ . '/../../../data/media/say-test.ogg';
 		$actualType = $this->mimeAnalyzer->getMediaType( $oggFile, 'application/ogg' );
-		$this->assertEquals( $actualType, MEDIATYPE_AUDIO );
+		$this->assertEquals( MEDIATYPE_AUDIO, $actualType );
 	}
 
 	/**
@@ -67,6 +81,60 @@ class MimeMagicTest extends PHPUnit_Framework_TestCase {
 	function testOpusRecognize() {
 		$oggFile = __DIR__ . '/../../../data/media/say-test.opus';
 		$actualType = $this->mimeAnalyzer->getMediaType( $oggFile, 'application/ogg' );
-		$this->assertEquals( $actualType, MEDIATYPE_AUDIO );
+		$this->assertEquals( MEDIATYPE_AUDIO, $actualType );
+	}
+
+	/**
+	 * Test to make sure that mp3 files are detected as audio type
+	 */
+	function testMP3AsAudio() {
+		$file = __DIR__ . '/../../../data/media/say-test-with-id3.mp3';
+		$actualType = $this->mimeAnalyzer->getMediaType( $file );
+		$this->assertEquals( MEDIATYPE_AUDIO, $actualType );
+	}
+
+	/**
+	 * Test to make sure that MP3 with id3 tag is recognized
+	 */
+	function testMP3WithID3Recognize() {
+		$file = __DIR__ . '/../../../data/media/say-test-with-id3.mp3';
+		$actualType = $this->doGuessMimeType( [ $file, 'mp3' ] );
+		$this->assertEquals( 'audio/mpeg', $actualType );
+	}
+
+	/**
+	 * Test to make sure that MP3 without id3 tag is recognized (MPEG-1 sample rates)
+	 */
+	function testMP3NoID3RecognizeMPEG1() {
+		$file = __DIR__ . '/../../../data/media/say-test-mpeg1.mp3';
+		$actualType = $this->doGuessMimeType( [ $file, 'mp3' ] );
+		$this->assertEquals( 'audio/mpeg', $actualType );
+	}
+
+	/**
+	 * Test to make sure that MP3 without id3 tag is recognized (MPEG-2 sample rates)
+	 */
+	function testMP3NoID3RecognizeMPEG2() {
+		$file = __DIR__ . '/../../../data/media/say-test-mpeg2.mp3';
+		$actualType = $this->doGuessMimeType( [ $file, 'mp3' ] );
+		$this->assertEquals( 'audio/mpeg', $actualType );
+	}
+
+	/**
+	 * Test to make sure that MP3 without id3 tag is recognized (MPEG-2.5 sample rates)
+	 */
+	function testMP3NoID3RecognizeMPEG2_5() {
+		$file = __DIR__ . '/../../../data/media/say-test-mpeg2.5.mp3';
+		$actualType = $this->doGuessMimeType( [ $file, 'mp3' ] );
+		$this->assertEquals( 'audio/mpeg', $actualType );
+	}
+
+	/**
+	 * A ZIP file embedded in the middle of a .doc file is still a Word Document.
+	 */
+	function testZipInDoc() {
+		$file = __DIR__ . '/../../../data/media/zip-in-doc.doc';
+		$actualType = $this->doGuessMimeType( [ $file, 'doc' ] );
+		$this->assertEquals( 'application/msword', $actualType );
 	}
 }

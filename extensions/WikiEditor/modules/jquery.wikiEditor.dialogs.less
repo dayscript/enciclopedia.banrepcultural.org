@@ -1,10 +1,10 @@
+@import 'mediawiki.mixins';
+
 /**
  * CSS for WikiEditor Dialogs jQuery plugin
  */
 
 .wikiEditor-toolbar-dialog {
-	border: 0;
-
 	.ui-dialog-content {
 		/* stylelint-disable declaration-no-important */
 		fieldset {
@@ -14,17 +14,13 @@
 		}
 		/* stylelint-enable declaration-no-important */
 
-		input[type='text'] {
-			-moz-box-sizing: border-box;
-			-ms-box-sizing: border-box;
-			-webkit-box-sizing: border-box;
-			-khtml-box-sizing: border-box;
-			box-sizing: border-box;
+		input[ type='text' ] {
+			.box-sizing( border-box );
 		}
 
 		input {
-			&[type='radio'],
-			&[type='checkbox'] {
+			&[ type='radio' ],
+			&[ type='checkbox' ] {
 				margin-left: 0;
 			}
 		}
@@ -55,8 +51,4 @@ body {
 .wikieditor-toolbar-floated-field-wrapper {
 	float: left;
 	margin-right: 2em;
-}
-
-.wikieditor-toolbar-dialog-hint {
-	color: #999;
 }

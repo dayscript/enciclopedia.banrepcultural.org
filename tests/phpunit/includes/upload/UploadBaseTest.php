@@ -103,6 +103,8 @@ class UploadBaseTest extends MediaWikiTestCase {
 	}
 
 	/**
+	 * @covers UploadBase::verifyUpload
+	 *
 	 * test uploading a 100 bytes file with $wgMaxUploadSize = 100
 	 *
 	 * This method should be abstracted so we can test different settings.
@@ -126,6 +128,7 @@ class UploadBaseTest extends MediaWikiTestCase {
 	}
 
 	/**
+	 * @covers UploadBase::checkSvgScriptCallback
 	 * @dataProvider provideCheckSvgScriptCallback
 	 */
 	public function testCheckSvgScriptCallback( $svg, $wellFormed, $filterMatch, $message ) {
@@ -135,13 +138,13 @@ class UploadBaseTest extends MediaWikiTestCase {
 	}
 
 	public static function provideCheckSvgScriptCallback() {
-		// @codingStandardsIgnoreStart Generic.Files.LineLength
+		// phpcs:disable Generic.Files.LineLength
 		return [
 			// html5sec SVG vectors
 			[
 				'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
-				true,
-				true,
+				true, /* SVG is well formed */
+				true, /* Evil SVG detected */
 				'Script tag in svg (http://html5sec.org/#47)'
 			],
 			[
@@ -506,12 +509,26 @@ class UploadBaseTest extends MediaWikiTestCase {
 				true,
 				false,
 				'DTD with aliased entities apos (Should be allowed)'
-			]
+			],
+			[
+				'<svg xmlns="http://www.w3.org/2000/svg"><g filter="url( \'#foo\' )"></g></svg>',
+				true,
+				false,
+				'SVG with local filter (T69044)'
+			],
+			[
+				'<svg xmlns="http://www.w3.org/2000/svg"><g filter="url( http://example.com/#foo )"></g></svg>',
+				true,
+				true,
+				'SVG with non-local filter (T69044)'
+			],
+
 		];
-		// @codingStandardsIgnoreEnd
+		// phpcs:enable
 	}
 
 	/**
+	 * @covers UploadBase::detectScriptInSvg
 	 * @dataProvider provideDetectScriptInSvg
 	 */
 	public function testDetectScriptInSvg( $svg, $expected, $message ) {
@@ -552,12 +569,13 @@ class UploadBaseTest extends MediaWikiTestCase {
 	}
 
 	/**
+	 * @covers UploadBase::checkXMLEncodingMissmatch
 	 * @dataProvider provideCheckXMLEncodingMissmatch
 	 */
 	public function testCheckXMLEncodingMissmatch( $fileContents, $evil ) {
 		$filename = $this->getNewTempFile();
 		file_put_contents( $filename, $fileContents );
-		$this->assertSame( UploadBase::checkXMLEncodingMissmatch( $filename ), $evil );
+		$this->assertSame( $evil, UploadBase::checkXMLEncodingMissmatch( $filename ) );
 	}
 
 	public function provideCheckXMLEncodingMissmatch() {

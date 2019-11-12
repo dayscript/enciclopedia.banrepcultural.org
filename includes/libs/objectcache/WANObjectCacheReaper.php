@@ -17,7 +17,6 @@
  *
  * @file
  * @ingroup Cache
- * @author Aaron Schulz
  */
 
 use Psr\Log\LoggerAwareInterface;
@@ -49,7 +48,7 @@ class WANObjectCacheReaper implements LoggerAwareInterface {
 
 	/** @var string */
 	protected $channel;
-	/** @var integer */
+	/** @var int */
 	protected $initialStartWindow;
 
 	/**
@@ -70,7 +69,6 @@ class WANObjectCacheReaper implements LoggerAwareInterface {
 	 *        The callback must fully duck-type test the object, since can be any model class.
 	 * @param array $params Additional options:
 	 *          - channel: the name of the update event stream.
-	 *            Default: WANObjectCache::DEFAULT_PURGE_CHANNEL.
 	 *          - initialStartWindow: seconds back in time to start if the position is lost.
 	 *            Default: 1 hour.
 	 *          - logger: an SPL monolog instance [optional]
@@ -93,12 +91,8 @@ class WANObjectCacheReaper implements LoggerAwareInterface {
 			throw new UnexpectedValueException( "No channel specified." );
 		}
 
-		$this->initialStartWindow = isset( $params['initialStartWindow'] )
-			? $params['initialStartWindow']
-			: 3600;
-		$this->logger = isset( $params['logger'] )
-			? $params['logger']
-			: new NullLogger();
+		$this->initialStartWindow = $params['initialStartWindow'] ?? 3600;
+		$this->logger = $params['logger'] ?? new NullLogger();
 	}
 
 	public function setLogger( LoggerInterface $logger ) {

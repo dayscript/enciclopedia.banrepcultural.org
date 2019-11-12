@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Sep 25, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -126,22 +122,22 @@ class ApiQueryAllPages extends ApiQueryGeneratorBase {
 		$this->addFields( $selectFields );
 		$forceNameTitleIndex = true;
 		if ( isset( $params['minsize'] ) ) {
-			$this->addWhere( 'page_len>=' . intval( $params['minsize'] ) );
+			$this->addWhere( 'page_len>=' . (int)$params['minsize'] );
 			$forceNameTitleIndex = false;
 		}
 
 		if ( isset( $params['maxsize'] ) ) {
-			$this->addWhere( 'page_len<=' . intval( $params['maxsize'] ) );
+			$this->addWhere( 'page_len<=' . (int)$params['maxsize'] );
 			$forceNameTitleIndex = false;
 		}
 
 		// Page protection filtering
-		if ( count( $params['prtype'] ) || $params['prexpiry'] != 'all' ) {
+		if ( $params['prtype'] || $params['prexpiry'] != 'all' ) {
 			$this->addTables( 'page_restrictions' );
 			$this->addWhere( 'page_id=pr_page' );
 			$this->addWhere( "pr_expiry > {$db->addQuotes( $db->timestamp() )} OR pr_expiry IS NULL" );
 
-			if ( count( $params['prtype'] ) ) {
+			if ( $params['prtype'] ) {
 				$this->addWhereFld( 'pr_type', $params['prtype'] );
 
 				if ( isset( $params['prlevel'] ) ) {
@@ -242,8 +238,8 @@ class ApiQueryAllPages extends ApiQueryGeneratorBase {
 			if ( is_null( $resultPageSet ) ) {
 				$title = Title::makeTitle( $row->page_namespace, $row->page_title );
 				$vals = [
-					'pageid' => intval( $row->page_id ),
-					'ns' => intval( $title->getNamespace() ),
+					'pageid' => (int)$row->page_id,
+					'ns' => (int)$title->getNamespace(),
 					'title' => $title->getPrefixedText()
 				];
 				$fit = $result->addValue( [ 'query', $this->getModuleName() ], null, $vals );

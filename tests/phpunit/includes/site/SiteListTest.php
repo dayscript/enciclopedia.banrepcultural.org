@@ -1,8 +1,6 @@
 <?php
 
 /**
- * Tests for the SiteList class.
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -99,7 +97,7 @@ class SiteListTest extends MediaWikiTestCase {
 		 * @var Site $site
 		 */
 		foreach ( $sites as $site ) {
-			if ( is_integer( $site->getInternalId() ) ) {
+			if ( is_int( $site->getInternalId() ) ) {
 				$this->assertEquals( $site, $sites->getSiteByInternalId( $site->getInternalId() ) );
 			}
 		}
@@ -155,7 +153,7 @@ class SiteListTest extends MediaWikiTestCase {
 		 * @var Site $site
 		 */
 		foreach ( $sites as $site ) {
-			if ( is_integer( $site->getInternalId() ) ) {
+			if ( is_int( $site->getInternalId() ) ) {
 				$this->assertTrue( $site, $sites->hasInternalId( $site->getInternalId() ) );
 			}
 		}

@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on May 12, 2007
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -34,7 +30,7 @@ class ApiQueryLinks extends ApiQueryGeneratorBase {
 	const LINKS = 'links';
 	const TEMPLATES = 'templates';
 
-	private $table, $prefix, $helpUrl;
+	private $table, $prefix, $titlesParam, $helpUrl;
 
 	public function __construct( ApiQuery $query, $moduleName ) {
 		switch ( $moduleName ) {
@@ -87,30 +83,42 @@ class ApiQueryLinks extends ApiQueryGeneratorBase {
 
 		$this->addTables( $this->table );
 		$this->addWhereFld( $this->prefix . '_from', array_keys( $this->getPageSet()->getGoodTitles() ) );
-		$this->addWhereFld( $this->prefix . '_namespace', $params['namespace'] );
 
-		if ( !is_null( $params[$this->titlesParam] ) ) {
+		$multiNS = true;
+		$multiTitle = true;
+		if ( $params[$this->titlesParam] ) {
+			// Filter the titles in PHP so our ORDER BY bug avoidance below works right.
+			$filterNS = $params['namespace'] ? array_flip( $params['namespace'] ) : false;
+
 			$lb = new LinkBatch;
 			foreach ( $params[$this->titlesParam] as $t ) {
 				$title = Title::newFromText( $t );
 				if ( !$title ) {
 					$this->addWarning( [ 'apiwarn-invalidtitle', wfEscapeWikiText( $t ) ] );
-				} else {
+				} elseif ( !$filterNS || isset( $filterNS[$title->getNamespace()] ) ) {
 					$lb->addObj( $title );
 				}
 			}
 			$cond = $lb->constructSet( $this->prefix, $this->getDB() );
 			if ( $cond ) {
 				$this->addWhere( $cond );
+				$multiNS = count( $lb->data ) !== 1;
+				$multiTitle = count( array_merge( ...$lb->data ) ) !== 1;
+			} else {
+				// No titles so no results
+				return;
 			}
+		} elseif ( $params['namespace'] ) {
+			$this->addWhereFld( $this->prefix . '_namespace', $params['namespace'] );
+			$multiNS = $params['namespace'] === null || count( $params['namespace'] ) !== 1;
 		}
 
 		if ( !is_null( $params['continue'] ) ) {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 3 );
 			$op = $params['dir'] == 'descending' ? '<' : '>';
-			$plfrom = intval( $cont[0] );
-			$plns = intval( $cont[1] );
+			$plfrom = (int)$cont[0];
+			$plns = (int)$cont[1];
 			$pltitle = $this->getDB()->addQuotes( $cont[2] );
 			$this->addWhere(
 				"{$this->prefix}_from $op $plfrom OR " .
@@ -131,13 +139,15 @@ class ApiQueryLinks extends ApiQueryGeneratorBase {
 		if ( count( $this->getPageSet()->getGoodTitles() ) != 1 ) {
 			$order[] = $this->prefix . '_from' . $sort;
 		}
-		if ( count( $params['namespace'] ) != 1 ) {
+		if ( $multiNS ) {
 			$order[] = $this->prefix . '_namespace' . $sort;
 		}
-
-		$order[] = $this->prefix . '_title' . $sort;
-		$this->addOption( 'ORDER BY', $order );
-		$this->addOption( 'USE INDEX', $this->prefix . '_from' );
+		if ( $multiTitle ) {
+			$order[] = $this->prefix . '_title' . $sort;
+		}
+		if ( $order ) {
+			$this->addOption( 'ORDER BY', $order );
+		}
 		$this->addOption( 'LIMIT', $params['limit'] + 1 );
 
 		$res = $this->select( __METHOD__ );

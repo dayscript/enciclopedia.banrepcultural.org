@@ -1,8 +1,5 @@
 <?php
 /**
- *
- * Created on January 3rd, 2013
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -36,14 +33,12 @@ class ApiImageRotate extends ApiBase {
 		$pageSet = $this->getPageSet();
 		$pageSet->execute();
 
-		$result = [];
-
 		$result = $pageSet->getInvalidTitlesAndRevisions( [
 			'invalidTitles', 'special', 'missingIds', 'missingRevIds', 'interwikiTitles',
 		] );
 
 		// Check if user can add tags
-		if ( count( $params['tags'] ) ) {
+		if ( $params['tags'] ) {
 			$ableToTag = ChangeTags::canAddTagsAccompanyingChange( $params['tags'], $this->getUser() );
 			if ( !$ableToTag->isOK() ) {
 				$this->dieStatus( $ableToTag );

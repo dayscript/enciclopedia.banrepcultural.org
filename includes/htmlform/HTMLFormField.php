@@ -17,6 +17,9 @@ abstract class HTMLFormField {
 	protected $mVFormClass = '';
 	protected $mHelpClass = false;
 	protected $mDefault;
+	/**
+	 * @var array|bool|null
+	 */
 	protected $mOptions = false;
 	protected $mOptionsLabelsNotFromMessage = false;
 	protected $mHideIf = null;
@@ -78,12 +81,9 @@ abstract class HTMLFormField {
 		$args = func_get_args();
 
 		if ( $this->mParent ) {
-			$callback = [ $this->mParent, 'msg' ];
-		} else {
-			$callback = 'wfMessage';
+			return $this->mParent->msg( ...$args );
 		}
-
-		return call_user_func_array( $callback, $args );
+		return wfMessage( ...$args );
 	}
 
 	/**
@@ -137,8 +137,7 @@ abstract class HTMLFormField {
 		for ( $i = count( $thisKeys ) - 1; $i >= 0; $i-- ) {
 			$keys = array_merge( array_slice( $thisKeys, 0, $i ), $nameKeys );
 			$data = $alldata;
-			while ( $keys ) {
-				$key = array_shift( $keys );
+			foreach ( $keys as $key ) {
 				if ( !is_array( $data ) || !array_key_exists( $key, $data ) ) {
 					continue 2;
 				}
@@ -312,7 +311,7 @@ abstract class HTMLFormField {
 		}
 
 		if ( isset( $this->mValidationCallback ) ) {
-			return call_user_func( $this->mValidationCallback, $value, $alldata, $this->mParent );
+			return ( $this->mValidationCallback )( $value, $alldata, $this->mParent );
 		}
 
 		return true;
@@ -320,7 +319,7 @@ abstract class HTMLFormField {
 
 	public function filter( $value, $alldata ) {
 		if ( isset( $this->mFilterCallback ) ) {
-			$value = call_user_func( $this->mFilterCallback, $value, $alldata, $this->mParent );
+			$value = ( $this->mFilterCallback )( $value, $alldata, $this->mParent );
 		}
 
 		return $value;
@@ -357,7 +356,7 @@ abstract class HTMLFormField {
 	 * (wpFormIdentifier).
 	 *
 	 * @param WebRequest $request
-	 * @return boolean
+	 * @return bool
 	 */
 	protected function isSubmitAttempt( WebRequest $request ) {
 		return $request->getCheck( 'wpEditToken' ) || $request->getCheck( 'wpFormIdentifier' );
@@ -397,9 +396,9 @@ abstract class HTMLFormField {
 		if ( isset( $params['label-message'] ) ) {
 			$this->mLabel = $this->getMessage( $params['label-message'] )->parse();
 		} elseif ( isset( $params['label'] ) ) {
-			if ( $params['label'] === '&#160;' ) {
+			if ( $params['label'] === '&#160;' || $params['label'] === "\u{00A0}" ) {
 				// Apparently some things set &nbsp directly and in an odd format
-				$this->mLabel = '&#160;';
+				$this->mLabel = "\u{00A0}";
 			} else {
 				$this->mLabel = htmlspecialchars( $params['label'] );
 			}
@@ -416,8 +415,8 @@ abstract class HTMLFormField {
 			$this->mDir = $params['dir'];
 		}
 
-		$validName = Sanitizer::escapeId( $this->mName );
-		$validName = str_replace( [ '.5B', '.5D' ], [ '[', ']' ], $validName );
+		$validName = urlencode( $this->mName );
+		$validName = str_replace( [ '%5B', '%5D' ], [ '[', ']' ], $validName );
 		if ( $this->mName != $validName && !isset( $params['nodata'] ) ) {
 			throw new MWException( "Invalid name '{$this->mName}' passed to " . __METHOD__ );
 		}
@@ -430,7 +429,7 @@ abstract class HTMLFormField {
 
 		if ( isset( $params['id'] ) ) {
 			$id = $params['id'];
-			$validId = Sanitizer::escapeId( $id );
+			$validId = urlencode( $id );
 
 			if ( $id != $validId ) {
 				throw new MWException( "Invalid id '$id' passed to " . __METHOD__ );
@@ -543,11 +542,10 @@ abstract class HTMLFormField {
 			'mw-htmlform-nolabel' => ( $label === '' )
 		];
 
-		$horizontalLabel = isset( $this->mParams['horizontal-label'] )
-			? $this->mParams['horizontal-label'] : false;
+		$horizontalLabel = $this->mParams['horizontal-label'] ?? false;
 
 		if ( $horizontalLabel ) {
-			$field = '&#160;' . $inputHtml . "\n$errors";
+			$field = "\u{00A0}" . $inputHtml . "\n$errors";
 		} else {
 			$field = Html::rawElement(
 				'div',
@@ -588,7 +586,7 @@ abstract class HTMLFormField {
 			// It might look weird, but it'll work OK.
 			return $this->getFieldLayoutOOUI(
 				new OOUI\Widget( [ 'content' => new OOUI\HtmlSnippet( $this->getDiv( $value ) ) ] ),
-				[ 'infusable' => false, 'align' => 'top' ]
+				[ 'align' => 'top' ]
 			);
 		}
 
@@ -608,18 +606,13 @@ abstract class HTMLFormField {
 			$error = new OOUI\HtmlSnippet( $error );
 		}
 
-		$notices = $this->getNotices();
-		foreach ( $notices as &$notice ) {
-			$notice = new OOUI\HtmlSnippet( $notice );
-		}
-
 		$config = [
 			'classes' => [ "mw-htmlform-field-$fieldType", $this->mClass ],
 			'align' => $this->getLabelAlignOOUI(),
 			'help' => ( $help !== null && $help !== '' ) ? new OOUI\HtmlSnippet( $help ) : null,
 			'errors' => $errors,
-			'notices' => $notices,
 			'infusable' => $infusable,
+			'helpInline' => $this->isHelpInline(),
 		];
 
 		$preloadModules = false;
@@ -631,7 +624,7 @@ abstract class HTMLFormField {
 
 		// the element could specify, that the label doesn't need to be added
 		$label = $this->getLabel();
-		if ( $label ) {
+		if ( $label && $label !== "\u{00A0}" && $label !== '&#160;' ) {
 			$config['label'] = new OOUI\HtmlSnippet( $label );
 		}
 
@@ -660,6 +653,8 @@ abstract class HTMLFormField {
 
 	/**
 	 * Get a FieldLayout (or subclass thereof) to wrap this field in when using OOUI output.
+	 * @param string $inputField
+	 * @param array $config
 	 * @return OOUI\FieldLayout|OOUI\ActionFieldLayout
 	 */
 	protected function getFieldLayoutOOUI( $inputField, $config ) {
@@ -671,20 +666,20 @@ abstract class HTMLFormField {
 	}
 
 	/**
-	 * Whether the field should be automatically infused. Note that all OOjs UI HTMLForm fields are
+	 * Whether the field should be automatically infused. Note that all OOUI HTMLForm fields are
 	 * infusable (you can call OO.ui.infuse() on them), but not all are infused by default, since
 	 * there is no benefit in doing it e.g. for buttons and it's a small performance hit on page load.
 	 *
 	 * @return bool
 	 */
 	protected function shouldInfuseOOUI() {
-		// Always infuse fields with help text, since the interface for it is nicer with JS
-		return $this->getHelpText() !== null;
+		// Always infuse fields with popup help text, since the interface for it is nicer with JS
+		return $this->getHelpText() !== null && !$this->isHelpInline();
 	}
 
 	/**
 	 * Get the list of extra ResourceLoader modules which must be loaded client-side before it's
-	 * possible to infuse this field's OOjs UI widget.
+	 * possible to infuse this field's OOUI widget.
 	 *
 	 * @return string[]
 	 */
@@ -744,7 +739,7 @@ abstract class HTMLFormField {
 		$label = $this->getLabelHtml( $cellAttributes );
 
 		$html = "\n" . $errors .
-			$label . '&#160;' .
+			$label . "\u{00A0}" .
 			$inputHtml .
 			$helptext;
 
@@ -851,11 +846,28 @@ abstract class HTMLFormField {
 	}
 
 	/**
+	 * Determine if the help text should be displayed inline.
+	 *
+	 * Only applies to OOUI forms.
+	 *
+	 * @since 1.31
+	 * @return bool
+	 */
+	public function isHelpInline() {
+		return $this->mParams['help-inline'] ?? true;
+	}
+
+	/**
 	 * Determine form errors to display and their classes
 	 * @since 1.20
 	 *
+	 * phan-taint-check gets confused with returning both classes
+	 * and errors and thinks double escaping is happening, so specify
+	 * that return value has no taint.
+	 *
 	 * @param string $value The value of the input
 	 * @return array array( $errors, $errorClass )
+	 * @return-taint none
 	 */
 	public function getErrorsAndErrorClass( $value ) {
 		$errors = $this->validate( $value, $this->mParent->mFieldData );
@@ -898,34 +910,10 @@ abstract class HTMLFormField {
 	}
 
 	/**
-	 * Determine notices to display for the field.
-	 *
-	 * @since 1.28
-	 * @return string[]
-	 */
-	public function getNotices() {
-		$notices = [];
-
-		if ( isset( $this->mParams['notice-message'] ) ) {
-			$notices[] = $this->getMessage( $this->mParams['notice-message'] )->parse();
-		}
-
-		if ( isset( $this->mParams['notice-messages'] ) ) {
-			foreach ( $this->mParams['notice-messages'] as $msg ) {
-				$notices[] = $this->getMessage( $msg )->parse();
-			}
-		} elseif ( isset( $this->mParams['notice'] ) ) {
-			$notices[] = $this->mParams['notice'];
-		}
-
-		return $notices;
-	}
-
-	/**
 	 * @return string HTML
 	 */
 	public function getLabel() {
-		return is_null( $this->mLabel ) ? '' : $this->mLabel;
+		return $this->mLabel ?? '';
 	}
 
 	public function getLabelHtml( $cellAttributes = [] ) {
@@ -939,14 +927,13 @@ abstract class HTMLFormField {
 
 		$labelValue = trim( $this->getLabel() );
 		$hasLabel = false;
-		if ( $labelValue !== '&#160;' && $labelValue !== '' ) {
+		if ( $labelValue !== "\u{00A0}" && $labelValue !== '&#160;' && $labelValue !== '' ) {
 			$hasLabel = true;
 		}
 
 		$displayFormat = $this->mParent->getDisplayFormat();
 		$html = '';
-		$horizontalLabel = isset( $this->mParams['horizontal-label'] )
-			? $this->mParams['horizontal-label'] : false;
+		$horizontalLabel = $this->mParams['horizontal-label'] ?? false;
 
 		if ( $displayFormat === 'table' ) {
 			$html =
@@ -968,15 +955,11 @@ abstract class HTMLFormField {
 	}
 
 	public function getDefault() {
-		if ( isset( $this->mDefault ) ) {
-			return $this->mDefault;
-		} else {
-			return null;
-		}
+		return $this->mDefault ?? null;
 	}
 
 	/**
-	 * Returns the attributes required for the tooltip and accesskey.
+	 * Returns the attributes required for the tooltip and accesskey, for Html::element() etc.
 	 *
 	 * @return array Attributes
 	 */
@@ -986,6 +969,22 @@ abstract class HTMLFormField {
 		}
 
 		return Linker::tooltipAndAccesskeyAttribs( $this->mParams['tooltip'] );
+	}
+
+	/**
+	 * Returns the attributes required for the tooltip and accesskey, for OOUI widgets' config.
+	 *
+	 * @return array Attributes
+	 */
+	public function getTooltipAndAccessKeyOOUI() {
+		if ( empty( $this->mParams['tooltip'] ) ) {
+			return [];
+		}
+
+		return [
+			'title' => Linker::titleAttrib( $this->mParams['tooltip'] ),
+			'accessKey' => Linker::accesskey( $this->mParams['tooltip'] ),
+		];
 	}
 
 	/**
@@ -1058,33 +1057,8 @@ abstract class HTMLFormField {
 				$this->mOptionsLabelsNotFromMessage = true;
 				$this->mOptions = self::forceToStringRecursive( $this->mParams['options'] );
 			} elseif ( array_key_exists( 'options-message', $this->mParams ) ) {
-				/** @todo This is copied from Xml::listDropDown(), deprecate/avoid duplication? */
 				$message = $this->getMessage( $this->mParams['options-message'] )->inContentLanguage()->plain();
-
-				$optgroup = false;
-				$this->mOptions = [];
-				foreach ( explode( "\n", $message ) as $option ) {
-					$value = trim( $option );
-					if ( $value == '' ) {
-						continue;
-					} elseif ( substr( $value, 0, 1 ) == '*' && substr( $value, 1, 1 ) != '*' ) {
-						# A new group is starting...
-						$value = trim( substr( $value, 1 ) );
-						$optgroup = $value;
-					} elseif ( substr( $value, 0, 2 ) == '**' ) {
-						# groupmember
-						$opt = trim( substr( $value, 2 ) );
-						if ( $optgroup === false ) {
-							$this->mOptions[$opt] = $opt;
-						} else {
-							$this->mOptions[$optgroup][$opt] = $opt;
-						}
-					} else {
-						# groupless reason list
-						$optgroup = false;
-						$this->mOptions[$option] = $option;
-					}
-				}
+				$this->mOptions = Xml::listDropDownOptions( $message );
 			} else {
 				$this->mOptions = null;
 			}
@@ -1104,16 +1078,7 @@ abstract class HTMLFormField {
 			return null;
 		}
 
-		$options = [];
-
-		foreach ( $oldoptions as $text => $data ) {
-			$options[] = [
-				'data' => (string)$data,
-				'label' => (string)$text,
-			];
-		}
-
-		return $options;
+		return Xml::listDropDownOptionsOoui( $oldoptions );
 	}
 
 	/**
@@ -1141,6 +1106,12 @@ abstract class HTMLFormField {
 	 * Formats one or more errors as accepted by field validation-callback.
 	 *
 	 * @param string|Message|array $errors Array of strings or Message instances
+	 * To work around limitations in phan-taint-check the calling
+	 * class has taintedness disabled. So instead we pretend that
+	 * this method outputs html, since the result is eventually
+	 * outputted anyways without escaping and this allows us to verify
+	 * stuff is safe even though the caller has taintedness cleared.
+	 * @param-taint $errors exec_html
 	 * @return string HTML
 	 * @since 1.18
 	 */
@@ -1202,7 +1173,7 @@ abstract class HTMLFormField {
 	 * Whether this field requires the user agent to have JavaScript enabled for the client-side HTML5
 	 * form validation to work correctly.
 	 *
-	 * @return boolean
+	 * @return bool
 	 * @since 1.29
 	 */
 	public function needsJSForHtml5FormValidation() {

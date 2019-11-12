@@ -49,16 +49,11 @@ class ParserTestParserHook {
 			&& $argv['action'] === 'flush' && $in === null
 		) {
 			// Clear the buffer, we probably don't need to
-			if ( isset( $parser->static_tag_buf ) ) {
-				$tmp = $parser->static_tag_buf;
-			} else {
-				$tmp = '';
-			}
+			$tmp = $parser->static_tag_buf ?? '';
 			$parser->static_tag_buf = null;
 			return $tmp;
 		} else { // wtf?
-			return
-				"\nCall this extension as <statictag>string</statictag> or as" .
+			return "\nCall this extension as <statictag>string</statictag> or as" .
 				" <statictag action=flush/>, not in any other way.\n" .
 				"text: " . var_export( $in, true ) . "\n" .
 				"argv: " . var_export( $argv, true ) . "\n";

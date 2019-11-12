@@ -18,6 +18,9 @@
  * @file
  */
 
+use Wikimedia\WrappedString;
+use Wikimedia\WrappedStringList;
+
 /**
  * New base template for a skin's template extended from QuickTemplate
  * this class features helper methods that provide common ways of interacting
@@ -29,22 +32,34 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * Get a Message object with its context set
 	 *
 	 * @param string $name Message name
-	 * @param ... $params Message params
+	 * @param mixed $params,... Message params
 	 * @return Message
 	 */
 	public function getMsg( $name /* ... */ ) {
-		return call_user_func_array( [ $this->getSkin(), 'msg' ], func_get_args() );
+		return $this->getSkin()->msg( ...func_get_args() );
 	}
 
 	function msg( $str ) {
 		echo $this->getMsg( $str )->escaped();
 	}
 
+	/**
+	 * @param string $str
+	 * @warning You should never use this method. I18n messages should be escaped
+	 * @deprecated 1.32 Use ->msg() or ->getMsg() instead.
+	 * @suppress SecurityCheck-XSS
+	 * @return-taint exec_html
+	 */
 	function msgHtml( $str ) {
+		wfDeprecated( __METHOD__, '1.32' );
 		echo $this->getMsg( $str )->text();
 	}
 
+	/**
+	 * @deprecated since 1.33 Use ->msg() or ->getMsg() instead.
+	 */
 	function msgWiki( $str ) {
+		// TODO: Add wfDeprecated( __METHOD__, '1.33' ) after 1.33 got released
 		echo $this->getMsg( $str )->parseAsBlock();
 	}
 
@@ -98,14 +113,7 @@ abstract class BaseTemplate extends QuickTemplate {
 		}
 		if ( isset( $this->data['nav_urls']['permalink'] ) && $this->data['nav_urls']['permalink'] ) {
 			$toolbox['permalink'] = $this->data['nav_urls']['permalink'];
-			if ( $toolbox['permalink']['href'] === '' ) {
-				unset( $toolbox['permalink']['href'] );
-				$toolbox['ispermalink']['tooltiponly'] = true;
-				$toolbox['ispermalink']['id'] = 't-ispermalink';
-				$toolbox['ispermalink']['msg'] = 'permalink';
-			} else {
-				$toolbox['permalink']['id'] = 't-permalink';
-			}
+			$toolbox['permalink']['id'] = 't-permalink';
 		}
 		if ( isset( $this->data['nav_urls']['info'] ) && $this->data['nav_urls']['info'] ) {
 			$toolbox['info'] = $this->data['nav_urls']['info'];
@@ -143,7 +151,7 @@ abstract class BaseTemplate extends QuickTemplate {
 			if ( isset( $plink['active'] ) ) {
 				$ptool['active'] = $plink['active'];
 			}
-			foreach ( [ 'href', 'class', 'text', 'dir', 'data' ] as $k ) {
+			foreach ( [ 'href', 'class', 'text', 'dir', 'data', 'exists' ] as $k ) {
 				if ( isset( $plink[$k] ) ) {
 					$ptool['links'][0][$k] = $plink[$k];
 				}
@@ -182,44 +190,44 @@ abstract class BaseTemplate extends QuickTemplate {
 				continue;
 			}
 			switch ( $boxName ) {
-			case 'SEARCH':
-				// Search is a special case, skins should custom implement this
-				$boxes[$boxName] = [
-					'id' => 'p-search',
-					'header' => $this->getMsg( 'search' )->text(),
-					'generated' => false,
-					'content' => true,
-				];
-				break;
-			case 'TOOLBOX':
-				$msgObj = $this->getMsg( 'toolbox' );
-				$boxes[$boxName] = [
-					'id' => 'p-tb',
-					'header' => $msgObj->exists() ? $msgObj->text() : 'toolbox',
-					'generated' => false,
-					'content' => $this->getToolbox(),
-				];
-				break;
-			case 'LANGUAGES':
-				if ( $this->data['language_urls'] ) {
-					$msgObj = $this->getMsg( 'otherlanguages' );
+				case 'SEARCH':
+					// Search is a special case, skins should custom implement this
 					$boxes[$boxName] = [
-						'id' => 'p-lang',
-						'header' => $msgObj->exists() ? $msgObj->text() : 'otherlanguages',
+						'id' => 'p-search',
+						'header' => $this->getMsg( 'search' )->text(),
 						'generated' => false,
-						'content' => $this->data['language_urls'],
+						'content' => true,
 					];
-				}
-				break;
-			default:
-				$msgObj = $this->getMsg( $boxName );
-				$boxes[$boxName] = [
-					'id' => "p-$boxName",
-					'header' => $msgObj->exists() ? $msgObj->text() : $boxName,
-					'generated' => true,
-					'content' => $content,
-				];
-				break;
+					break;
+				case 'TOOLBOX':
+					$msgObj = $this->getMsg( 'toolbox' );
+					$boxes[$boxName] = [
+						'id' => 'p-tb',
+						'header' => $msgObj->exists() ? $msgObj->text() : 'toolbox',
+						'generated' => false,
+						'content' => $this->getToolbox(),
+					];
+					break;
+				case 'LANGUAGES':
+					if ( $this->data['language_urls'] !== false ) {
+						$msgObj = $this->getMsg( 'otherlanguages' );
+						$boxes[$boxName] = [
+							'id' => 'p-lang',
+							'header' => $msgObj->exists() ? $msgObj->text() : 'otherlanguages',
+							'generated' => false,
+							'content' => $this->data['language_urls'] ?: [],
+						];
+					}
+					break;
+				default:
+					$msgObj = $this->getMsg( $boxName );
+					$boxes[$boxName] = [
+						'id' => "p-$boxName",
+						'header' => $msgObj->exists() ? $msgObj->text() : $boxName,
+						'generated' => true,
+						'content' => $content,
+					];
+					break;
 			}
 		}
 
@@ -256,28 +264,26 @@ abstract class BaseTemplate extends QuickTemplate {
 					$boxes[$boxName]['content'] = $content;
 				}
 			}
-		} else {
-			if ( $hookContents ) {
-				$boxes['TOOLBOXEND'] = [
-					'id' => 'p-toolboxend',
-					'header' => $boxes['TOOLBOX']['header'],
-					'generated' => false,
-					'content' => "<ul>{$hookContents}</ul>",
-				];
-				// HACK: Make sure that TOOLBOXEND is sorted next to TOOLBOX
-				$boxes2 = [];
-				foreach ( $boxes as $key => $box ) {
-					if ( $key === 'TOOLBOXEND' ) {
-						continue;
-					}
-					$boxes2[$key] = $box;
-					if ( $key === 'TOOLBOX' ) {
-						$boxes2['TOOLBOXEND'] = $boxes['TOOLBOXEND'];
-					}
+		} elseif ( $hookContents ) {
+			$boxes['TOOLBOXEND'] = [
+				'id' => 'p-toolboxend',
+				'header' => $boxes['TOOLBOX']['header'],
+				'generated' => false,
+				'content' => "<ul>{$hookContents}</ul>",
+			];
+			// HACK: Make sure that TOOLBOXEND is sorted next to TOOLBOX
+			$boxes2 = [];
+			foreach ( $boxes as $key => $box ) {
+				if ( $key === 'TOOLBOXEND' ) {
+					continue;
 				}
-				$boxes = $boxes2;
-				// END hack
+				$boxes2[$key] = $box;
+				if ( $key === 'TOOLBOX' ) {
+					$boxes2['TOOLBOXEND'] = $boxes['TOOLBOXEND'];
+				}
 			}
+			$boxes = $boxes2;
+			// END hack
 		}
 
 		return $boxes;
@@ -367,11 +373,7 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * @return string
 	 */
 	function makeLink( $key, $item, $options = [] ) {
-		if ( isset( $item['text'] ) ) {
-			$text = $item['text'];
-		} else {
-			$text = $this->translator->translate( isset( $item['msg'] ) ? $item['msg'] : $key );
-		}
+		$text = $item['text'] ?? wfMessage( $item['msg'] ?? $key )->text();
 
 		$html = htmlspecialchars( $text );
 
@@ -382,16 +384,14 @@ abstract class BaseTemplate extends QuickTemplate {
 			}
 			while ( count( $wrapper ) > 0 ) {
 				$element = array_pop( $wrapper );
-				$html = Html::rawElement( $element['tag'], isset( $element['attributes'] )
-					? $element['attributes']
-					: null, $html );
+				$html = Html::rawElement( $element['tag'], $element['attributes'] ?? null, $html );
 			}
 		}
 
 		if ( isset( $item['href'] ) || isset( $options['link-fallback'] ) ) {
 			$attrs = $item;
 			foreach ( [ 'single-id', 'text', 'msg', 'tooltiponly', 'context', 'primary',
-				'tooltip-params' ] as $k ) {
+				'tooltip-params', 'exists' ] as $k ) {
 				unset( $attrs[$k] );
 			}
 
@@ -412,13 +412,19 @@ abstract class BaseTemplate extends QuickTemplate {
 			}
 
 			if ( isset( $item['single-id'] ) ) {
+				$tooltipOption = isset( $item['exists'] ) && $item['exists'] === false ? 'nonexisting' : null;
+
 				if ( isset( $item['tooltiponly'] ) && $item['tooltiponly'] ) {
-					$title = Linker::titleAttrib( $item['single-id'], null, $tooltipParams );
+					$title = Linker::titleAttrib( $item['single-id'], $tooltipOption, $tooltipParams );
 					if ( $title !== false ) {
 						$attrs['title'] = $title;
 					}
 				} else {
-					$tip = Linker::tooltipAndAccesskeyAttribs( $item['single-id'], $tooltipParams );
+					$tip = Linker::tooltipAndAccesskeyAttribs(
+						$item['single-id'],
+						$tooltipParams,
+						$tooltipOption
+					);
 					if ( isset( $tip['title'] ) && $tip['title'] !== false ) {
 						$attrs['title'] = $tip['title'];
 					}
@@ -515,7 +521,7 @@ abstract class BaseTemplate extends QuickTemplate {
 		if ( isset( $item['itemtitle'] ) ) {
 			$attrs['title'] = $item['itemtitle'];
 		}
-		return Html::rawElement( isset( $options['tag'] ) ? $options['tag'] : 'li', $attrs, $html );
+		return Html::rawElement( $options['tag'] ?? 'li', $attrs, $html );
 	}
 
 	function makeSearchInput( $attrs = [] ) {
@@ -523,7 +529,6 @@ abstract class BaseTemplate extends QuickTemplate {
 			'type' => 'search',
 			'name' => 'search',
 			'placeholder' => wfMessage( 'searchsuggest-search' )->text(),
-			'value' => $this->get( 'search', '' ),
 		];
 		$realAttrs = array_merge( $realAttrs, Linker::tooltipAndAccesskeyAttribs( 'search' ), $attrs );
 		return Html::element( 'input', $realAttrs );
@@ -536,8 +541,7 @@ abstract class BaseTemplate extends QuickTemplate {
 				$realAttrs = [
 					'type' => 'submit',
 					'name' => $mode,
-					'value' => $this->translator->translate(
-						$mode == 'go' ? 'searcharticle' : 'searchbutton' ),
+					'value' => wfMessage( $mode == 'go' ? 'searcharticle' : 'searchbutton' )->text(),
 				];
 				$realAttrs = array_merge(
 					$realAttrs,
@@ -561,11 +565,9 @@ abstract class BaseTemplate extends QuickTemplate {
 				unset( $buttonAttrs['height'] );
 				$imgAttrs = [
 					'src' => $attrs['src'],
-					'alt' => isset( $attrs['alt'] )
-						? $attrs['alt']
-						: $this->translator->translate( 'searchbutton' ),
-					'width' => isset( $attrs['width'] ) ? $attrs['width'] : null,
-					'height' => isset( $attrs['height'] ) ? $attrs['height'] : null,
+					'alt' => $attrs['alt'] ?? wfMessage( 'searchbutton' )->text(),
+					'width' => $attrs['width'] ?? null,
+					'height' => $attrs['height'] ?? null,
 				];
 				return Html::rawElement( 'button', $buttonAttrs, Html::element( 'img', $imgAttrs ) );
 			default:
@@ -579,7 +581,7 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * If you pass "flat" as an option then the returned array will be a flat array
 	 * of footer icons instead of a key/value array of footerlinks arrays broken
 	 * up into categories.
-	 * @param string $option
+	 * @param string|null $option
 	 * @return array|mixed
 	 */
 	function getFooterLinks( $option = null ) {
@@ -601,10 +603,7 @@ abstract class BaseTemplate extends QuickTemplate {
 
 		if ( $option == 'flat' ) {
 			// fold footerlinks into a single array using a bit of trickery
-			$validFooterLinks = call_user_func_array(
-				'array_merge',
-				array_values( $validFooterLinks )
-			);
+			$validFooterLinks = array_merge( ...array_values( $validFooterLinks ) );
 		}
 
 		return $validFooterLinks;
@@ -619,7 +618,7 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * in the list of footer icons. This is mostly useful for skins which only
 	 * display the text from footericons instead of the images and don't want a
 	 * duplicate copyright statement because footerlinks already rendered one.
-	 * @param string $option
+	 * @param string|null $option
 	 * @return array
 	 */
 	function getFooterIcons( $option = null ) {
@@ -679,7 +678,7 @@ abstract class BaseTemplate extends QuickTemplate {
 		}
 		foreach ( $validFooterIcons as $blockName => $footerIcons ) {
 			$html .= Html::openElement( 'div', [
-				'id' => 'f-' . Sanitizer::escapeId( $blockName ) . 'ico',
+				'id' => Sanitizer::escapeIdForAttribute( "f-{$blockName}ico" ),
 				'class' => 'footer-icons'
 			] );
 			foreach ( $footerIcons as $icon ) {
@@ -692,7 +691,7 @@ abstract class BaseTemplate extends QuickTemplate {
 			foreach ( $validFooterLinks as $aLink ) {
 				$html .= Html::rawElement(
 					'li',
-					[ 'id' => Sanitizer::escapeId( $aLink ) ],
+					[ 'id' => Sanitizer::escapeIdForAttribute( $aLink ) ],
 					$this->get( $aLink )
 				);
 			}
@@ -735,7 +734,7 @@ abstract class BaseTemplate extends QuickTemplate {
 			$out .= Html::rawElement(
 				'div',
 				[
-					'id' => Sanitizer::escapeId( "mw-indicator-$id" ),
+					'id' => Sanitizer::escapeIdForAttribute( "mw-indicator-$id" ),
 					'class' => 'mw-indicator',
 				],
 				$content
@@ -757,14 +756,14 @@ abstract class BaseTemplate extends QuickTemplate {
 	 * debug stuff. This should be called right before outputting the closing
 	 * body and html tags.
 	 *
-	 * @return string
+	 * @return string|WrappedStringList HTML
 	 * @since 1.29
 	 */
-	function getTrail() {
-		$html = MWDebug::getDebugHTML( $this->getSkin()->getContext() );
-		$html .= $this->get( 'bottomscripts' );
-		$html .= $this->get( 'reporttime' );
-
-		return $html;
+	public function getTrail() {
+		return WrappedString::join( "\n", [
+			MWDebug::getDebugHTML( $this->getSkin()->getContext() ),
+			$this->get( 'bottomscripts' ),
+			$this->get( 'reporttime' )
+		] );
 	}
 }

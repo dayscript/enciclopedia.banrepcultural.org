@@ -18,6 +18,8 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+use MediaWiki\Auth\AuthenticationResponse;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\Session\BotPasswordSessionProvider;
 use Wikimedia\Rdbms\IMaintainableDatabase;
 
@@ -74,9 +76,10 @@ class BotPassword implements IDBAccessObject {
 	public static function getDB( $db ) {
 		global $wgBotPasswordsCluster, $wgBotPasswordsDatabase;
 
+		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 		$lb = $wgBotPasswordsCluster
-			? wfGetLBFactory()->getExternalLB( $wgBotPasswordsCluster )
-			: wfGetLB( $wgBotPasswordsDatabase );
+			? $lbFactory->getExternalLB( $wgBotPasswordsCluster )
+			: $lbFactory->getMainLB( $wgBotPasswordsDatabase );
 		return $lb->getConnectionRef( $db, [], $wgBotPasswordsDatabase );
 	}
 
@@ -137,10 +140,8 @@ class BotPassword implements IDBAccessObject {
 			'bp_user' => 0,
 			'bp_app_id' => isset( $data['appId'] ) ? trim( $data['appId'] ) : '',
 			'bp_token' => '**unsaved**',
-			'bp_restrictions' => isset( $data['restrictions'] )
-				? $data['restrictions']
-				: MWRestrictions::newDefault(),
-			'bp_grants' => isset( $data['grants'] ) ? $data['grants'] : [],
+			'bp_restrictions' => $data['restrictions'] ?? MWRestrictions::newDefault(),
+			'bp_grants' => $data['grants'] ?? [],
 		];
 
 		if (
@@ -250,13 +251,21 @@ class BotPassword implements IDBAccessObject {
 			return PasswordFactory::newInvalidPassword();
 		}
 
-		$passwordFactory = new \PasswordFactory();
-		$passwordFactory->init( \RequestContext::getMain()->getConfig() );
+		$passwordFactory = MediaWikiServices::getInstance()->getPasswordFactory();
 		try {
 			return $passwordFactory->newFromCiphertext( $password );
 		} catch ( PasswordError $ex ) {
 			return PasswordFactory::newInvalidPassword();
 		}
+	}
+
+	/**
+	 * Whether the password is currently invalid
+	 * @since 1.32
+	 * @return bool
+	 */
+	public function isInvalid() {
+		return $this->getPassword() instanceof InvalidPassword;
 	}
 
 	/**
@@ -402,28 +411,26 @@ class BotPassword implements IDBAccessObject {
 	/**
 	 * There are two ways to login with a bot password: "username@appId", "password" and
 	 * "username", "appId@password". Transform it so it is always in the first form.
-	 * Returns [bot username, bot password, could be normal password?] where the last one is a flag
-	 * meaning this could either be a bot password or a normal password, it cannot be decided for
-	 * certain (although in such cases it almost always will be a bot password).
+	 * Returns [bot username, bot password].
 	 * If this cannot be a bot password login just return false.
 	 * @param string $username
 	 * @param string $password
 	 * @return array|false
 	 */
 	public static function canonicalizeLoginData( $username, $password ) {
-		$sep = BotPassword::getSeparator();
+		$sep = self::getSeparator();
 		// the strlen check helps minimize the password information obtainable from timing
 		if ( strlen( $password ) >= 32 && strpos( $username, $sep ) !== false ) {
 			// the separator is not valid in new usernames but might appear in legacy ones
 			if ( preg_match( '/^[0-9a-w]{32,}$/', $password ) ) {
-				return [ $username, $password, true ];
+				return [ $username, $password ];
 			}
 		} elseif ( strlen( $password ) > 32 && strpos( $password, $sep ) !== false ) {
 			$segments = explode( $sep, $password );
 			$password = array_pop( $segments );
 			$appId = implode( $sep, $segments );
 			if ( preg_match( '/^[0-9a-w]{32,}$/', $password ) ) {
-				return [ $username . $sep . $appId, $password, true ];
+				return [ $username . $sep . $appId, $password ];
 			}
 		}
 		return false;
@@ -437,7 +444,7 @@ class BotPassword implements IDBAccessObject {
 	 * @return Status On success, the good status's value is the new Session object
 	 */
 	public static function login( $username, $password, WebRequest $request ) {
-		global $wgEnableBotPasswords;
+		global $wgEnableBotPasswords, $wgPasswordAttemptThrottle;
 
 		if ( !$wgEnableBotPasswords ) {
 			return Status::newFatal( 'botpasswords-disabled' );
@@ -452,34 +459,94 @@ class BotPassword implements IDBAccessObject {
 		// Split name into name+appId
 		$sep = self::getSeparator();
 		if ( strpos( $username, $sep ) === false ) {
-			return Status::newFatal( 'botpasswords-invalid-name', $sep );
+			return self::loginHook( $username, null, Status::newFatal( 'botpasswords-invalid-name', $sep ) );
 		}
 		list( $name, $appId ) = explode( $sep, $username, 2 );
 
 		// Find the named user
 		$user = User::newFromName( $name );
 		if ( !$user || $user->isAnon() ) {
-			return Status::newFatal( 'nosuchuser', $name );
+			return self::loginHook( $user ?: $name, null, Status::newFatal( 'nosuchuser', $name ) );
+		}
+
+		if ( $user->isLocked() ) {
+			return Status::newFatal( 'botpasswords-locked' );
+		}
+
+		$throttle = null;
+		if ( !empty( $wgPasswordAttemptThrottle ) ) {
+			$throttle = new MediaWiki\Auth\Throttler( $wgPasswordAttemptThrottle, [
+				'type' => 'botpassword',
+				'cache' => ObjectCache::getLocalClusterInstance(),
+			] );
+			$result = $throttle->increase( $user->getName(), $request->getIP(), __METHOD__ );
+			if ( $result ) {
+				$msg = wfMessage( 'login-throttled' )->durationParams( $result['wait'] );
+				return self::loginHook( $user, null, Status::newFatal( $msg ) );
+			}
 		}
 
 		// Get the bot password
 		$bp = self::newFromUser( $user, $appId );
 		if ( !$bp ) {
-			return Status::newFatal( 'botpasswords-not-exist', $name, $appId );
+			return self::loginHook( $user, $bp,
+				Status::newFatal( 'botpasswords-not-exist', $name, $appId ) );
 		}
 
 		// Check restrictions
 		$status = $bp->getRestrictions()->check( $request );
 		if ( !$status->isOK() ) {
-			return Status::newFatal( 'botpasswords-restriction-failed' );
+			return self::loginHook( $user, $bp, Status::newFatal( 'botpasswords-restriction-failed' ) );
 		}
 
 		// Check the password
-		if ( !$bp->getPassword()->equals( $password ) ) {
-			return Status::newFatal( 'wrongpassword' );
+		$passwordObj = $bp->getPassword();
+		if ( $passwordObj instanceof InvalidPassword ) {
+			return self::loginHook( $user, $bp,
+				Status::newFatal( 'botpasswords-needs-reset', $name, $appId ) );
+		}
+		if ( !$passwordObj->verify( $password ) ) {
+			return self::loginHook( $user, $bp, Status::newFatal( 'wrongpassword' ) );
 		}
 
 		// Ok! Create the session.
-		return Status::newGood( $provider->newSessionForRequest( $user, $bp, $request ) );
+		if ( $throttle ) {
+			$throttle->clear( $user->getName(), $request->getIP() );
+		}
+		return self::loginHook( $user, $bp,
+			Status::newGood( $provider->newSessionForRequest( $user, $bp, $request ) ) );
+	}
+
+	/**
+	 * Call AuthManagerLoginAuthenticateAudit
+	 *
+	 * To facilitate logging all authentications, even ones not via
+	 * AuthManager, call the AuthManagerLoginAuthenticateAudit hook.
+	 *
+	 * @param User|string $user User being logged in
+	 * @param BotPassword|null $bp Bot sub-account, if it can be identified
+	 * @param Status $status Login status
+	 * @return Status The passed-in status
+	 */
+	private static function loginHook( $user, $bp, Status $status ) {
+		$extraData = [];
+		if ( $user instanceof User ) {
+			$name = $user->getName();
+			if ( $bp ) {
+				$extraData['appId'] = $name . self::getSeparator() . $bp->getAppId();
+			}
+		} else {
+			$name = $user;
+			$user = null;
+		}
+
+		if ( $status->isGood() ) {
+			$response = AuthenticationResponse::newPass( $name );
+		} else {
+			$response = AuthenticationResponse::newFail( $status->getMessage() );
+		}
+		Hooks::run( 'AuthManagerLoginAuthenticateAudit', [ $response, $user, $name, $extraData ] );
+
+		return $status;
 	}
 }

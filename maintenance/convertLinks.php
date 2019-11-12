@@ -21,6 +21,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -75,8 +77,6 @@ class ConvertLinks extends Maintenance {
 			return;
 		}
 
-		global $wgContLang;
-
 		# counters etc
 		$numBadLinks = $curRowsRead = 0;
 
@@ -126,7 +126,6 @@ class ConvertLinks extends Maintenance {
 		$res = $dbw->query( "SELECT COUNT(*) AS count FROM $links" );
 		$row = $dbw->fetchObject( $res );
 		$numRows = $row->count;
-		$dbw->freeResult( $res );
 
 		if ( $numRows == 0 ) {
 			$this->output( "Updating schema (no rows to convert)...\n" );
@@ -153,7 +152,8 @@ class ConvertLinks extends Maintenance {
 			foreach ( $res as $row ) {
 				$title = $row->cur_title;
 				if ( $row->cur_namespace ) {
-					$title = $wgContLang->getNsText( $row->cur_namespace ) . ":$title";
+					$title = MediaWikiServices::getInstance()->getContentLanguage()->
+						getNsText( $row->cur_namespace ) . ":$title";
 				}
 				$ids[$title] = $row->cur_id;
 				$curRowsRead++;
@@ -167,7 +167,6 @@ class ConvertLinks extends Maintenance {
 					}
 				}
 			}
-			$dbw->freeResult( $res );
 			$dbw->bufferResults( true );
 			$this->output( "Finished loading IDs.\n\n" );
 			$this->performanceLog(
@@ -213,7 +212,6 @@ class ConvertLinks extends Maintenance {
 						$numBadLinks++;
 					}
 				}
-				$dbw->freeResult( $res );
 				# $this->output( "rowOffset: $rowOffset\ttuplesAdded: "
 				# 	. "$tuplesAdded\tnumBadLinks: $numBadLinks\n" );
 				if ( $tuplesAdded != 0 ) {
@@ -302,5 +300,5 @@ class ConvertLinks extends Maintenance {
 	}
 }
 
-$maintClass = "ConvertLinks";
+$maintClass = ConvertLinks::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

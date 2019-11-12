@@ -85,15 +85,17 @@ class FileDuplicateSearchPage extends QueryPage {
 	}
 
 	public function getQueryInfo() {
+		$imgQuery = LocalFile::getQueryInfo();
 		return [
-			'tables' => [ 'image' ],
+			'tables' => $imgQuery['tables'],
 			'fields' => [
 				'title' => 'img_name',
 				'value' => 'img_sha1',
-				'img_user_text',
+				'img_user_text' => $imgQuery['fields']['img_user_text'],
 				'img_timestamp'
 			],
-			'conds' => [ 'img_sha1' => $this->hash ]
+			'conds' => [ 'img_sha1' => $this->hash ],
+			'join_conds' => $imgQuery['joins'],
 		];
 	}
 
@@ -101,7 +103,7 @@ class FileDuplicateSearchPage extends QueryPage {
 		$this->setHeaders();
 		$this->outputHeader();
 
-		$this->filename = $par !== null ? $par : $this->getRequest()->getText( 'filename' );
+		$this->filename = $par ?? $this->getRequest()->getText( 'filename' );
 		$this->file = null;
 		$this->hash = '';
 		$title = Title::newFromText( $this->filename, NS_FILE );
@@ -119,7 +121,7 @@ class FileDuplicateSearchPage extends QueryPage {
 				'label-message' => 'fileduplicatesearch-filename',
 				'id' => 'filename',
 				'size' => 50,
-				'value' => $this->filename,
+				'default' => $this->filename,
 			],
 		];
 		$hiddenFields = [
@@ -129,7 +131,6 @@ class FileDuplicateSearchPage extends QueryPage {
 		$htmlForm->addHiddenFields( $hiddenFields );
 		$htmlForm->setAction( wfScript() );
 		$htmlForm->setMethod( 'get' );
-		$htmlForm->setSubmitProgressive();
 		$htmlForm->setSubmitTextMsg( $this->msg( 'fileduplicatesearch-submit' ) );
 
 		// The form should be visible always, even if it was submitted (e.g. to perform another action).
@@ -206,14 +207,14 @@ class FileDuplicateSearchPage extends QueryPage {
 	 * @return string HTML
 	 */
 	function formatResult( $skin, $result ) {
-		global $wgContLang;
-
 		$linkRenderer = $this->getLinkRenderer();
 		$nt = $result->getTitle();
-		$text = $wgContLang->convert( $nt->getText() );
+		$text = MediaWikiServices::getInstance()->getContentLanguage()->convert(
+			htmlspecialchars( $nt->getText() )
+		);
 		$plink = $linkRenderer->makeLink(
 			$nt,
-			$text
+			new HtmlArmor( $text )
 		);
 
 		$userText = $result->getUser( 'text' );

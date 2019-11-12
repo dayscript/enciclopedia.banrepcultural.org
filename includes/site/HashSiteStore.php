@@ -87,11 +87,7 @@ class HashSiteStore implements SiteStore {
 	 * @return Site|null
 	 */
 	public function getSite( $globalId, $source = 'cache' ) {
-		if ( isset( $this->sites[$globalId] ) ) {
-			return $this->sites[$globalId];
-		} else {
-			return null;
-		}
+		return $this->sites[$globalId] ?? null;
 	}
 
 	/**
@@ -113,6 +109,7 @@ class HashSiteStore implements SiteStore {
 	/**
 	 * Deletes all sites from the database. After calling clear(), getSites() will return an empty
 	 * list and getSite() will return null until saveSite() or saveSites() is called.
+	 * @return bool
 	 */
 	public function clear() {
 		$this->sites = [];

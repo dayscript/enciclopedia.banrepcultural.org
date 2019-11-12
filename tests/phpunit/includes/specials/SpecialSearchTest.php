@@ -114,6 +114,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 	/**
 	 * Verify we do not expand search term in <title> on search result page
 	 * https://gerrit.wikimedia.org/r/4841
+	 * @covers SpecialSearch::setupPage
 	 */
 	public function testSearchTermIsNotExpanded() {
 		$this->setMwGlobals( [
@@ -175,6 +176,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 
 	/**
 	 * @dataProvider provideRewriteQueryWithSuggestion
+	 * @covers SpecialSearch::showResults
 	 */
 	public function testRewriteQueryWithSuggestion(
 		$message,
@@ -183,7 +185,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 		$rewrittenQuery,
 		array $resultTitles
 	) {
-		$results = array_map( function( $title ) {
+		$results = array_map( function ( $title ) {
 			return SearchResult::newFromTitle( $title );
 		}, $resultTitles );
 
@@ -194,7 +196,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 		);
 
 		$mockSearchEngine = $this->mockSearchEngine( $searchResults );
-		$search = $this->getMockBuilder( 'SpecialSearch' )
+		$search = $this->getMockBuilder( SpecialSearch::class )
 			->setMethods( [ 'getSearchEngine' ] )
 			->getMock();
 		$search->expects( $this->any() )
@@ -213,7 +215,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 	}
 
 	protected function mockSearchEngine( $results ) {
-		$mock = $this->getMockBuilder( 'SearchEngine' )
+		$mock = $this->getMockBuilder( SearchEngine::class )
 			->setMethods( [ 'searchText', 'searchTitle' ] )
 			->getMock();
 
@@ -224,6 +226,9 @@ class SpecialSearchTest extends MediaWikiTestCase {
 		return $mock;
 	}
 
+	/**
+	 * @covers SpecialSearch::execute
+	 */
 	public function testSubPageRedirect() {
 		$this->setMwGlobals( [
 			'wgScript' => '/w/index.php',
@@ -231,7 +236,7 @@ class SpecialSearchTest extends MediaWikiTestCase {
 
 		$ctx = new RequestContext;
 		$sp = Title::newFromText( 'Special:Search/foo_bar' );
-		SpecialPageFactory::executePath( $sp, $ctx );
+		MediaWikiServices::getInstance()->getSpecialPageFactory()->executePath( $sp, $ctx );
 		$url = $ctx->getOutput()->getRedirect();
 		// some older versions of hhvm have a bug that doesn't parse relative
 		// urls with a port, so help it out a little bit.
@@ -262,8 +267,8 @@ class SpecialSearchTestMockResultSet extends SearchResultSet {
 		$this->containedSyntax = $containedSyntax;
 	}
 
-	public function numRows() {
-		return count( $this->results );
+	public function expandResults() {
+		return $this->results;
 	}
 
 	public function getTotalHits() {

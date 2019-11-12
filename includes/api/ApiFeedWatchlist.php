@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Oct 13, 2006
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -65,7 +61,7 @@ class ApiFeedWatchlist extends ApiBase {
 			}
 
 			// limit to the number of hours going from now back
-			$endTime = wfTimestamp( TS_MW, time() - intval( $params['hours'] * 60 * 60 ) );
+			$endTime = wfTimestamp( TS_MW, time() - (int)$params['hours'] * 60 * 60 );
 
 			// Prepare parameters for nested request
 			$fauxReqArr = [
@@ -73,7 +69,7 @@ class ApiFeedWatchlist extends ApiBase {
 				'meta' => 'siteinfo',
 				'siprop' => 'general',
 				'list' => 'watchlist',
-				'wlprop' => 'title|user|comment|timestamp|ids',
+				'wlprop' => 'title|user|comment|timestamp|ids|loginfo',
 				'wldir' => 'older', // reverse order - from newest to oldest
 				'wlend' => $endTime, // stop at this time
 				'wllimit' => min( 50, $this->getConfig()->get( 'FeedLimit' ) )
@@ -106,10 +102,8 @@ class ApiFeedWatchlist extends ApiBase {
 				$fauxReqArr['wlallrev'] = '';
 			}
 
-			// Create the request
 			$fauxReq = new FauxRequest( $fauxReqArr );
 
-			// Execute
 			$module = new ApiMain( $fauxReq );
 			$module->execute();
 
@@ -148,7 +142,7 @@ class ApiFeedWatchlist extends ApiBase {
 				' [' . $this->getConfig()->get( 'LanguageCode' ) . ']';
 			$feedUrl = SpecialPage::getTitleFor( 'Watchlist' )->getFullURL();
 
-			$feedFormat = isset( $params['feedformat'] ) ? $params['feedformat'] : 'rss';
+			$feedFormat = $params['feedformat'] ?? 'rss';
 			$msg = wfMessage( 'watchlist' )->inContentLanguage()->escaped();
 			$feed = new $feedClasses[$feedFormat] ( $feedTitle, $msg, $feedUrl );
 
@@ -161,13 +155,9 @@ class ApiFeedWatchlist extends ApiBase {
 					$feedItems[] = new FeedItem( $errorTitle, $errorText, '', '', '' );
 				}
 			} else {
-				if ( $e instanceof UsageException ) {
-					$errorCode = $e->getCodeString();
-				} else {
-					// Something is seriously wrong
-					$errorCode = 'internal_api_error';
-				}
-				$errorTitle = $this->msg( 'api-feed-error-title', $msg->getApiCode() );
+				// Something is seriously wrong
+				$errorCode = 'internal_api_error';
+				$errorTitle = $this->msg( 'api-feed-error-title', $errorCode );
 				$errorText = $e->getMessage();
 				$feedItems[] = new FeedItem( $errorTitle, $errorText, '', '', '' );
 			}
@@ -201,11 +191,16 @@ class ApiFeedWatchlist extends ApiBase {
 			}
 		}
 		if ( isset( $info['revid'] ) ) {
-			$titleUrl = $title->getFullURL( [ 'diff' => $info['revid'] ] );
+			if ( $info['revid'] === 0 && isset( $info['logid'] ) ) {
+				$logTitle = Title::makeTitle( NS_SPECIAL, 'Log' );
+				$titleUrl = $logTitle->getFullURL( [ 'logid' => $info['logid'] ] );
+			} else {
+				$titleUrl = $title->getFullURL( [ 'diff' => $info['revid'] ] );
+			}
 		} else {
 			$titleUrl = $title->getFullURL( $curidParam );
 		}
-		$comment = isset( $info['comment'] ) ? $info['comment'] : null;
+		$comment = $info['comment'] ?? null;
 
 		// Create an anchor to section.
 		// The anchor won't work for sections that have dupes on page
@@ -215,10 +210,7 @@ class ApiFeedWatchlist extends ApiBase {
 			preg_match( '!(.*)/\*\s*(.*?)\s*\*/(.*)!', $comment, $matches )
 		) {
 			global $wgParser;
-
-			$sectionTitle = $wgParser->stripSectionName( $matches[2] );
-			$sectionTitle = Sanitizer::normalizeSectionNameWhitespace( $sectionTitle );
-			$titleUrl .= Title::newFromText( '#' . $sectionTitle )->getFragmentForURL();
+			$titleUrl .= $wgParser->guessSectionNameFromWikiText( $matches[ 2 ] );
 		}
 
 		$timestamp = $info['timestamp'];

@@ -12,9 +12,7 @@ class HTMLSelectOrOtherField extends HTMLTextField {
 		$this->getOptions();
 		if ( !in_array( 'other', $this->mOptions, true ) ) {
 			$msg =
-				isset( $params['other'] )
-					? $params['other']
-					: wfMessage( 'htmlform-selectorother-other' )->text();
+				$params['other'] ?? wfMessage( 'htmlform-selectorother-other' )->text();
 			// Have 'other' always as first element
 			$this->mOptions = [ $msg => 'other' ] + $this->mOptions;
 		}
@@ -64,8 +62,85 @@ class HTMLSelectOrOtherField extends HTMLTextField {
 		return "$select<br />\n$textbox";
 	}
 
+	protected function shouldInfuseOOUI() {
+		return true;
+	}
+
+	protected function getOOUIModules() {
+		return [ 'mediawiki.widgets.SelectWithInputWidget' ];
+	}
+
 	public function getInputOOUI( $value ) {
-		return false;
+		$this->mParent->getOutput()->addModuleStyles( 'mediawiki.widgets.SelectWithInputWidget.styles' );
+
+		$valInSelect = false;
+		if ( $value !== false ) {
+			$value = strval( $value );
+			$valInSelect = in_array(
+				$value, HTMLFormField::flattenOptions( $this->getOptions() ), true
+			);
+		}
+
+		# DropdownInput
+		$dropdownAttribs = [
+			'name' => $this->mName,
+			'options' => $this->getOptionsOOUI(),
+			'value' => $valInSelect ? $value : 'other',
+			'class' => [ 'mw-htmlform-select-or-other' ],
+		];
+
+		$allowedParams = [
+			'disabled',
+			'tabindex',
+		];
+
+		$dropdownAttribs += OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( $allowedParams )
+		);
+
+		# TextInput
+		$textAttribs = [
+			'name' => $this->mName . '-other',
+			'size' => $this->getSize(),
+			'value' => $valInSelect ? '' : $value,
+		];
+
+		$allowedParams = [
+			'required',
+			'autofocus',
+			'multiple',
+			'disabled',
+			'tabindex',
+			'maxlength',
+		];
+
+		$textAttribs += OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( $allowedParams )
+		);
+
+		if ( $this->mClass !== '' ) {
+			$textAttribs['classes'] = [ $this->mClass ];
+		}
+		if ( $this->mPlaceholder !== '' ) {
+			$textAttribs['placeholder'] = $this->mPlaceholder;
+		}
+
+		$disabled = false;
+		if ( isset( $this->mParams[ 'disabled' ] ) && $this->mParams[ 'disabled' ] ) {
+			$disabled = true;
+		}
+
+		return $this->getInputWidget( [
+			'id' => $this->mID,
+			'disabled' => $disabled,
+			'textinput' => $textAttribs,
+			'dropdowninput' => $dropdownAttribs,
+			'or' => true,
+		] );
+	}
+
+	public function getInputWidget( $params ) {
+		return new MediaWiki\Widget\SelectWithInputWidget( $params );
 	}
 
 	/**

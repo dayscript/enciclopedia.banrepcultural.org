@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on May 13, 2007
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -64,7 +60,7 @@ class ApiQueryImages extends ApiQueryGeneratorBase {
 			$cont = explode( '|', $params['continue'] );
 			$this->dieContinueUsageIf( count( $cont ) != 2 );
 			$op = $params['dir'] == 'descending' ? '<' : '>';
-			$ilfrom = intval( $cont[0] );
+			$ilfrom = (int)$cont[0];
 			$ilto = $this->getDB()->addQuotes( $cont[1] );
 			$this->addWhere(
 				"il_from $op $ilfrom OR " .
@@ -85,7 +81,7 @@ class ApiQueryImages extends ApiQueryGeneratorBase {
 		}
 		$this->addOption( 'LIMIT', $params['limit'] + 1 );
 
-		if ( !is_null( $params['images'] ) ) {
+		if ( $params['images'] ) {
 			$images = [];
 			foreach ( $params['images'] as $img ) {
 				$title = Title::newFromText( $img );
@@ -94,6 +90,10 @@ class ApiQueryImages extends ApiQueryGeneratorBase {
 				} else {
 					$images[] = $title->getDBkey();
 				}
+			}
+			if ( !$images ) {
+				// No titles so no results
+				return;
 			}
 			$this->addWhereFld( 'il_to', $images );
 		}

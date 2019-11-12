@@ -46,23 +46,6 @@ class PhpHttpRequest extends MWHttpRequest {
 		$certLocations = [];
 		if ( $this->caInfo ) {
 			$certLocations = [ 'manual' => $this->caInfo ];
-		} elseif ( version_compare( PHP_VERSION, '5.6.0', '<' ) ) {
-			// @codingStandardsIgnoreStart Generic.Files.LineLength
-			// Default locations, based on
-			// https://www.happyassassin.net/2015/01/12/a-note-about-ssltls-trusted-certificate-stores-and-platforms/
-			// PHP 5.5 and older doesn't have any defaults, so we try to guess ourselves.
-			// PHP 5.6+ gets the CA location from OpenSSL as long as it is not set manually,
-			// so we should leave capath/cafile empty there.
-			// @codingStandardsIgnoreEnd
-			$certLocations = array_filter( [
-				getenv( 'SSL_CERT_DIR' ),
-				getenv( 'SSL_CERT_PATH' ),
-				'/etc/pki/tls/certs/ca-bundle.crt', # Fedora et al
-				'/etc/ssl/certs',  # Debian et al
-				'/etc/pki/tls/certs/ca-bundle.trust.crt',
-				'/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',
-				'/System/Library/OpenSSL', # OSX
-			] );
 		}
 
 		foreach ( $certLocations as $key => $cert ) {
@@ -88,6 +71,8 @@ class PhpHttpRequest extends MWHttpRequest {
 	 * so normal methods of handling errors programmatically
 	 * like get_last_error() don't work.
 	 * @internal
+	 * @param int $errno
+	 * @param string $errstr
 	 */
 	public function errorHandler( $errno, $errstr ) {
 		$n = count( $this->fopenErrors ) + 1;
@@ -152,13 +137,7 @@ class PhpHttpRequest extends MWHttpRequest {
 		}
 
 		if ( $this->sslVerifyHost ) {
-			// PHP 5.6.0 deprecates CN_match, in favour of peer_name which
-			// actually checks SubjectAltName properly.
-			if ( version_compare( PHP_VERSION, '5.6.0', '>=' ) ) {
-				$options['ssl']['peer_name'] = $this->parsedUrl['host'];
-			} else {
-				$options['ssl']['CN_match'] = $this->parsedUrl['host'];
-			}
+			$options['ssl']['peer_name'] = $this->parsedUrl['host'];
 		}
 
 		$options['ssl'] += $this->getCertOptions();
@@ -184,19 +163,6 @@ class PhpHttpRequest extends MWHttpRequest {
 			restore_error_handler();
 
 			if ( !$fh ) {
-				// HACK for instant commons.
-				// If we are contacting (commons|upload).wikimedia.org
-				// try again with CN_match for en.wikipedia.org
-				// as php does not handle SubjectAltName properly
-				// prior to "peer_name" option in php 5.6
-				if ( isset( $options['ssl']['CN_match'] )
-					&& ( $options['ssl']['CN_match'] === 'commons.wikimedia.org'
-						|| $options['ssl']['CN_match'] === 'upload.wikimedia.org' )
-				) {
-					$options['ssl']['CN_match'] = 'en.wikipedia.org';
-					$context = stream_context_create( $options );
-					continue;
-				}
 				break;
 			}
 
@@ -251,7 +217,7 @@ class PhpHttpRequest extends MWHttpRequest {
 					break;
 				}
 
-				if ( strlen( $buf ) ) {
+				if ( $buf !== '' ) {
 					call_user_func( $this->callback, $fh, $buf );
 				}
 			}

@@ -133,11 +133,11 @@ class ImportImages extends Maintenance {
 
 		# Check Protection
 		if ( $this->hasOption( 'protect' ) && $this->hasOption( 'unprotect' ) ) {
-			$this->error( "Cannot specify both protect and unprotect.  Only 1 is allowed.\n", 1 );
+			$this->fatalError( "Cannot specify both protect and unprotect.  Only 1 is allowed.\n" );
 		}
 
 		if ( $this->hasOption( 'protect' ) && trim( $this->getOption( 'protect' ) ) ) {
-			$this->error( "You must specify a protection option.\n", 1 );
+			$this->fatalError( "You must specify a protection option.\n" );
 		}
 
 		# Prepare the list of allowed extensions
@@ -170,7 +170,7 @@ class ImportImages extends Maintenance {
 		if ( $commentFile !== null ) {
 			$comment = file_get_contents( $commentFile );
 			if ( $comment === false || $comment === null ) {
-				$this->error( "failed to read comment file: {$commentFile}\n", 1 );
+				$this->fatalError( "failed to read comment file: {$commentFile}\n" );
 			}
 		} else {
 			$comment = $this->getOption( 'comment', 'Importing file' );
@@ -185,9 +185,7 @@ class ImportImages extends Maintenance {
 		# Batch "upload" operation
 		$count = count( $files );
 		if ( $count > 0 ) {
-
 			foreach ( $files as $file ) {
-
 				if ( $sleep && ( $processed > 0 ) ) {
 					sleep( $sleep );
 				}
@@ -301,13 +299,15 @@ class ImportImages extends Maintenance {
 						" publishing {$file} by '{$wgUser->getName()}', comment '$commentText'... "
 					);
 				} else {
-					$mwProps = new MWFileProps( MimeMagic::singleton() );
+					$mwProps = new MWFileProps( MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer() );
 					$props = $mwProps->getPropsFromPath( $file, true );
 					$flags = 0;
 					$publishOptions = [];
 					$handler = MediaHandler::getHandler( $props['mime'] );
 					if ( $handler ) {
-						$publishOptions['headers'] = $handler->getStreamHeaders( $props['metadata'] );
+						$metadata = Wikimedia\quietCall( 'unserialize', $props['metadata'] );
+
+						$publishOptions['headers'] = $handler->getContentHeaders( $metadata );
 					} else {
 						$publishOptions['headers'] = [];
 					}
@@ -334,8 +334,7 @@ class ImportImages extends Maintenance {
 					$commentText,
 					$props,
 					$timestamp
-				) ) {
-					# We're done!
+				)->isOK() ) {
 					$this->output( "done.\n" );
 
 					$doProtect = false;
@@ -419,7 +418,7 @@ class ImportImages extends Maintenance {
 				$files = [];
 				while ( ( $file = readdir( $dhl ) ) !== false ) {
 					if ( is_file( $dir . '/' . $file ) ) {
-						list( /* $name */, $ext ) = $this->splitFilename( $dir . '/' . $file );
+						$ext = pathinfo( $file, PATHINFO_EXTENSION );
 						if ( array_search( strtolower( $ext ), $exts ) !== false ) {
 							$files[] = $dir . '/' . $file;
 						}
@@ -435,21 +434,6 @@ class ImportImages extends Maintenance {
 		} else {
 			return [];
 		}
-	}
-
-	/**
-	 * Split a filename into filename and extension
-	 *
-	 * @param string $filename Filename
-	 * @return array
-	 */
-	private function splitFilename( $filename ) {
-		$parts = explode( '.', $filename );
-		$ext = $parts[count( $parts ) - 1];
-		unset( $parts[count( $parts ) - 1] );
-		$fname = implode( '.', $parts );
-
-		return [ $fname, $ext ];
 	}
 
 	/**
@@ -519,5 +503,5 @@ class ImportImages extends Maintenance {
 
 }
 
-$maintClass = 'ImportImages';
+$maintClass = ImportImages::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

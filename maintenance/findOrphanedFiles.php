@@ -16,7 +16,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Aaron Schulz
  */
 
 require_once __DIR__ . '/Maintenance.php';
@@ -38,7 +37,7 @@ class FindOrphanedFiles extends Maintenance {
 
 		$repo = RepoGroup::singleton()->getLocalRepo();
 		if ( $repo->hasSha1Storage() ) {
-			$this->error( "Local repo uses SHA-1 file storage names; aborting.", 1 );
+			$this->fatalError( "Local repo uses SHA-1 file storage names; aborting." );
 		}
 
 		$directory = $repo->getZonePath( 'public' );
@@ -52,7 +51,7 @@ class FindOrphanedFiles extends Maintenance {
 
 		$list = $repo->getBackend()->getFileList( [ 'dir' => $directory ] );
 		if ( $list === null ) {
-			$this->error( "Could not get file listing.", 1 );
+			$this->fatalError( "Could not get file listing." );
 		}
 
 		$pathBatch = [];
@@ -62,7 +61,7 @@ class FindOrphanedFiles extends Maintenance {
 			}
 
 			$pathBatch[] = $path;
-			if ( count( $pathBatch ) >= $this->mBatchSize ) {
+			if ( count( $pathBatch ) >= $this->getBatchSize() ) {
 				$this->checkFiles( $repo, $pathBatch, $verbose );
 				$pathBatch = [];
 			}
@@ -118,7 +117,7 @@ class FindOrphanedFiles extends Maintenance {
 						$oiWheres ? $dbr->makeList( $oiWheres, LIST_OR ) : '1=0'
 					)
 				],
-				true // UNION ALL (performance)
+				$dbr::UNION_ALL
 			),
 			__METHOD__
 		);
@@ -152,5 +151,5 @@ class FindOrphanedFiles extends Maintenance {
 	}
 }
 
-$maintClass = 'FindOrphanedFiles';
+$maintClass = FindOrphanedFiles::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

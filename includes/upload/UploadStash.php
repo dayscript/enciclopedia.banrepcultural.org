@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @ingroup Upload
  */
 
 /**
@@ -53,7 +52,7 @@
  */
 class UploadStash {
 	// Format of the key for files -- has to be suitable as a filename itself (e.g. ab12cd34ef.jpg)
-	const KEY_FORMAT_REGEX = '/^[\w-\.]+\.\w*$/';
+	const KEY_FORMAT_REGEX = '/^[\w\-\.]+\.\w*$/';
 	const MAX_US_PROPS_SIZE = 65535;
 
 	/**
@@ -82,7 +81,7 @@ class UploadStash {
 	 * (should replace it eventually).
 	 *
 	 * @param FileRepo $repo
-	 * @param User $user (default null)
+	 * @param User|null $user
 	 */
 	public function __construct( FileRepo $repo, $user = null ) {
 		// this might change based on wiki's configuration.
@@ -118,12 +117,15 @@ class UploadStash {
 	 */
 	public function getFile( $key, $noAuth = false ) {
 		if ( !preg_match( self::KEY_FORMAT_REGEX, $key ) ) {
-			throw new UploadStashBadPathException( "key '$key' is not in a proper format" );
+			throw new UploadStashBadPathException(
+				wfMessage( 'uploadstash-bad-path-bad-format', $key )
+			);
 		}
 
 		if ( !$noAuth && !$this->isLoggedIn ) {
-			throw new UploadStashNotLoggedInException( __METHOD__ .
-				' No user is logged in, files must belong to users' );
+			throw new UploadStashNotLoggedInException(
+				wfMessage( 'uploadstash-not-logged-in' )
+			);
 		}
 
 		if ( !isset( $this->fileMetadata[$key] ) ) {
@@ -134,7 +136,9 @@ class UploadStash {
 			}
 
 			if ( !isset( $this->fileMetadata[$key] ) ) {
-				throw new UploadStashFileNotFoundException( "key '$key' not found in stash" );
+				throw new UploadStashFileNotFoundException(
+					wfMessage( 'uploadstash-file-not-found', $key )
+				);
 			}
 
 			// create $this->files[$key]
@@ -153,14 +157,15 @@ class UploadStash {
 		if ( !$this->files[$key]->exists() ) {
 			wfDebug( __METHOD__ . " tried to get file at $key, but it doesn't exist\n" );
 			// @todo Is this not an UploadStashFileNotFoundException case?
-			throw new UploadStashBadPathException( "path doesn't exist" );
+			throw new UploadStashBadPathException(
+				wfMessage( 'uploadstash-bad-path' )
+			);
 		}
 
-		if ( !$noAuth ) {
-			if ( $this->fileMetadata[$key]['us_user'] != $this->userId ) {
-				throw new UploadStashWrongOwnerException( "This file ($key) doesn't "
-					. "belong to the current user." );
-			}
+		if ( !$noAuth && $this->fileMetadata[$key]['us_user'] != $this->userId ) {
+			throw new UploadStashWrongOwnerException(
+				wfMessage( 'uploadstash-wrong-owner', $key )
+			);
 		}
 
 		return $this->files[$key];
@@ -195,7 +200,7 @@ class UploadStash {
 	 * database, along with other metadata.
 	 *
 	 * @param string $path Path to file you want stashed
-	 * @param string $sourceType The type of upload that generated this file
+	 * @param string|null $sourceType The type of upload that generated this file
 	 *   (currently, I believe, 'file' or null)
 	 * @throws UploadStashBadPathException
 	 * @throws UploadStashFileException
@@ -205,10 +210,12 @@ class UploadStash {
 	public function stashFile( $path, $sourceType = null ) {
 		if ( !is_file( $path ) ) {
 			wfDebug( __METHOD__ . " tried to stash file at '$path', but it doesn't exist\n" );
-			throw new UploadStashBadPathException( "path doesn't exist" );
+			throw new UploadStashBadPathException(
+				wfMessage( 'uploadstash-bad-path' )
+			);
 		}
 
-		$mwProps = new MWFileProps( MimeMagic::singleton() );
+		$mwProps = new MWFileProps( MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer() );
 		$fileProps = $mwProps->getPropsFromPath( $path, true );
 		wfDebug( __METHOD__ . " stashing file at '$path'\n" );
 
@@ -236,7 +243,9 @@ class UploadStash {
 		$this->fileProps[$key] = $fileProps;
 
 		if ( !preg_match( self::KEY_FORMAT_REGEX, $key ) ) {
-			throw new UploadStashBadPathException( "key '$key' is not in a proper format" );
+			throw new UploadStashBadPathException(
+				wfMessage( 'uploadstash-bad-path-bad-format', $key )
+			);
 		}
 
 		wfDebug( __METHOD__ . " key for '$path': $key\n" );
@@ -265,15 +274,15 @@ class UploadStash {
 			// At this point, $error should contain the single "most important"
 			// error, plus any parameters.
 			$errorMsg = array_shift( $error );
-			throw new UploadStashFileException( "Error storing file in '$path': "
-				. wfMessage( $errorMsg, $error )->text() );
+			throw new UploadStashFileException( wfMessage( $errorMsg, $error ) );
 		}
 		$stashPath = $storeStatus->value;
 
 		// fetch the current user ID
 		if ( !$this->isLoggedIn ) {
-			throw new UploadStashNotLoggedInException( __METHOD__
-				. ' No user is logged in, files must belong to users' );
+			throw new UploadStashNotLoggedInException(
+				wfMessage( 'uploadstash-not-logged-in' )
+			);
 		}
 
 		// insert the file metadata into the db.
@@ -290,7 +299,6 @@ class UploadStash {
 		}
 
 		$this->fileMetadata[$key] = [
-			'us_id' => $dbw->nextSequenceValue( 'uploadstash_us_id_seq' ),
 			'us_user' => $this->userId,
 			'us_key' => $key,
 			'us_orig_path' => $path,
@@ -315,7 +323,7 @@ class UploadStash {
 		);
 
 		// store the insertid in the class variable so immediate retrieval
-		// (possibly laggy) isn't necesary.
+		// (possibly laggy) isn't necessary.
 		$this->fileMetadata[$key]['us_id'] = $dbw->insertId();
 
 		# create the UploadStashFile object for this file.
@@ -333,8 +341,9 @@ class UploadStash {
 	 */
 	public function clear() {
 		if ( !$this->isLoggedIn ) {
-			throw new UploadStashNotLoggedInException( __METHOD__
-				. ' No user is logged in, files must belong to users' );
+			throw new UploadStashNotLoggedInException(
+				wfMessage( 'uploadstash-not-logged-in' )
+			);
 		}
 
 		wfDebug( __METHOD__ . ' clearing all rows for user ' . $this->userId . "\n" );
@@ -362,8 +371,9 @@ class UploadStash {
 	 */
 	public function removeFile( $key ) {
 		if ( !$this->isLoggedIn ) {
-			throw new UploadStashNotLoggedInException( __METHOD__
-				. ' No user is logged in, files must belong to users' );
+			throw new UploadStashNotLoggedInException(
+				wfMessage( 'uploadstash-not-logged-in' )
+			);
 		}
 
 		$dbw = $this->repo->getMasterDB();
@@ -378,12 +388,15 @@ class UploadStash {
 		);
 
 		if ( !$row ) {
-			throw new UploadStashNoSuchKeyException( "No such key ($key), cannot remove" );
+			throw new UploadStashNoSuchKeyException(
+				wfMessage( 'uploadstash-no-such-key', $key )
+			);
 		}
 
 		if ( $row->us_user != $this->userId ) {
-			throw new UploadStashWrongOwnerException( "Can't delete: "
-				. "the file ($key) doesn't belong to this user." );
+			throw new UploadStashWrongOwnerException(
+				wfMessage( 'uploadstash-wrong-owner', $key )
+			);
 		}
 
 		return $this->removeFileNoAuth( $key );
@@ -428,8 +441,9 @@ class UploadStash {
 	 */
 	public function listFiles() {
 		if ( !$this->isLoggedIn ) {
-			throw new UploadStashNotLoggedInException( __METHOD__
-				. ' No user is logged in, files must belong to users' );
+			throw new UploadStashNotLoggedInException(
+				wfMessage( 'uploadstash-not-logged-in' )
+			);
 		}
 
 		$dbr = $this->repo->getReplicaDB();
@@ -473,16 +487,18 @@ class UploadStash {
 			$extension = $n ? substr( $path, $n + 1 ) : '';
 		} else {
 			// If not, assume that it should be related to the MIME type of the original file.
-			$magic = MimeMagic::singleton();
+			$magic = MediaWiki\MediaWikiServices::getInstance()->getMimeAnalyzer();
 			$mimeType = $magic->guessMimeType( $path );
-			$extensions = explode( ' ', MimeMagic::singleton()->getExtensionsForType( $mimeType ) );
+			$extensions = explode( ' ', $magic->getExtensionsForType( $mimeType ) );
 			if ( count( $extensions ) ) {
 				$extension = $extensions[0];
 			}
 		}
 
 		if ( is_null( $extension ) ) {
-			throw new UploadStashFileException( "extension is null" );
+			throw new UploadStashFileException(
+				wfMessage( 'uploadstash-no-extension' )
+			);
 		}
 
 		$extension = File::normalizeExtension( $extension );
@@ -516,7 +532,12 @@ class UploadStash {
 
 		$row = $dbr->selectRow(
 			'uploadstash',
-			'*',
+			[
+				'us_user', 'us_key', 'us_orig_path', 'us_path', 'us_props',
+				'us_size', 'us_sha1', 'us_mime', 'us_media_type',
+				'us_image_width', 'us_image_height', 'us_image_bits',
+				'us_source_type', 'us_timestamp', 'us_status',
+			],
 			[ 'us_key' => $key ],
 			__METHOD__
 		);
@@ -542,7 +563,9 @@ class UploadStash {
 	protected function initFile( $key ) {
 		$file = new UploadStashFile( $this->repo, $this->fileMetadata[$key]['us_path'], $key );
 		if ( $file->getSize() === 0 ) {
-			throw new UploadStashZeroLengthFileException( "File is zero length" );
+			throw new UploadStashZeroLengthFileException(
+				wfMessage( 'uploadstash-zero-length' )
+			);
 		}
 		$this->files[$key] = $file;
 
@@ -550,6 +573,9 @@ class UploadStash {
 	}
 }
 
+/**
+ * @ingroup Upload
+ */
 class UploadStashFile extends UnregisteredLocalFile {
 	private $fileKey;
 	private $urlName;
@@ -571,7 +597,7 @@ class UploadStashFile extends UnregisteredLocalFile {
 		$this->fileKey = $key;
 
 		// resolve mwrepo:// urls
-		if ( $repo->isVirtualUrl( $path ) ) {
+		if ( FileRepo::isVirtualUrl( $path ) ) {
 			$path = $repo->resolveVirtualUrl( $path );
 		} else {
 			// check if path appears to be sane, no parent traversals,
@@ -582,14 +608,18 @@ class UploadStashFile extends UnregisteredLocalFile {
 			) {
 				wfDebug( "UploadStash: tried to construct an UploadStashFile "
 					. "from a file that should already exist at '$path', but path is not valid\n" );
-				throw new UploadStashBadPathException( 'path is not valid' );
+				throw new UploadStashBadPathException(
+					wfMessage( 'uploadstash-bad-path-invalid' )
+				);
 			}
 
 			// check if path exists! and is a plain file.
 			if ( !$repo->fileExists( $path ) ) {
 				wfDebug( "UploadStash: tried to construct an UploadStashFile from "
 					. "a file that should already exist at '$path', but path is not found\n" );
-				throw new UploadStashFileNotFoundException( 'cannot find path, or not a plain file' );
+				throw new UploadStashFileNotFoundException(
+					wfMessage( 'uploadstash-file-not-found-not-exists' )
+				);
 			}
 		}
 
@@ -733,28 +763,4 @@ class UploadStashFile extends UnregisteredLocalFile {
 	public function exists() {
 		return $this->repo->fileExists( $this->path );
 	}
-}
-
-class UploadStashException extends MWException {
-}
-
-class UploadStashFileNotFoundException extends UploadStashException {
-}
-
-class UploadStashBadPathException extends UploadStashException {
-}
-
-class UploadStashFileException extends UploadStashException {
-}
-
-class UploadStashZeroLengthFileException extends UploadStashException {
-}
-
-class UploadStashNotLoggedInException extends UploadStashException {
-}
-
-class UploadStashWrongOwnerException extends UploadStashException {
-}
-
-class UploadStashNoSuchKeyException extends UploadStashException {
 }

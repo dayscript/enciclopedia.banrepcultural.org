@@ -27,18 +27,23 @@
  * 'rc'. If the URI contains a query string, its parameters will be parsed
  * as RedisConnectionPool options.
  *
- * @example
+ * @par Example:
+ * @code
  * $wgRCFeeds['redis'] = array(
  *      'formatter' => 'JSONRCFeedFormatter',
  *      'uri'       => "redis://127.0.0.1:6379/rc.$wgDBname",
  * );
+ * @endcode
  *
  * @since 1.22
  */
-class RedisPubSubFeedEngine extends RCFeedEngine {
+class RedisPubSubFeedEngine extends FormattedRCFeed {
 
 	/**
 	 * @see FormattedRCFeed::send
+	 * @param array $feed
+	 * @param string $line
+	 * @return bool
 	 */
 	public function send( array $feed, $line ) {
 		$parsed = wfParseUrl( $feed['uri'] );
@@ -63,8 +68,8 @@ class RedisPubSubFeedEngine extends RCFeedEngine {
 		if ( $conn !== false ) {
 			$conn->publish( $channel, $line );
 			return true;
-		} else {
-			return false;
 		}
+
+		return false;
 	}
 }

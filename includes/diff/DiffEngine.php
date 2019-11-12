@@ -24,6 +24,9 @@
  */
 use MediaWiki\Diff\ComplexityException;
 
+// FIXME: Don't use assert() in this file
+// phpcs:disable MediaWiki.Usage.ForbiddenFunctions.assert
+
 /**
  * This diff implementation is mainly lifted from the LCS algorithm of the Eclipse project which
  * in turn is based on Myers' "An O(ND) difference algorithm and its variations"
@@ -79,7 +82,6 @@ class DiffEngine {
 	 * @return DiffOp[]
 	 */
 	public function diff( $from_lines, $to_lines ) {
-
 		// Diff and store locally
 		$this->diffInternal( $from_lines, $to_lines );
 
@@ -349,7 +351,7 @@ class DiffEngine {
 			$this->maxDifferences = ceil( ( $this->m + $this->n ) / 2.0 );
 			if ( $this->m * $this->n > $this->tooLong ) {
 				// limit complexity to D^POW_LIMIT for long sequences
-				$this->maxDifferences = floor( pow( $this->maxDifferences, $this->powLimit - 1.0 ) );
+				$this->maxDifferences = floor( $this->maxDifferences ** ( $this->powLimit - 1.0 ) );
 				wfDebug( "Limiting max number of differences to $this->maxDifferences\n" );
 			}
 
@@ -454,9 +456,7 @@ class DiffEngine {
 
 		// need to store these so we don't lose them when they're
 		// overwritten by the recursion
-		$len = $snake[2];
-		$startx = $snake[0];
-		$starty = $snake[1];
+		list( $startx, $starty, $len ) = $snake;
 
 		// the middle snake is part of the LCS, store it
 		for ( $i = 0; $i < $len; ++$i ) {
@@ -800,43 +800,6 @@ class DiffEngine {
 		}
 
 		return $this->length;
-	}
-
-}
-
-/**
- * Alternative representation of a set of changes, by the index
- * ranges that are changed.
- *
- * @ingroup DifferenceEngine
- */
-class RangeDifference {
-
-	/** @var int */
-	public $leftstart;
-
-	/** @var int */
-	public $leftend;
-
-	/** @var int */
-	public $leftlength;
-
-	/** @var int */
-	public $rightstart;
-
-	/** @var int */
-	public $rightend;
-
-	/** @var int */
-	public $rightlength;
-
-	function __construct( $leftstart, $leftend, $rightstart, $rightend ) {
-		$this->leftstart = $leftstart;
-		$this->leftend = $leftend;
-		$this->leftlength = $leftend - $leftstart;
-		$this->rightstart = $rightstart;
-		$this->rightend = $rightend;
-		$this->rightlength = $rightend - $rightstart;
 	}
 
 }

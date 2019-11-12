@@ -1,7 +1,5 @@
 <?php
 
-use MediaWiki\Auth\AuthManager;
-
 class ConfirmEditHooks {
 	protected static $instanceCreated = false;
 
@@ -13,38 +11,53 @@ class ConfirmEditHooks {
 	public static function getInstance() {
 		global $wgCaptcha, $wgCaptchaClass;
 
+		$class = $wgCaptchaClass;
+		if ( $class == null ) {
+			$class = 'SimpleCaptcha';
+		}
 		if ( !static::$instanceCreated ) {
 			static::$instanceCreated = true;
-			$wgCaptcha = new $wgCaptchaClass;
+			$wgCaptcha = new $class;
 		}
 
 		return $wgCaptcha;
 	}
 
-	static function confirmEditMerged( $context, $content, $status, $summary, $user, $minorEdit ) {
+	/**
+	 * @param RequestContext $context
+	 * @param Content $content
+	 * @param Status $status
+	 * @param string $summary
+	 * @param User $user
+	 * @param bool $minorEdit
+	 * @return bool
+	 */
+	public static function confirmEditMerged( $context, $content, $status, $summary, $user,
+		$minorEdit
+	) {
 		return self::getInstance()->confirmEditMerged( $context, $content, $status, $summary,
 			$user, $minorEdit );
 	}
 
 	/**
 	 * PageContentSaveComplete hook handler.
-	 * Clear IP whitelist cache on page saves for [[MediaWiki:captcha-ip-whitelist]].
+	 * Clear IP whitelist cache on page saves for [[MediaWiki:Captcha-ip-whitelist]].
 	 *
 	 * @param WikiPage $wikiPage
-	 * @param User     $user
-	 * @param Content  $content
-	 * @param string   $summary
-	 * @param bool     $isMinor
-	 * @param bool     $isWatch
-	 * @param string   $section
-	 * @param int      $flags
-	 * @param int      $revision
-	 * @param Status   $status
-	 * @param int      $baseRevId
+	 * @param User $user
+	 * @param Content $content
+	 * @param string $summary
+	 * @param bool $isMinor
+	 * @param bool $isWatch
+	 * @param string $section
+	 * @param int $flags
+	 * @param int $revision
+	 * @param Status $status
+	 * @param int $baseRevId
 	 *
 	 * @return bool true
 	 */
-	static function onPageContentSaveComplete( WikiPage $wikiPage, User $user, Content $content,
+	public static function onPageContentSaveComplete( WikiPage $wikiPage, User $user, Content $content,
 		$summary, $isMinor, $isWatch, $section, $flags, $revision, Status $status, $baseRevId
 	) {
 		$title = $wikiPage->getTitle();
@@ -56,40 +69,69 @@ class ConfirmEditHooks {
 		return true;
 	}
 
-	static function confirmEditPage( $editpage, $buttons, $tabindex ) {
+	/**
+	 * @param EditPage $editpage
+	 */
+	public static function confirmEditPage( EditPage $editpage ) {
 		self::getInstance()->editShowCaptcha( $editpage );
 	}
 
-	static function showEditFormFields( &$editPage, &$out ) {
+	/**
+	 * @param EditPage &$editPage
+	 * @param OutputPage &$out
+	 */
+	public static function showEditFormFields( &$editPage, &$out ) {
 		self::getInstance()->showEditFormFields( $editPage, $out );
 	}
 
-	static function injectEmailUser( &$form ) {
+	/**
+	 * @param HTMLForm &$form
+	 * @return bool
+	 */
+	public static function injectEmailUser( &$form ) {
 		return self::getInstance()->injectEmailUser( $form );
 	}
 
-	static function confirmEmailUser( $from, $to, $subject, $text, &$error ) {
+	/**
+	 * @param MailAddress $from
+	 * @param MailAddress $to
+	 * @param string $subject
+	 * @param string $text
+	 * @param string &$error
+	 * @return bool
+	 */
+	public static function confirmEmailUser( $from, $to, $subject, $text, &$error ) {
 		return self::getInstance()->confirmEmailUser( $from, $to, $subject, $text, $error );
 	}
 
-	// Default $flags to 1 for backwards-compatible behavior
-	public static function APIGetAllowedParams( &$module, &$params, $flags = 1 ) {
-		return self::getInstance()->APIGetAllowedParams( $module, $params, $flags );
+	/**
+	 * APIGetAllowedParams hook handler
+	 * Default $flags to 1 for backwards-compatible behavior
+	 * @param ApiBase &$module
+	 * @param array &$params
+	 * @param int $flags
+	 * @return bool
+	 */
+	public static function onAPIGetAllowedParams( &$module, &$params, $flags = 1 ) {
+		return self::getInstance()->apiGetAllowedParams( $module, $params, $flags );
 	}
 
+	/**
+	 * @param array $requests
+	 * @param array $fieldInfo
+	 * @param array &$formDescriptor
+	 * @param string $action
+	 */
 	public static function onAuthChangeFormFields(
 		array $requests, array $fieldInfo, array &$formDescriptor, $action
 	) {
 		self::getInstance()->onAuthChangeFormFields( $requests, $fieldInfo, $formDescriptor, $action );
 	}
 
-	/**
-	 * Set up $wgWhitelistRead
-	 */
 	public static function confirmEditSetup() {
 		// @codingStandardsIgnoreStart MediaWiki.NamingConventions.ValidGlobalName.wgPrefix
-		global $wgCaptchaTriggers, $wgWikimediaJenkinsCI, $ceAllowConfirmedEmail,
-		       $wgAllowConfirmedEmail;
+		global $wgCaptchaTriggers, $wgAllowConfirmedEmail,
+			$wgWikimediaJenkinsCI, $ceAllowConfirmedEmail;
 		// @codingStandardsIgnoreEnd
 
 		// There is no need to run (core) tests with enabled ConfirmEdit - bug T44145
@@ -112,7 +154,7 @@ class ConfirmEditHooks {
 	 *
 	 * @param Title $title
 	 * @param User $user
-	 * @param $whitelisted
+	 * @param bool &$whitelisted
 	 */
 	public static function onTitleReadWhitelist( Title $title, User $user, &$whitelisted ) {
 		$image = SpecialPage::getTitleFor( 'Captcha', 'image' );
@@ -139,7 +181,7 @@ class ConfirmEditHooks {
 	 * FIXME: This should be done in a better way, e.g. only load the libraray, if really needed.
 	 */
 	public static function onReCaptchaSetup() {
-		require_once ( __DIR__ . '/../ReCaptcha/recaptchalib.php' );
+		require_once __DIR__ . '/../ReCaptcha/recaptchalib.php';
 	}
 
 	/**
@@ -162,7 +204,7 @@ class ConfirmEditHooks {
 		}
 
 		if ( $wgReCaptchaPublicKey == '' || $wgReCaptchaPrivateKey == '' ) {
-			die (
+			die(
 				'You need to set $wgReCaptchaPrivateKey and $wgReCaptchaPublicKey in LocalSettings.php to ' .
 				"use the reCAPTCHA plugin. You can sign up for a key <a href='" .
 				htmlentities( recaptcha_get_signup_url( $wgServerName, "mediawiki" ) ) .
@@ -234,7 +276,7 @@ class ConfirmEditHooks {
 					[],
 					// IPv6 max length: 8 groups * 4 digits + 7 delimiter = 39
 					// + 11 chars for safety
-					$lang->truncate( $ip, 50 )
+					$lang->truncateForVisual( $ip, 50 )
 				) .
 				Html::rawElement(
 					'td',

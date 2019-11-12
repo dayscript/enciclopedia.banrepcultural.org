@@ -32,6 +32,22 @@ class WebResponse {
 	 */
 	protected static $setCookies = [];
 
+	/** @var bool Used to disable setters before running jobs post-request (T191537) */
+	protected static $disableForPostSend = false;
+
+	/**
+	 * Disable setters for post-send processing
+	 *
+	 * After this call, self::setCookie(), self::header(), and
+	 * self::statusHeader() will log a warning and return without
+	 * setting cookies or headers.
+	 *
+	 * @since 1.32
+	 */
+	public static function disableForPostSend() {
+		self::$disableForPostSend = true;
+	}
+
 	/**
 	 * Output an HTTP header, wrapper for PHP's header()
 	 * @param string $string Header to output
@@ -39,6 +55,16 @@ class WebResponse {
 	 * @param null|int $http_response_code Forces the HTTP response code to the specified value.
 	 */
 	public function header( $string, $replace = true, $http_response_code = null ) {
+		if ( self::$disableForPostSend ) {
+			wfDebugLog( 'header', 'ignored post-send header {header}', 'all', [
+				'header' => $string,
+				'replace' => $replace,
+				'http_response_code' => $http_response_code,
+				'exception' => new RuntimeException( 'Ignored post-send header' ),
+			] );
+			return;
+		}
+
 		\MediaWiki\HeaderCallback::warnIfHeadersSent();
 		if ( $http_response_code ) {
 			header( $string, $replace, $http_response_code );
@@ -69,6 +95,14 @@ class WebResponse {
 	 * @param int $code Status code
 	 */
 	public function statusHeader( $code ) {
+		if ( self::$disableForPostSend ) {
+			wfDebugLog( 'header', 'ignored post-send status header {code}', 'all', [
+				'code' => $code,
+				'exception' => new RuntimeException( 'Ignored post-send status header' ),
+			] );
+			return;
+		}
+
 		HttpStatus::header( $code );
 	}
 
@@ -117,9 +151,29 @@ class WebResponse {
 			$expire = time() + $wgCookieExpiration;
 		}
 
+		if ( self::$disableForPostSend ) {
+			$cookie = $options['prefix'] . $name;
+			wfDebugLog( 'cookie', 'ignored post-send cookie {cookie}', 'all', [
+				'cookie' => $cookie,
+				'data' => [
+					'name' => (string)$cookie,
+					'value' => (string)$value,
+					'expire' => (int)$expire,
+					'path' => (string)$options['path'],
+					'domain' => (string)$options['domain'],
+					'secure' => (bool)$options['secure'],
+					'httpOnly' => (bool)$options['httpOnly'],
+				],
+				'exception' => new RuntimeException( 'Ignored post-send cookie' ),
+			] );
+			return;
+		}
+
 		$func = $options['raw'] ? 'setrawcookie' : 'setcookie';
 
 		if ( Hooks::run( 'WebResponseSetCookie', [ &$name, &$value, &$expire, &$options ] ) ) {
+			// Note: Don't try to move this earlier to reuse it for self::$disableForPostSend,
+			// we need to use the altered values from the hook here. (T198525)
 			$cookie = $options['prefix'] . $name;
 			$data = [
 				'name' => (string)$cookie,
@@ -151,7 +205,7 @@ class WebResponse {
 				wfDebugLog( 'cookie', 'already set ' . $func . ': "' . implode( '", "', $data ) . '"' );
 			} else {
 				wfDebugLog( 'cookie', $func . ': "' . implode( '", "', $data ) . '"' );
-				if ( call_user_func_array( $func, array_values( $data ) ) ) {
+				if ( $func( ...array_values( $data ) ) ) {
 					self::$setCookies[$key] = $deleting ? null : [ $func, $data ];
 				}
 			}
@@ -179,140 +233,5 @@ class WebResponse {
 	 */
 	public function hasCookies() {
 		return (bool)self::$setCookies;
-	}
-}
-
-/**
- * @ingroup HTTP
- */
-class FauxResponse extends WebResponse {
-	private $headers;
-	private $cookies = [];
-	private $code;
-
-	/**
-	 * Stores a HTTP header
-	 * @param string $string Header to output
-	 * @param bool $replace Replace current similar header
-	 * @param null|int $http_response_code Forces the HTTP response code to the specified value.
-	 */
-	public function header( $string, $replace = true, $http_response_code = null ) {
-		if ( substr( $string, 0, 5 ) == 'HTTP/' ) {
-			$parts = explode( ' ', $string, 3 );
-			$this->code = intval( $parts[1] );
-		} else {
-			list( $key, $val ) = array_map( 'trim', explode( ":", $string, 2 ) );
-
-			$key = strtoupper( $key );
-
-			if ( $replace || !isset( $this->headers[$key] ) ) {
-				$this->headers[$key] = $val;
-			}
-		}
-
-		if ( $http_response_code !== null ) {
-			$this->code = intval( $http_response_code );
-		}
-	}
-
-	/**
-	 * @since 1.26
-	 * @param int $code Status code
-	 */
-	public function statusHeader( $code ) {
-		$this->code = intval( $code );
-	}
-
-	public function headersSent() {
-		return false;
-	}
-
-	/**
-	 * @param string $key The name of the header to get (case insensitive).
-	 * @return string|null The header value (if set); null otherwise.
-	 */
-	public function getHeader( $key ) {
-		$key = strtoupper( $key );
-
-		if ( isset( $this->headers[$key] ) ) {
-			return $this->headers[$key];
-		}
-		return null;
-	}
-
-	/**
-	 * Get the HTTP response code, null if not set
-	 *
-	 * @return int|null
-	 */
-	public function getStatusCode() {
-		return $this->code;
-	}
-
-	/**
-	 * @param string $name The name of the cookie.
-	 * @param string $value The value to be stored in the cookie.
-	 * @param int|null $expire Ignored in this faux subclass.
-	 * @param array $options Ignored in this faux subclass.
-	 */
-	public function setCookie( $name, $value, $expire = 0, $options = [] ) {
-		global $wgCookiePath, $wgCookiePrefix, $wgCookieDomain;
-		global $wgCookieSecure, $wgCookieExpiration, $wgCookieHttpOnly;
-
-		$options = array_filter( $options, function ( $a ) {
-			return $a !== null;
-		} ) + [
-			'prefix' => $wgCookiePrefix,
-			'domain' => $wgCookieDomain,
-			'path' => $wgCookiePath,
-			'secure' => $wgCookieSecure,
-			'httpOnly' => $wgCookieHttpOnly,
-			'raw' => false,
-		];
-
-		if ( $expire === null ) {
-			$expire = 0; // Session cookie
-		} elseif ( $expire == 0 && $wgCookieExpiration != 0 ) {
-			$expire = time() + $wgCookieExpiration;
-		}
-
-		$this->cookies[$options['prefix'] . $name] = [
-			'value' => (string)$value,
-			'expire' => (int)$expire,
-			'path' => (string)$options['path'],
-			'domain' => (string)$options['domain'],
-			'secure' => (bool)$options['secure'],
-			'httpOnly' => (bool)$options['httpOnly'],
-			'raw' => (bool)$options['raw'],
-		];
-	}
-
-	/**
-	 * @param string $name
-	 * @return string|null
-	 */
-	public function getCookie( $name ) {
-		if ( isset( $this->cookies[$name] ) ) {
-			return $this->cookies[$name]['value'];
-		}
-		return null;
-	}
-
-	/**
-	 * @param string $name
-	 * @return array|null
-	 */
-	public function getCookieData( $name ) {
-		if ( isset( $this->cookies[$name] ) ) {
-			return $this->cookies[$name];
-		}
-		return null;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getCookies() {
-		return $this->cookies;
 	}
 }

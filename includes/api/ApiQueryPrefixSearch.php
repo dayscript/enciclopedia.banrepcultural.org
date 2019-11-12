@@ -51,19 +51,20 @@ class ApiQueryPrefixSearch extends ApiQueryGeneratorBase {
 		$offset = $params['offset'];
 
 		$searchEngine = $this->buildSearchEngine( $params );
-		$titles = $searchEngine->extractTitles( $searchEngine->completionSearchWithVariants( $search ) );
+		$suggestions = $searchEngine->completionSearchWithVariants( $search );
+		$titles = $searchEngine->extractTitles( $suggestions );
+
+		if ( $suggestions->hasMoreResults() ) {
+			$this->setContinueEnumParameter( 'offset', $offset + $limit );
+		}
 
 		if ( $resultPageSet ) {
-			$resultPageSet->setRedirectMergePolicy( function( array $current, array $new ) {
+			$resultPageSet->setRedirectMergePolicy( function ( array $current, array $new ) {
 				if ( !isset( $current['index'] ) || $new['index'] < $current['index'] ) {
 					$current['index'] = $new['index'];
 				}
 				return $current;
 			} );
-			if ( count( $titles ) > $limit ) {
-				$this->setContinueEnumParameter( 'offset', $offset + $limit );
-				array_pop( $titles );
-			}
 			$resultPageSet->populateFromTitles( $titles );
 			foreach ( $titles as $index => $title ) {
 				$resultPageSet->setGeneratorData( $title, [ 'index' => $index + $offset + 1 ] );
@@ -72,22 +73,19 @@ class ApiQueryPrefixSearch extends ApiQueryGeneratorBase {
 			$result = $this->getResult();
 			$count = 0;
 			foreach ( $titles as $title ) {
-				if ( ++$count > $limit ) {
-					$this->setContinueEnumParameter( 'offset', $offset + $limit );
-					break;
-				}
 				$vals = [
-					'ns' => intval( $title->getNamespace() ),
+					'ns' => (int)$title->getNamespace(),
 					'title' => $title->getPrefixedText(),
 				];
 				if ( $title->isSpecialPage() ) {
 					$vals['special'] = true;
 				} else {
-					$vals['pageid'] = intval( $title->getArticleID() );
+					$vals['pageid'] = (int)$title->getArticleID();
 				}
 				$fit = $result->addValue( [ 'query', $this->getModuleName() ], null, $vals );
+				++$count;
 				if ( !$fit ) {
-					$this->setContinueEnumParameter( 'offset', $offset + $count - 1 );
+					$this->setContinueEnumParameter( 'offset', $offset + $count );
 					break;
 				}
 			}

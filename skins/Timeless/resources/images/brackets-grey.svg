@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+	<g fill="#aaa" stroke="none">
+		<path d="M2 3h3v1h-1v12h1v1h-3z"/>
+		<path d="M18 3v14h-3v-1h1v-12h-1v-1z"/>
+		<path d="M6 3h3v1h-1v12h1v1h-3z"/>
+		<path d="M14 3v14h-3v-1h1v-12h-1v-1z"/>
+	</g>
+</svg>

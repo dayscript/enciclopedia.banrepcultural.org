@@ -1,7 +1,5 @@
 <?php
 /**
- * Copyright 2017
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,11 +16,11 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Aaron Schulz
  */
 
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
+use Wikimedia\ObjectFactory;
 use Wikimedia\WaitConditionLoop;
 
 /**
@@ -48,14 +46,12 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 	private $directory;
 	/** @var string */
 	private $encoding;
-	/** @var integer */
+	/** @var int */
 	private $baseCacheTTL;
-	/** @var integer */
+	/** @var int */
 	private $skewCacheTTL;
-	/** @var integer */
+	/** @var int */
 	private $timeout;
-	/** @var string */
-	private $directoryHash;
 
 	/**
 	 * @param array $params Parameter map:
@@ -75,20 +71,19 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 			'encoding' => 'JSON',
 			'cacheTTL' => 10,
 			'skewTTL' => 1,
-			'timeout' => 10
+			'timeout' => 2
 		];
 
 		$this->host = $params['host'];
 		$this->protocol = $params['protocol'];
 		$this->directory = trim( $params['directory'], '/' );
-		$this->directoryHash = sha1( $this->directory );
 		$this->encoding = $params['encoding'];
 		$this->skewCacheTTL = $params['skewTTL'];
 		$this->baseCacheTTL = max( $params['cacheTTL'] - $this->skewCacheTTL, 0 );
 		$this->timeout = $params['timeout'];
 
 		if ( !isset( $params['cache'] ) ) {
-			$this->srvCache = new HashBagOStuff( [] );
+			$this->srvCache = new HashBagOStuff();
 		} elseif ( $params['cache'] instanceof BagOStuff ) {
 			$this->srvCache = $params['cache'];
 		} else {
@@ -98,12 +93,14 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 		$this->logger = new Psr\Log\NullLogger();
 		$this->http = new MultiHttpClient( [
 			'connTimeout' => $this->timeout,
-			'reqTimeout' => $this->timeout
+			'reqTimeout' => $this->timeout,
+			'logger' => $this->logger
 		] );
 	}
 
 	public function setLogger( LoggerInterface $logger ) {
 		$this->logger = $logger;
+		$this->http->setLogger( $logger );
 	}
 
 	public function has( $name ) {
@@ -122,13 +119,25 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 		return $this->procCache['config'][$name];
 	}
 
+	public function getModifiedIndex() {
+		$this->load();
+		return $this->procCache['modifiedIndex'];
+	}
+
+	/**
+	 * @throws ConfigException
+	 */
 	private function load() {
 		if ( $this->procCache !== null ) {
 			return; // already loaded
 		}
 
 		$now = microtime( true );
-		$key = $this->srvCache->makeKey( 'variable', $this->directoryHash );
+		$key = $this->srvCache->makeGlobalKey(
+			__CLASS__,
+			$this->host,
+			$this->directory
+		);
 
 		// Get the cached value or block until it is regenerated (by this or another thread)...
 		$data = null; // latest config info
@@ -147,25 +156,29 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 				// refresh the cache from etcd, using a mutex to reduce stampedes...
 				if ( $this->srvCache->lock( $key, 0, $this->baseCacheTTL ) ) {
 					try {
-						list( $config, $error, $retry ) = $this->fetchAllFromEtcd();
-						if ( $config === null ) {
+						$etcdResponse = $this->fetchAllFromEtcd();
+						$error = $etcdResponse['error'];
+						if ( is_array( $etcdResponse['config'] ) ) {
+							// Avoid having all servers expire cache keys at the same time
+							$expiry = microtime( true ) + $this->baseCacheTTL;
+							$expiry += mt_rand( 0, 1e6 ) / 1e6 * $this->skewCacheTTL;
+							$data = [
+								'config' => $etcdResponse['config'],
+								'expires' => $expiry,
+								'modifiedIndex' => $etcdResponse['modifiedIndex']
+							];
+							$this->srvCache->set( $key, $data, BagOStuff::TTL_INDEFINITE );
+
+							$this->logger->info( "Refreshed stale etcd configuration cache." );
+
+							return WaitConditionLoop::CONDITION_REACHED;
+						} else {
 							$this->logger->error( "Failed to fetch configuration: $error" );
-							// Fail fast if the error is likely to just keep happening
-							return $retry
-								? WaitConditionLoop::CONDITION_CONTINUE
-								: WaitConditionLoop::CONDITION_FAILED;
+							if ( !$etcdResponse['retry'] ) {
+								// Fail fast since the error is likely to keep happening
+								return WaitConditionLoop::CONDITION_FAILED;
+							}
 						}
-
-						// Avoid having all servers expire cache keys at the same time
-						$expiry = microtime( true ) + $this->baseCacheTTL;
-						$expiry += mt_rand( 0, 1e6 ) / 1e6 * $this->skewCacheTTL;
-
-						$data = [ 'config' => $config, 'expires' => $expiry ];
-						$this->srvCache->set( $key, $data, BagOStuff::TTL_INDEFINITE );
-
-						$this->logger->info( "Refreshed stale etcd configuration cache." );
-
-						return WaitConditionLoop::CONDITION_REACHED;
 					} finally {
 						$this->srvCache->unlock( $key ); // release mutex
 					}
@@ -191,9 +204,10 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 	}
 
 	/**
-	 * @return array (config array or null, error string, allow retries)
+	 * @return array (containing the keys config, error, retry, modifiedIndex)
 	 */
 	public function fetchAllFromEtcd() {
+		// TODO: inject DnsSrvDiscoverer in order to be able to test this method
 		$dsd = new DnsSrvDiscoverer( $this->host );
 		$servers = $dsd->getServers();
 		if ( !$servers ) {
@@ -205,60 +219,104 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 			$server = $dsd->pickServer( $servers );
 			$host = IP::combineHostAndPort( $server['target'], $server['port'] );
 			// Try to load the config from this particular server
-			list( $config, $error, $retry ) = $this->fetchAllFromEtcdServer( $host );
-			if ( is_array( $config ) || !$retry ) {
+			$response = $this->fetchAllFromEtcdServer( $host );
+			if ( is_array( $response['config'] ) || $response['retry'] ) {
 				break;
 			}
 
 			// Avoid the server next time if that failed
-			$dsd->removeServer( $server, $servers );
+			$servers = $dsd->removeServer( $server, $servers );
 		} while ( $servers );
 
-		return [ $config, $error, $retry ];
+		return $response;
 	}
 
 	/**
 	 * @param string $address Host and port
-	 * @return array (config array or null, error string, whether to allow retries)
+	 * @return array (containing the keys config, error, retry, modifiedIndex)
 	 */
 	protected function fetchAllFromEtcdServer( $address ) {
 		// Retrieve all the values under the MediaWiki config directory
 		list( $rcode, $rdesc, /* $rhdrs */, $rbody, $rerr ) = $this->http->run( [
 			'method' => 'GET',
-			'url' => "{$this->protocol}://{$address}/v2/keys/{$this->directory}/",
+			'url' => "{$this->protocol}://{$address}/v2/keys/{$this->directory}/?recursive=true",
 			'headers' => [ 'content-type' => 'application/json' ]
 		] );
 
+		$response = [ 'config' => null, 'error' => null, 'retry' => false, 'modifiedIndex' => 0 ];
+
 		static $terminalCodes = [ 404 => true ];
 		if ( $rcode < 200 || $rcode > 399 ) {
-			return [
-				null,
-				strlen( $rerr ) ? $rerr : "HTTP $rcode ($rdesc)",
-				empty( $terminalCodes[$rcode] )
-			];
+			$response['error'] = strlen( $rerr ) ? $rerr : "HTTP $rcode ($rdesc)";
+			$response['retry'] = empty( $terminalCodes[$rcode] );
+			return $response;
 		}
 
+		try {
+			$parsedResponse = $this->parseResponse( $rbody );
+		} catch ( EtcdConfigParseError $e ) {
+			$parsedResponse = [ 'error' => $e->getMessage() ];
+		}
+		return array_merge( $response, $parsedResponse );
+	}
+
+	/**
+	 * Parse a response body, throwing EtcdConfigParseError if there is a validation error
+	 *
+	 * @param string $rbody
+	 * @return array
+	 */
+	protected function parseResponse( $rbody ) {
 		$info = json_decode( $rbody, true );
-		if ( $info === null || !isset( $info['node']['nodes'] ) ) {
-			return [ null, $rcode, "Unexpected JSON response; missing 'nodes' list.", false ];
+		if ( $info === null ) {
+			throw new EtcdConfigParseError( "Error unserializing JSON response." );
 		}
-
+		if ( !isset( $info['node'] ) || !is_array( $info['node'] ) ) {
+			throw new EtcdConfigParseError(
+				"Unexpected JSON response: Missing or invalid node at top level." );
+		}
 		$config = [];
-		foreach ( $info['node']['nodes'] as $node ) {
-			if ( !empty( $node['dir'] ) ) {
-				continue; // skip directories
-			}
+		$lastModifiedIndex = $this->parseDirectory( '', $info['node'], $config );
+		return [ 'modifiedIndex' => $lastModifiedIndex, 'config' => $config ];
+	}
 
-			$name = basename( $node['key'] );
-			$value = $this->unserialize( $node['value'] );
-			if ( !is_array( $value ) || !isset( $value['val'] ) ) {
-				return [ null, "Failed to parse value for '$name'.", false ];
-			}
-
-			$config[$name] = $value['val'];
+	/**
+	 * Recursively parse a directory node and populate the array passed by
+	 * reference, throwing EtcdConfigParseError if there is a validation error
+	 *
+	 * @param string $dirName The relative directory name
+	 * @param array $dirNode The decoded directory node
+	 * @param array &$config The output array
+	 * @return int lastModifiedIndex The maximum last modified index across all keys in the directory
+	 */
+	protected function parseDirectory( $dirName, $dirNode, &$config ) {
+		$lastModifiedIndex = 0;
+		if ( !isset( $dirNode['nodes'] ) ) {
+			throw new EtcdConfigParseError(
+				"Unexpected JSON response in dir '$dirName'; missing 'nodes' list." );
+		}
+		if ( !is_array( $dirNode['nodes'] ) ) {
+			throw new EtcdConfigParseError(
+				"Unexpected JSON response in dir '$dirName'; 'nodes' is not an array." );
 		}
 
-		return [ $config, null, false ];
+		foreach ( $dirNode['nodes'] as $node ) {
+			$baseName = basename( $node['key'] );
+			$fullName = $dirName === '' ? $baseName : "$dirName/$baseName";
+			if ( !empty( $node['dir'] ) ) {
+				$lastModifiedIndex = max(
+					$this->parseDirectory( $fullName, $node, $config ),
+					$lastModifiedIndex );
+			} else {
+				$value = $this->unserialize( $node['value'] );
+				if ( !is_array( $value ) || !array_key_exists( 'val', $value ) ) {
+					throw new EtcdConfigParseError( "Failed to parse value for '$fullName'." );
+				}
+				$lastModifiedIndex = max( $node['modifiedIndex'], $lastModifiedIndex );
+				$config[$fullName] = $value['val'];
+			}
+		}
+		return $lastModifiedIndex;
 	}
 
 	/**
@@ -268,7 +326,7 @@ class EtcdConfig implements Config, LoggerAwareInterface {
 	private function unserialize( $string ) {
 		if ( $this->encoding === 'YAML' ) {
 			return yaml_parse( $string );
-		} else { // JSON
+		} else {
 			return json_decode( $string, true );
 		}
 	}

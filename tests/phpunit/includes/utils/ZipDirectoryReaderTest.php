@@ -4,7 +4,10 @@
  * @covers ZipDirectoryReader
  * NOTE: this test is more like an integration test than a unit test
  */
-class ZipDirectoryReaderTest extends PHPUnit_Framework_TestCase {
+class ZipDirectoryReaderTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
+
 	protected $zipDir;
 	protected $entries;
 
@@ -58,7 +61,8 @@ class ZipDirectoryReaderTest extends PHPUnit_Framework_TestCase {
 	}
 
 	public function testTrailingBytes() {
-		$this->readZipAssertError( 'trail.zip', 'zip-bad',
+		// Due to T40432 this is now zip-wrong-format instead of zip-bad
+		$this->readZipAssertError( 'trail.zip', 'zip-wrong-format',
 			'Trailing bytes error' );
 	}
 

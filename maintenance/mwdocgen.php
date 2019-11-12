@@ -33,6 +33,8 @@
  * @version first release
  */
 
+use MediaWiki\Shell\Shell;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -72,7 +74,7 @@ class MWDocGen extends Maintenance {
 	}
 
 	protected function init() {
-		global $IP;
+		global $wgPhpCli, $IP;
 
 		$this->doxygen = $this->getOption( 'doxygen', 'doxygen' );
 		$this->mwVersion = $this->getOption( 'version', 'master' );
@@ -86,7 +88,13 @@ class MWDocGen extends Maintenance {
 
 		$this->output = $this->getOption( 'output', "$IP/docs" );
 
-		$this->inputFilter = wfShellWikiCmd( $IP . '/maintenance/mwdoc-filter.php' );
+		// Do not use wfShellWikiCmd, because mwdoc-filter.php is not
+		// a Maintenance script.
+		$this->inputFilter = Shell::escape( [
+			$wgPhpCli,
+			$IP . '/maintenance/mwdoc-filter.php'
+		] );
+
 		$this->template = $IP . '/maintenance/Doxyfile';
 		$this->excludes = [
 			'vendor',
@@ -99,7 +107,7 @@ class MWDocGen extends Maintenance {
 			$this->excludePatterns[] = 'extensions';
 		}
 
-		$this->doDot = `which dot`;
+		$this->doDot = shell_exec( 'which dot' );
 		$this->doMan = $this->hasOption( 'generate-man' );
 	}
 
@@ -132,8 +140,7 @@ class MWDocGen extends Maintenance {
 
 		$tmpFile = tempnam( wfTempDir(), 'MWDocGen-' );
 		if ( file_put_contents( $tmpFile, $conf ) === false ) {
-			$this->error( "Could not write doxygen configuration to file $tmpFile\n",
-				/** exit code: */ 1 );
+			$this->fatalError( "Could not write doxygen configuration to file $tmpFile\n" );
 		}
 
 		$command = $this->doxygen . ' ' . $tmpFile;
@@ -155,11 +162,10 @@ TEXT
 		);
 
 		if ( $exitcode !== 0 ) {
-			$this->error( "Something went wrong (exit: $exitcode)\n",
-				$exitcode );
+			$this->fatalError( "Something went wrong (exit: $exitcode)\n", $exitcode );
 		}
 	}
 }
 
-$maintClass = 'MWDocGen';
+$maintClass = MWDocGen::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

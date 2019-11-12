@@ -18,7 +18,10 @@
  * @file
  */
 
-class XhprofTest extends PHPUnit_Framework_TestCase {
+class XhprofTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
+
 	/**
 	 * Trying to enable Xhprof when it is already enabled causes an exception
 	 * to be thrown.
@@ -28,10 +31,83 @@ class XhprofTest extends PHPUnit_Framework_TestCase {
 	 * @covers Xhprof::enable
 	 */
 	public function testEnable() {
-		$xhprof = new ReflectionClass( 'Xhprof' );
+		$xhprof = new ReflectionClass( Xhprof::class );
 		$enabled = $xhprof->getProperty( 'enabled' );
 		$enabled->setAccessible( true );
 		$enabled->setValue( true );
 		$xhprof->getMethod( 'enable' )->invoke( null );
 	}
+
+	/**
+	 * callAny() calls the first function of the list.
+	 *
+	 * @covers Xhprof::callAny
+	 * @dataProvider provideCallAny
+	 */
+	public function testCallAny( array $functions, array $args, $expectedResult ) {
+		$xhprof = new ReflectionClass( Xhprof::class );
+		$callAny = $xhprof->getMethod( 'callAny' );
+		$callAny->setAccessible( true );
+
+		$this->assertEquals( $expectedResult,
+			$callAny->invoke( null, $functions, $args ) );
+	}
+
+	/**
+	 * Data provider for testCallAny().
+	*/
+	public function provideCallAny() {
+		return [
+			[
+				[ 'wfTestCallAny_func1', 'wfTestCallAny_func2', 'wfTestCallAny_func3' ],
+				[ 3, 4 ],
+				12
+			],
+			[
+				[ 'wfTestCallAny_nosuchfunc1', 'wfTestCallAny_func2', 'wfTestCallAny_func3' ],
+				[ 3, 4 ],
+				7
+			],
+			[
+				[ 'wfTestCallAny_nosuchfunc1', 'wfTestCallAny_nosuchfunc2', 'wfTestCallAny_func3' ],
+				[ 3, 4 ],
+				-1
+			]
+
+		];
+	}
+
+	/**
+	 * callAny() throws an exception when all functions are unavailable.
+	 *
+	 * @expectedException        Exception
+	 * @expectedExceptionMessage Neither xhprof nor tideways are installed
+	 * @covers Xhprof::callAny
+	 */
+	public function testCallAnyNoneAvailable() {
+		$xhprof = new ReflectionClass( Xhprof::class );
+		$callAny = $xhprof->getMethod( 'callAny' );
+		$callAny->setAccessible( true );
+
+		$callAny->invoke( $xhprof, [
+			'wfTestCallAny_nosuchfunc1',
+			'wfTestCallAny_nosuchfunc2',
+			'wfTestCallAny_nosuchfunc3'
+		] );
+	}
+}
+
+/** Test function #1 for XhprofTest::testCallAny */
+function wfTestCallAny_func1( $a, $b ) {
+	return $a * $b;
+}
+
+/** Test function #2 for XhprofTest::testCallAny */
+function wfTestCallAny_func2( $a, $b ) {
+	return $a + $b;
+}
+
+/** Test function #3 for XhprofTest::testCallAny */
+function wfTestCallAny_func3( $a, $b ) {
+	return $a - $b;
 }

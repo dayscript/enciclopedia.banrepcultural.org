@@ -21,6 +21,7 @@
  */
 
 use Wikimedia\Rdbms\IDatabase;
+use MediaWiki\MediaWikiServices;
 
 /**
  * Represents a "user group membership" -- a specific instance of a user belonging
@@ -45,7 +46,7 @@ class UserGroupMembership {
 
 	/**
 	 * @param int $userId The ID of the user who belongs to the group
-	 * @param string $group The internal group name
+	 * @param string|null $group The internal group name
 	 * @param string|null $expiry Timestamp of expiry in TS_MW format, or null if no expiry
 	 */
 	public function __construct( $userId = 0, $group = null, $expiry = null ) {
@@ -158,7 +159,7 @@ class UserGroupMembership {
 		}
 
 		// Purge old, expired memberships from the DB
-		self::purgeExpired( $dbw );
+		JobQueueGroup::singleton()->push( new UserGroupExpiryJob() );
 
 		// Check that the values make sense
 		if ( $this->group === null ) {
@@ -229,45 +230,72 @@ class UserGroupMembership {
 	public function isExpired() {
 		if ( !$this->expiry ) {
 			return false;
-		} else {
-			return wfTimestampNow() > $this->expiry;
 		}
+		return wfTimestampNow() > $this->expiry;
 	}
 
 	/**
 	 * Purge expired memberships from the user_groups table
 	 *
-	 * @param IDatabase|null $dbw
+	 * @return int|bool false if purging wasn't attempted (e.g. because of
+	 *  readonly), the number of rows purged (might be 0) otherwise
 	 */
-	public static function purgeExpired( IDatabase $dbw = null ) {
-		if ( wfReadOnly() ) {
-			return;
+	public static function purgeExpired() {
+		$services = MediaWikiServices::getInstance();
+		if ( $services->getReadOnlyMode()->isReadOnly() ) {
+			return false;
 		}
 
-		if ( $dbw === null ) {
-			$dbw = wfGetDB( DB_MASTER );
+		$lbFactory = $services->getDBLoadBalancerFactory();
+		$ticket = $lbFactory->getEmptyTransactionTicket( __METHOD__ );
+		$dbw = $services->getDBLoadBalancer()->getConnection( DB_MASTER );
+
+		$lockKey = $dbw->getDomainID() . ':usergroups-prune'; // specific to this wiki
+		$scopedLock = $dbw->getScopedLockAndFlush( $lockKey, __METHOD__, 0 );
+		if ( !$scopedLock ) {
+			return false; // already running
 		}
 
-		DeferredUpdates::addUpdate( new AtomicSectionUpdate(
-			$dbw,
-			__METHOD__,
-			function ( IDatabase $dbw, $fname ) {
-				$expiryCond = [ 'ug_expiry < ' . $dbw->addQuotes( $dbw->timestamp() ) ];
-				$res = $dbw->select( 'user_groups', self::selectFields(), $expiryCond, $fname );
+		$now = time();
+		$purgedRows = 0;
+		do {
+			$dbw->startAtomic( __METHOD__ );
 
-				// save an array of users/groups to insert to user_former_groups
-				$usersAndGroups = [];
+			$res = $dbw->select(
+				'user_groups',
+				self::selectFields(),
+				[ 'ug_expiry < ' . $dbw->addQuotes( $dbw->timestamp( $now ) ) ],
+				__METHOD__,
+				[ 'FOR UPDATE', 'LIMIT' => 100 ]
+			);
+
+			if ( $res->numRows() > 0 ) {
+				$insertData = []; // array of users/groups to insert to user_former_groups
+				$deleteCond = []; // array for deleting the rows that are to be moved around
 				foreach ( $res as $row ) {
-					$usersAndGroups[] = [ 'ufg_user' => $row->ug_user, 'ufg_group' => $row->ug_group ];
+					$insertData[] = [ 'ufg_user' => $row->ug_user, 'ufg_group' => $row->ug_group ];
+					$deleteCond[] = $dbw->makeList(
+						[ 'ug_user' => $row->ug_user, 'ug_group' => $row->ug_group ],
+						$dbw::LIST_AND
+					);
 				}
-
-				// delete 'em all
-				$dbw->delete( 'user_groups', $expiryCond, $fname );
-
-				// and push the groups to user_former_groups
-				$dbw->insert( 'user_former_groups', $usersAndGroups, __METHOD__, [ 'IGNORE' ] );
+				// Delete the rows we're about to move
+				$dbw->delete(
+					'user_groups',
+					$dbw->makeList( $deleteCond, $dbw::LIST_OR ),
+					__METHOD__
+				);
+				// Push the groups to user_former_groups
+				$dbw->insert( 'user_former_groups', $insertData, __METHOD__, [ 'IGNORE' ] );
+				// Count how many rows were purged
+				$purgedRows += $res->numRows();
 			}
-		) );
+
+			$dbw->endAtomic( __METHOD__ );
+
+			$lbFactory->commitAndWaitForReplication( __METHOD__, $ticket );
+		} while ( $res->numRows() > 0 );
+		return $purgedRows;
 	}
 
 	/**
@@ -276,7 +304,7 @@ class UserGroupMembership {
 	 *
 	 * @param int $userId ID of the user to search for
 	 * @param IDatabase|null $db Optional database connection
-	 * @return array Associative array of (group name => UserGroupMembership object)
+	 * @return UserGroupMembership[] Associative array of (group name => UserGroupMembership object)
 	 */
 	public static function getMembershipsForUser( $userId, IDatabase $db = null ) {
 		if ( !$db ) {
@@ -295,6 +323,7 @@ class UserGroupMembership {
 				$ugms[$ugm->group] = $ugm;
 			}
 		}
+		ksort( $ugms );
 
 		return $ugms;
 	}
@@ -325,9 +354,8 @@ class UserGroupMembership {
 		$ugm = self::newFromRow( $row );
 		if ( !$ugm->isExpired() ) {
 			return $ugm;
-		} else {
-			return false;
 		}
+		return false;
 	}
 
 	/**
@@ -344,8 +372,8 @@ class UserGroupMembership {
 	 * @return string
 	 */
 	public static function getLink( $ugm, IContextSource $context, $format,
-		$userName = null ) {
-
+		$userName = null
+	) {
 		if ( $format !== 'wiki' && $format !== 'html' ) {
 			throw new MWException( 'UserGroupMembership::getLink() $format parameter should be ' .
 				"'wiki' or 'html'" );
@@ -390,9 +418,8 @@ class UserGroupMembership {
 			}
 			return $context->msg( 'group-membership-link-with-expiry' )
 				->params( $groupLink, $expiryDT, $expiryD, $expiryT )->text();
-		} else {
-			return $groupLink;
 		}
+		return $groupLink;
 	}
 
 	/**

@@ -1,8 +1,7 @@
-'use strict';
-const Page = require( './page' );
+const Page = require( 'wdio-mediawiki/Page' ),
+	Api = require( 'wdio-mediawiki/Api' );
 
 class CreateAccountPage extends Page {
-
 	get username() { return browser.element( '#wpName2' ); }
 	get password() { return browser.element( '#wpPassword2' ); }
 	get confirmPassword() { return browser.element( '#wpRetype' ); }
@@ -10,7 +9,7 @@ class CreateAccountPage extends Page {
 	get heading() { return browser.element( '#firstHeading' ); }
 
 	open() {
-		super.open( 'Special:CreateAccount' );
+		super.openTitle( 'Special:CreateAccount' );
 	}
 
 	createAccount( username, password ) {
@@ -21,5 +20,10 @@ class CreateAccountPage extends Page {
 		this.create.click();
 	}
 
+	// @deprecated Use wdio-mediawiki/Api#createAccount() instead.
+	apiCreateAccount( username, password ) {
+		return Api.createAccount( username, password );
+	}
 }
+
 module.exports = new CreateAccountPage();

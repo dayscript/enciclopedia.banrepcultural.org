@@ -1,5 +1,8 @@
 <?php
 
+use MediaWiki\MediaWikiServices;
+use Wikimedia\TestingAccessWrapper;
+
 /**
  * @group Database
  * @group Cache
@@ -10,6 +13,7 @@ class MessageCacheTest extends MediaWikiLangTestCase {
 	protected function setUp() {
 		parent::setUp();
 		$this->configureLanguages();
+		MessageCache::destroyInstance();
 		MessageCache::singleton()->enable();
 	}
 
@@ -55,25 +59,29 @@ class MessageCacheTest extends MediaWikiLangTestCase {
 	 * @param string $title Title of page to be created
 	 * @param string $lang Language and content of the created page
 	 * @param string|null $content Content of the created page, or null for a generic string
+	 *
+	 * @return Revision
 	 */
 	protected function makePage( $title, $lang, $content = null ) {
-		global $wgContLang;
-
 		if ( $content === null ) {
 			$content = $lang;
 		}
-		if ( $lang !== $wgContLang->getCode() ) {
+		if ( $lang !== MediaWikiServices::getInstance()->getContentLanguage()->getCode() ) {
 			$title = "$title/$lang";
 		}
 
 		$title = Title::newFromText( $title, NS_MEDIAWIKI );
 		$wikiPage = new WikiPage( $title );
 		$contentHandler = ContentHandler::makeContent( $content, $title );
-		$wikiPage->doEditContent( $contentHandler, "$lang translation test case" );
+		$status = $wikiPage->doEditContent( $contentHandler, "$lang translation test case" );
+
+		// sanity
+		$this->assertTrue( $status->isOK(), 'Create page ' . $title->getPrefixedDBkey() );
+		return $status->value['revision'];
 	}
 
 	/**
-	 * Test message fallbacks, bug #1495
+	 * Test message fallbacks, T3495
 	 *
 	 * @dataProvider provideMessagesForFallback
 	 */
@@ -100,11 +108,9 @@ class MessageCacheTest extends MediaWikiLangTestCase {
 	}
 
 	public function testReplaceMsg() {
-		global $wgContLang;
-
 		$messageCache = MessageCache::singleton();
 		$message = 'go';
-		$uckey = $wgContLang->ucfirst( $message );
+		$uckey = MediaWikiServices::getInstance()->getContentLanguage()->ucfirst( $message );
 		$oldText = $messageCache->get( $message ); // "Ausführen"
 
 		$dbw = wfGetDB( DB_MASTER );
@@ -130,23 +136,49 @@ class MessageCacheTest extends MediaWikiLangTestCase {
 		$this->assertEquals( $oldText, $messageCache->get( $message ), 'Content restored' );
 	}
 
-	/**
-	 * There's a fallback case where the message key is given as fully qualified -- this
-	 * should ignore the passed $lang and use the language from the key
-	 *
-	 * @dataProvider provideMessagesForFullKeys
-	 */
-	public function testFullKeyBehaviour( $message, $lang, $expectedContent ) {
-		$result = MessageCache::singleton()->get( $message, true, $lang, true );
-		$this->assertEquals( $expectedContent, $result, "Full key message fallback failed." );
-	}
+	public function testReplaceCache() {
+		global $wgWANObjectCaches;
 
-	function provideMessagesForFullKeys() {
-		return [
-			[ 'MessageCacheTest-FullKeyTest/ru', 'ru', 'ru' ],
-			[ 'MessageCacheTest-FullKeyTest/ru', 'ab', 'ru' ],
-			[ 'MessageCacheTest-FullKeyTest/ru/foo', 'ru', false ],
-		];
+		// We need a WAN cache for this.
+		$this->setMwGlobals( [
+			'wgMainWANCache' => 'hash',
+			'wgWANObjectCaches' => $wgWANObjectCaches + [
+				'hash' => [
+					'class'    => WANObjectCache::class,
+					'cacheId'  => 'hash',
+					'channels' => []
+				]
+			]
+		] );
+		$this->overrideMwServices();
+
+		MessageCache::destroyInstance();
+		$messageCache = MessageCache::singleton();
+		$messageCache->enable();
+
+		// Populate one key
+		$this->makePage( 'Key1', 'de', 'Value1' );
+		$this->assertEquals( 0,
+			DeferredUpdates::pendingUpdatesCount(),
+			'Post-commit deferred update triggers a run of all updates' );
+		$this->assertEquals( 'Value1', $messageCache->get( 'Key1' ), 'Key1 was successfully edited' );
+
+		// Screw up the database so MessageCache::loadFromDB() will
+		// produce the wrong result for reloading Key1
+		$this->db->delete(
+			'page', [ 'page_namespace' => NS_MEDIAWIKI, 'page_title' => 'Key1' ], __METHOD__
+		);
+
+		// Populate the second key
+		$this->makePage( 'Key2', 'de', 'Value2' );
+		$this->assertEquals( 0,
+			DeferredUpdates::pendingUpdatesCount(),
+			'Post-commit deferred update triggers a run of all updates' );
+		$this->assertEquals( 'Value2', $messageCache->get( 'Key2' ), 'Key2 was successfully edited' );
+
+		// Now test that the second edit didn't reload Key1
+		$this->assertEquals( 'Value1', $messageCache->get( 'Key1' ),
+			'Key1 wasn\'t reloaded by edit of Key2' );
 	}
 
 	/**
@@ -171,4 +203,74 @@ class MessageCacheTest extends MediaWikiLangTestCase {
 			[ 'ćaB', 'ćaB' ],
 		];
 	}
+
+	public function testNoDBAccessContentLanguage() {
+		global $wgContLanguageCode;
+
+		$dbr = wfGetDB( DB_REPLICA );
+
+		MessageCache::singleton()->getMsgFromNamespace( 'allpages', $wgContLanguageCode );
+
+		$this->assertEquals( 0, $dbr->trxLevel() );
+		$dbr->setFlag( DBO_TRX, $dbr::REMEMBER_PRIOR ); // make queries trigger TRX
+
+		MessageCache::singleton()->getMsgFromNamespace( 'go', $wgContLanguageCode );
+
+		$dbr->restoreFlags();
+
+		$this->assertEquals( 0, $dbr->trxLevel(), "No DB read queries (content language)" );
+	}
+
+	public function testNoDBAccessNonContentLanguage() {
+		$dbr = wfGetDB( DB_REPLICA );
+
+		MessageCache::singleton()->getMsgFromNamespace( 'allpages/nl', 'nl' );
+
+		$this->assertEquals( 0, $dbr->trxLevel() );
+		$dbr->setFlag( DBO_TRX, $dbr::REMEMBER_PRIOR ); // make queries trigger TRX
+
+		MessageCache::singleton()->getMsgFromNamespace( 'go/nl', 'nl' );
+
+		$dbr->restoreFlags();
+
+		$this->assertEquals( 0, $dbr->trxLevel(), "No DB read queries (non-content language)" );
+	}
+
+	/**
+	 * Regression test for T218918
+	 */
+	public function testLoadFromDB_fetchLatestRevision() {
+		// Create three revisions of the same message page.
+		// Must be an existing message key.
+		$key = 'Log';
+		$this->makePage( $key, 'de', 'Test eins' );
+		$this->makePage( $key, 'de', 'Test zwei' );
+		$r3 = $this->makePage( $key, 'de', 'Test drei' );
+
+		// Create an out-of-sequence revision by importing a
+		// revision with an old timestamp. Hacky.
+		$importRevision = new WikiRevision( new HashConfig() );
+		$importRevision->setTitle( $r3->getTitle() );
+		$importRevision->setComment( 'Imported edit' );
+		$importRevision->setTimestamp( '19991122001122' );
+		$importRevision->setText( 'IMPORTED OLD TEST' );
+		$importRevision->setUsername( 'ext>Alan Smithee' );
+
+		$importer = MediaWikiServices::getInstance()->getWikiRevisionOldRevisionImporterNoUpdates();
+		$importer->import( $importRevision );
+
+		// Now, load the message from the wiki page
+		MessageCache::destroyInstance();
+		$messageCache = MessageCache::singleton();
+		$messageCache->enable();
+		$messageCache = TestingAccessWrapper::newFromObject( $messageCache );
+
+		$cache = $messageCache->loadFromDB( 'de' );
+
+		$this->assertArrayHasKey( $key, $cache );
+
+		// Text in the cache has an extra space in front!
+		$this->assertSame( ' ' . 'Test drei', $cache[$key] );
+	}
+
 }

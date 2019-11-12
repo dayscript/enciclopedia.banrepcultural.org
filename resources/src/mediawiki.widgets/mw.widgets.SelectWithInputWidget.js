@@ -4,7 +4,7 @@
  * @copyright 2011-2017 MediaWiki Widgets Team and others; see AUTHORS.txt
  * @license The MIT License (MIT); see LICENSE.txt
  */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * Select with input widget. Displays an OO.ui.TextInputWidget along with
@@ -46,11 +46,13 @@
 		// Properties
 		this.textinput = new OO.ui.TextInputWidget( config.textinput );
 		this.dropdowninput = new OO.ui.DropdownInputWidget( config.dropdowninput );
+		this.or = config.or;
 
-		if ( config.or === true ) {
-			this.dropdowninput.on( 'change', this.onChange.bind( this ) );
-			this.onChange();
-		}
+		// Events
+		this.dropdowninput.on( 'change', this.onChange.bind( this ) );
+		this.textinput.on( 'change', function () {
+			this.emit( 'change', this.getValue() );
+		}.bind( this ) );
 
 		// Parent constructor
 		mw.widgets.SelectWithInputWidget.parent.call( this, config );
@@ -62,6 +64,7 @@
 				this.dropdowninput.$element,
 				this.textinput.$element
 			);
+		this.onChange();
 	};
 
 	/* Setup */
@@ -116,9 +119,55 @@
 	 * @inheritdoc
 	 */
 	mw.widgets.SelectWithInputWidget.prototype.setDisabled = function ( disabled ) {
+		var textinputIsHidden = this.or && this.dropdowninput.getValue() !== 'other';
 		mw.widgets.SelectWithInputWidget.parent.prototype.setDisabled.call( this, disabled );
-		this.textinput.setDisabled( disabled );
 		this.dropdowninput.setDisabled( disabled );
+		// It is impossible to submit a form with hidden fields failing validation, e.g. one that
+		// is required. However, validity is not checked for disabled fields, as these are not
+		// submitted with the form. So we should also disable fields when hiding them.
+		this.textinput.setDisabled( textinputIsHidden || disabled );
+	};
+
+	/**
+	 * Set the value from outside.
+	 *
+	 * @param {string|undefined} value
+	 */
+	mw.widgets.SelectWithInputWidget.prototype.setValue = function ( value ) {
+		var selectable = false;
+
+		if ( this.or ) {
+			if ( value !== 'other' ) {
+				selectable = !!this.dropdowninput.dropdownWidget.getMenu().findItemFromData( value );
+			}
+
+			if ( selectable ) {
+				this.dropdowninput.setValue( value );
+				this.textinput.setValue( undefined );
+			} else {
+				this.dropdowninput.setValue( 'other' );
+				this.textinput.setValue( value );
+			}
+
+			this.emit( 'change', value );
+		}
+	};
+
+	/**
+	 * Get the value from outside.
+	 *
+	 * @return {string}
+	 */
+	mw.widgets.SelectWithInputWidget.prototype.getValue = function () {
+		if ( this.or ) {
+			if ( this.dropdowninput.getValue() !== 'other' ) {
+				return this.dropdowninput.getValue();
+			}
+
+			return this.textinput.getValue();
+		} else {
+			return '';
+		}
 	};
 
 	/**
@@ -128,8 +177,16 @@
 	 * @private
 	 */
 	mw.widgets.SelectWithInputWidget.prototype.onChange = function ( value ) {
-		value = value || this.dropdowninput.getValue();
-		this.textinput.$element.toggle( value === 'other' );
+		if ( this.or ) {
+			value = value || this.dropdowninput.getValue();
+			this.textinput.$element.toggle( value === 'other' );
+			// It is impossible to submit a form with hidden fields failing validation, e.g. one that
+			// is required. However, validity is not checked for disabled fields, as these are not
+			// submitted with the form. So we should also disable fields when hiding them.
+			this.textinput.setDisabled( value !== 'other' || this.isDisabled() );
+		}
+
+		this.emit( 'change', this.getValue() );
 	};
 
-}( jQuery, mediaWiki ) );
+}() );

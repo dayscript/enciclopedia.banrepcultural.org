@@ -1,8 +1,13 @@
 <?php
 
-class DnsSrvDiscovererTest extends PHPUnit_Framework_TestCase {
+/**
+ * @covers DnsSrvDiscoverer
+ */
+class DnsSrvDiscovererTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
+
 	/**
-	 * @covers DnsSrvDiscoverer
 	 * @dataProvider provideRecords
 	 */
 	public function testPickServer( $params, $expected ) {
@@ -10,7 +15,6 @@ class DnsSrvDiscovererTest extends PHPUnit_Framework_TestCase {
 		$record = $discoverer->pickServer( $params );
 
 		$this->assertEquals( $expected, $record );
-
 	}
 
 	public static function provideRecords() {

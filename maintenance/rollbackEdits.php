@@ -50,7 +50,7 @@ class RollbackEdits extends Maintenance {
 		$user = $this->getOption( 'user' );
 		$username = User::isIP( $user ) ? $user : User::getCanonicalName( $user );
 		if ( !$username ) {
-			$this->error( 'Invalid username', true );
+			$this->fatalError( 'Invalid username' );
 		}
 
 		$bot = $this->hasOption( 'bot' );
@@ -71,7 +71,7 @@ class RollbackEdits extends Maintenance {
 		}
 
 		if ( !$titles ) {
-			$this->output( 'No suitable titles to be rolled back' );
+			$this->output( 'No suitable titles to be rolled back.' );
 
 			return;
 		}
@@ -82,26 +82,30 @@ class RollbackEdits extends Maintenance {
 			$page = WikiPage::factory( $t );
 			$this->output( 'Processing ' . $t->getPrefixedText() . '... ' );
 			if ( !$page->commitRollback( $user, $summary, $bot, $results, $doer ) ) {
-				$this->output( "done\n" );
+				$this->output( "Done!\n" );
 			} else {
-				$this->output( "failed\n" );
+				$this->output( "Failed!\n" );
 			}
 		}
 	}
 
 	/**
 	 * Get all pages that should be rolled back for a given user
-	 * @param string $user A name to check against rev_user_text
+	 * @param string $user A name to check against
 	 * @return array
 	 */
 	private function getRollbackTitles( $user ) {
 		$dbr = $this->getDB( DB_REPLICA );
 		$titles = [];
+		$actorQuery = ActorMigration::newMigration()
+			->getWhere( $dbr, 'rev_user', User::newFromName( $user, false ) );
 		$results = $dbr->select(
-			[ 'page', 'revision' ],
+			[ 'page', 'revision' ] + $actorQuery['tables'],
 			[ 'page_namespace', 'page_title' ],
-			[ 'page_latest = rev_id', 'rev_user_text' => $user ],
-			__METHOD__
+			$actorQuery['conds'],
+			__METHOD__,
+			[],
+			[ 'revision' => [ 'JOIN', 'page_latest = rev_id' ] ] + $actorQuery['joins']
 		);
 		foreach ( $results as $row ) {
 			$titles[] = Title::makeTitle( $row->page_namespace, $row->page_title );
@@ -111,5 +115,5 @@ class RollbackEdits extends Maintenance {
 	}
 }
 
-$maintClass = 'RollbackEdits';
+$maintClass = RollbackEdits::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

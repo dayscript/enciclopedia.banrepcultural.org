@@ -65,27 +65,23 @@ class DeleteBatch extends Maintenance {
 			$user = User::newFromName( $username );
 		}
 		if ( !$user ) {
-			$this->error( "Invalid username", true );
+			$this->fatalError( "Invalid username" );
 		}
 		$wgUser = $user;
 
-		if ( $this->hasArg() ) {
-			$file = fopen( $this->getArg(), 'r' );
+		if ( $this->hasArg( 0 ) ) {
+			$file = fopen( $this->getArg( 0 ), 'r' );
 		} else {
 			$file = $this->getStdin();
 		}
 
 		# Setup
 		if ( !$file ) {
-			$this->error( "Unable to read file, exiting", true );
+			$this->fatalError( "Unable to read file, exiting" );
 		}
 
-		$dbw = $this->getDB( DB_MASTER );
-
 		# Handle each entry
-		// @codingStandardsIgnoreStart Ignore Generic.CodeAnalysis.ForLoopWithTestFunctionCall.NotAllowed
 		for ( $linenum = 1; !feof( $file ); $linenum++ ) {
-			// @codingStandardsIgnoreEnd
 			$line = trim( fgets( $file ) );
 			if ( $line == '' ) {
 				continue;
@@ -109,7 +105,7 @@ class DeleteBatch extends Maintenance {
 			}
 			$page = WikiPage::factory( $title );
 			$error = '';
-			$success = $page->doDeleteArticle( $reason, false, 0, true, $error, $user );
+			$success = $page->doDeleteArticle( $reason, false, null, null, $error, $user, true );
 			if ( $success ) {
 				$this->output( " Deleted!\n" );
 			} else {
@@ -124,5 +120,5 @@ class DeleteBatch extends Maintenance {
 	}
 }
 
-$maintClass = "DeleteBatch";
+$maintClass = DeleteBatch::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

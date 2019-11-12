@@ -358,16 +358,16 @@ class SessionTest extends MediaWikiTestCase {
 		$logger->clearBuffer();
 
 		// Unserializable data
-		$iv = \MWCryptRand::generate( 16, true );
+		$iv = random_bytes( 16 );
 		list( $encKey, $hmacKey ) = TestingAccessWrapper::newFromObject( $session )->getSecretKeys();
 		$ciphertext = openssl_encrypt( 'foobar', 'aes-256-ctr', $encKey, OPENSSL_RAW_DATA, $iv );
 		$sealed = base64_encode( $iv ) . '.' . base64_encode( $ciphertext );
 		$hmac = hash_hmac( 'sha256', $sealed, $hmacKey, true );
 		$encrypted = base64_encode( $hmac ) . '.' . $sealed;
 		$session->set( 'test', $encrypted );
-		\MediaWiki\suppressWarnings();
+		\Wikimedia\suppressWarnings();
 		$this->assertEquals( 'defaulted', $session->getSecret( 'test', 'defaulted' ) );
-		\MediaWiki\restoreWarnings();
+		\Wikimedia\restoreWarnings();
 	}
 
 }

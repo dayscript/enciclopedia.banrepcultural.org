@@ -16,12 +16,14 @@
 }
 
 textarea {
-	/* Support Firefox: Border rule required to override system appearance on Linux */
-	border: 1px solid #a2a9b1;
+	/* Support: Firefox */
+	/* Border rule required to override system appearance on Linux (T136415) */
+	border: 1px solid #c8ccd1;
 }
 
 .editOptions {
 	background-color: #eaecf0;
+	color: #222;
 	border: 1px solid #c8ccd1;
 	border-top: 0;
 	padding: 1em 1em 1.5em 1em;
@@ -61,18 +63,12 @@ textarea {
 	display: none;
 }
 
-#jump-to-nav {
-	/* Negate #contentSub's margin and replicate it so that the jump to links don't affect the spacing */
-	margin-top: -1.4em;
-	margin-bottom: 1.4em;
-}
-
 #contentSub,
 #contentSub2 {
 	font-size: 84%;
 	line-height: 1.2em;
 	margin: 0 0 1.4em 1em;
-	color: #545454;
+	color: #54595d;
 	width: auto;
 }
 

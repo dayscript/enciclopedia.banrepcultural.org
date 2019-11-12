@@ -24,6 +24,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -37,6 +39,7 @@ class BackupReader extends Maintenance {
 	public $revCount = 0;
 	public $dryRun = false;
 	public $uploads = false;
+	protected $uploadCount = 0;
 	public $imageBasePath = false;
 	public $nsFilter = false;
 
@@ -80,12 +83,19 @@ TEXT
 			'Disable link table updates. Is faster but leaves the wiki in an inconsistent state'
 		);
 		$this->addOption( 'image-base-path', 'Import files from a specified path', false, true );
+		$this->addOption( 'skip-to', 'Start from nth page by skipping first n-1 pages', false, true );
+		$this->addOption( 'username-prefix', 'Prefix for interwiki usernames', false, true );
+		$this->addOption( 'no-local-users',
+			'Treat all usernames as interwiki. ' .
+			'The default is to assign edits to local users where they exist.',
+			false, false
+		);
 		$this->addArg( 'file', 'Dump file to import [else use stdin]', false );
 	}
 
 	public function execute() {
 		if ( wfReadOnly() ) {
-			$this->error( "Wiki is in read-only mode; you'll need to disable it for import to work.", true );
+			$this->fatalError( "Wiki is in read-only mode; you'll need to disable it for import to work." );
 		}
 
 		$this->reportingInterval = intval( $this->getOption( 'report', 100 ) );
@@ -102,8 +112,8 @@ TEXT
 			$this->setNsfilter( explode( '|', $this->getOption( 'namespaces' ) ) );
 		}
 
-		if ( $this->hasArg() ) {
-			$this->importFromFile( $this->getArg() );
+		if ( $this->hasArg( 0 ) ) {
+			$this->importFromFile( $this->getArg( 0 ) );
 		} else {
 			$this->importFromStdin();
 		}
@@ -123,20 +133,21 @@ TEXT
 	}
 
 	private function getNsIndex( $namespace ) {
-		global $wgContLang;
-		$result = $wgContLang->getNsIndex( $namespace );
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+		$result = $contLang->getNsIndex( $namespace );
 		if ( $result !== false ) {
 			return $result;
 		}
 		$ns = intval( $namespace );
-		if ( strval( $ns ) === $namespace && $wgContLang->getNsText( $ns ) !== false ) {
+		if ( strval( $ns ) === $namespace && $contLang->getNsText( $ns ) !== false ) {
 			return $ns;
 		}
-		$this->error( "Unknown namespace text / index specified: $namespace", true );
+		$this->fatalError( "Unknown namespace text / index specified: $namespace" );
 	}
 
 	/**
 	 * @param Title|Revision $obj
+	 * @throws MWException
 	 * @return bool
 	 */
 	private function skippedNamespace( $obj ) {
@@ -293,15 +304,29 @@ TEXT
 		if ( $this->hasOption( 'no-updates' ) ) {
 			$importer->setNoUpdates( true );
 		}
+		if ( $this->hasOption( 'username-prefix' ) ) {
+			$importer->setUsernamePrefix(
+				$this->getOption( 'username-prefix' ),
+				!$this->hasOption( 'no-local-users' )
+			);
+		}
 		if ( $this->hasOption( 'rootpage' ) ) {
 			$statusRootPage = $importer->setTargetRootPage( $this->getOption( 'rootpage' ) );
 			if ( !$statusRootPage->isGood() ) {
 				// Die here so that it doesn't print "Done!"
-				$this->error( $statusRootPage->getMessage()->text(), 1 );
+				$this->fatalError( $statusRootPage->getMessage()->text() );
 				return false;
 			}
 		}
+		if ( $this->hasOption( 'skip-to' ) ) {
+			$nthPage = (int)$this->getOption( 'skip-to' );
+			$importer->setPageOffset( $nthPage );
+			$this->pageCount = $nthPage - 1;
+		}
 		$importer->setPageCallback( [ $this, 'reportPage' ] );
+		$importer->setNoticeCallback( function ( $msg, $params ) {
+			echo wfMessage( $msg, $params )->text() . "\n";
+		} );
 		$this->importCallback = $importer->setRevisionCallback(
 			[ $this, 'handleRevision' ] );
 		$this->uploadCallback = $importer->setUploadCallback(
@@ -323,5 +348,5 @@ TEXT
 	}
 }
 
-$maintClass = 'BackupReader';
+$maintClass = BackupReader::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

@@ -87,7 +87,7 @@ class HTMLFileCache extends FileCacheBase {
 	/**
 	 * Check if pages can be cached for this request/user
 	 * @param IContextSource $context
-	 * @param integer $mode One of the HTMLFileCache::MODE_* constants (since 1.28)
+	 * @param int $mode One of the HTMLFileCache::MODE_* constants (since 1.28)
 	 * @return bool
 	 */
 	public static function useFileCache( IContextSource $context, $mode = self::MODE_NORMAL ) {
@@ -123,14 +123,13 @@ class HTMLFileCache extends FileCacheBase {
 		$ulang = $context->getLanguage();
 
 		// Check that there are no other sources of variation
-		if ( $user->getId() || $ulang->getCode() !== $config->get( 'LanguageCode' ) ) {
+		if ( $user->getId() ||
+			!$ulang->equals( MediaWikiServices::getInstance()->getContentLanguage() ) ) {
 			return false;
 		}
 
-		if ( $mode === self::MODE_NORMAL ) {
-			if ( $user->getNewtalk() ) {
-				return false;
-			}
+		if ( ( $mode === self::MODE_NORMAL ) && $user->getNewtalk() ) {
+			return false;
 		}
 
 		// Allow extensions to disable caching
@@ -140,11 +139,10 @@ class HTMLFileCache extends FileCacheBase {
 	/**
 	 * Read from cache to context output
 	 * @param IContextSource $context
-	 * @param integer $mode One of the HTMLFileCache::MODE_* constants
+	 * @param int $mode One of the HTMLFileCache::MODE_* constants
 	 * @return void
 	 */
 	public function loadFromFileCache( IContextSource $context, $mode = self::MODE_NORMAL ) {
-		global $wgContLang;
 		$config = MediaWikiServices::getInstance()->getMainConfig();
 
 		wfDebug( __METHOD__ . "()\n" );
@@ -157,7 +155,8 @@ class HTMLFileCache extends FileCacheBase {
 
 		$context->getOutput()->sendCacheControl();
 		header( "Content-Type: {$config->get( 'MimeType' )}; charset=UTF-8" );
-		header( "Content-Language: {$wgContLang->getHtmlCode()}" );
+		header( 'Content-Language: ' .
+			MediaWikiServices::getInstance()->getContentLanguage()->getHtmlCode() );
 		if ( $this->useGzip() ) {
 			if ( wfClientAcceptsGzip() ) {
 				header( 'Content-Encoding: gzip' );
@@ -210,18 +209,14 @@ class HTMLFileCache extends FileCacheBase {
 		}
 
 		// gzip output to buffer as needed and set headers...
-		if ( $this->useGzip() ) {
-			// @todo Ugly wfClientAcceptsGzip() function - use context!
-			if ( wfClientAcceptsGzip() ) {
-				header( 'Content-Encoding: gzip' );
+		// @todo Ugly wfClientAcceptsGzip() function - use context!
+		if ( $this->useGzip() && wfClientAcceptsGzip() ) {
+			header( 'Content-Encoding: gzip' );
 
-				return $compressed;
-			} else {
-				return $text;
-			}
-		} else {
-			return $text;
+			return $compressed;
 		}
+
+		return $text;
 	}
 
 	/**

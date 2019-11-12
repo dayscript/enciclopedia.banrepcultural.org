@@ -35,7 +35,10 @@ use WebRequest;
  */
 class CookieSessionProvider extends SessionProvider {
 
+	/** @var mixed[] */
 	protected $params = [];
+
+	/** @var mixed[] */
 	protected $cookieOptions = [];
 
 	/**
@@ -339,7 +342,7 @@ class CookieSessionProvider extends SessionProvider {
 	 * @param \WebRequest $request
 	 * @param string $key
 	 * @param string $prefix
-	 * @param mixed $default
+	 * @param mixed|null $default
 	 * @return mixed
 	 */
 	protected function getCookie( $request, $key, $prefix, $default = null ) {
@@ -420,7 +423,7 @@ class CookieSessionProvider extends SessionProvider {
 	 * Cookies that are session-length do not call this function.
 	 *
 	 * @param string $cookieName
-	 * @param boolean $shouldRememberUser Whether the user should be remembered
+	 * @param bool $shouldRememberUser Whether the user should be remembered
 	 *   long-term
 	 * @return int Cookie expiration time in seconds; 0 for session cookies
 	 */

@@ -1,0 +1,331 @@
+@import 'mediawiki.mixins';
+@import 'personalMenu';
+@import 'search';
+@import 'tabs';
+
+/* Hide, but keep accessible for screen-readers */
+#mw-navigation h2 {
+	position: absolute;
+	top: -9999px;
+}
+
+.mw-jump-link:not( :focus ) {
+	.mixin-screen-reader-text;
+}
+
+/* Head */
+#mw-page-base {
+	height: 5em;
+	background-position: bottom left;
+	background-repeat: repeat-x;
+	/* This image is only a fallback (for IE 6-9), so we do not @embed it. */
+	background-image: url( images/page-fade.png );
+	.vertical-gradient( @body-background-color, @menu-background-color, 50%, 100% );
+	background-color: @body-background-color;
+}
+
+#mw-head-base {
+	margin-top: -5em;
+	margin-left: 10em;
+	height: 5em;
+}
+
+#mw-head {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 100%;
+}
+
+/* Navigation Containers */
+#left-navigation {
+	float: left;
+	margin-left: 10em;
+	margin-top: 2.5em;
+	/* When right nav would overlap left nav, it's placed below it
+	   (normal CSS floats behavior). This rule ensures that no empty space
+	   is shown between them due to right nav's margin-top. Page layout
+	   is still broken, but at least the nav overlaps only the page title
+	   instead of half the content. */
+	margin-bottom: -2.5em;
+}
+
+#right-navigation {
+	float: right;
+	margin-top: 2.5em;
+}
+
+/* Logo */
+#p-logo {
+	width: 10em;
+	height: 160px;
+
+	a {
+		display: block;
+		width: 10em;
+		height: 160px;
+		background-repeat: no-repeat;
+		background-position: center center;
+		text-decoration: none;
+	}
+}
+
+/* Panel */
+#mw-panel {
+	font-size: @menu-main-font-size;
+	position: absolute;
+	top: 0;
+	width: 10em;
+	left: 0;
+
+	.portal {
+		margin: 0 0.6em 0 0.7em;
+		padding: 0.25em 0;
+		direction: ltr;
+		background-position: top left;
+		background-repeat: no-repeat;
+
+		h3 {
+			font-size: @menu-main-heading-font-size;
+			color: @menu-main-heading-color;
+			font-weight: normal;
+			margin: 0.5em 0 0 (@menu-main-body-margin-left/@menu-main-heading-font-size);
+			padding: 0.25em 0;
+			cursor: default;
+			border: 0;
+		}
+
+		.body {
+			margin-left: @menu-main-body-margin-left;
+			padding-top: 0;
+			.background-image( 'images/portal-break.png' );
+			background-repeat: no-repeat;
+
+			ul {
+				list-style: none none;
+				margin: 0;
+				padding: @menu-main-body-padding;
+			}
+
+			li {
+				line-height: 1.125em;
+				margin: 0;
+				padding: 0.25em 0;
+				font-size: @menu-main-body-font-size;
+				word-wrap: break-word;
+
+				a {
+					color: @menu-main-body-link-color;
+
+					&:visited {
+						color: @menu-main-body-link-visited-color;
+					}
+				}
+			}
+		}
+	}
+
+	/* First sidebar portlet. Not using :first-of-type for IE<=8 support. */
+	#p-logo + .portal {
+		background-image: none;
+		margin-top: 1em;
+
+		h3 {
+			display: none;
+		}
+
+		.body {
+			background-image: none;
+			margin-left: @menu-main-body-margin-left;
+		}
+	}
+}
+
+/*Menú Banrepcultural*/
+/**
+ * Specific elements
+ */
+#mw-js-message {
+	display: none;
+}
+.mw-indicator {
+	float: right;
+}
+
+/**
+ * Header and main menu
+ */
+#header1-wrapper {
+	background: #4a4742;
+}
+#header1 {
+	margin: auto;
+	max-width: 1200px;
+	padding: 7px 1em;
+}
+#header-site-links a {
+	background-repeat: no-repeat;
+	color: white;
+	font-size: 11px;
+	font-weight: 300;
+	line-height: 22px;
+	margin-right: 10px;
+	padding: 2px 20px;
+	text-transform: uppercase;
+	white-space: nowrap;
+	letter-spacing: 1px;
+}
+#header-site-links #kids-link {
+	background-image: url( images/kids.png );
+}
+#header-site-links #accessibility-link {
+	background-image: url( images/accessibility.png );
+}
+#header-site-links #news-link {
+	background-image: url( images/news.png );
+}
+#header-site-links #mail-link {
+	background-image: url( images/mail.png );
+}
+#header-site-links #register-link {
+	background-image: url( images/register.png );
+}
+#header-social-links {
+	float: right;
+	position: relative;
+	top: -2px;
+}
+.social-links a {
+	display: inline-block;
+	width: 20px;
+	height: 20px;
+}
+.facebook-link {
+	background-image: url( images/facebook.png );
+}
+.youtube-link {
+	background-image: url( images/youtube.png );
+}
+.instagram-link {
+	background-image: url( images/instagram.png );
+}
+.twitter-link {
+	background-image: url( images/twitter.png );
+}
+#header2-wrapper {
+	border-bottom: 1px solid #eee;
+}
+#header2 {
+	margin: auto;
+	max-width: 1200px;
+	padding: 1em;
+}
+#header3-wrapper {
+	border-bottom: 1px solid #eee;
+}
+#header3 {
+	margin: auto;
+	max-width: 1200px;
+	padding: 0 1em;
+}
+#logo {
+	background-image: url( images/logo.png );
+	background-size: contain;
+	display: block;
+	margin-right: 5px;
+	vertical-align: middle;
+	width: 387px;
+	height: 83px;
+}
+#home-icon {
+	display: inline-block;
+	margin-right: 5px;
+	vertical-align: middle;
+	background-image: url( images/home.png );
+	width: 30px;
+	height: 30px;
+}
+#menu {
+	display: inline;
+	font-size: 17px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+#menu li {
+	display: inline;
+	position: relative;
+}
+#menu span {
+	display: inline-block;
+	padding: 15px 10px;
+	text-decoration: none;
+}
+#menu li:hover span {
+	background: #ff3e34;
+	color: white;
+	cursor: default;
+}
+#menu .submenu {
+	background: rgba(62,59,53,.95);
+	border-top: 5px solid #ff3e34;
+    box-shadow: 10px 10px 30px #888;
+	color: white;
+	display: none;
+	font-weight: 300;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	left: 0;
+	word-spacing: nowrap;
+	z-index: 1;
+}
+#menu .submenu li {
+	display: block;
+}
+#menu .submenu a {
+	color: inherit;
+	cursor: pointer;
+	box-sizing: border-box;
+	display: inline-block;
+	padding: 15px 10px;
+	white-space: nowrap;
+	width: 100%;
+}
+
+/**
+ * Search form
+ */
+#search-form {
+	float: right;
+	padding: 7px 0;
+	position: relative;
+}
+#search-form button {
+	background: url( images/lens.png );
+	background-size: contain;
+	border: 1px solid transparent;
+	border-left: none;
+	cursor: pointer;
+	float: right;
+	outline: none;
+	width: 32px;
+	height: 32px;
+}
+#search-form button.active {
+	background-color: white;
+	border-color: #aaa;
+}
+#search-form input {
+	border: 1px solid #aaa;
+	border-right: none;
+	display: none;
+	font: inherit;
+	outline: none;
+	padding: 7px;
+	position: absolute;
+	right: 32px;
+	width: 200px;
+	z-index: 1;
+}

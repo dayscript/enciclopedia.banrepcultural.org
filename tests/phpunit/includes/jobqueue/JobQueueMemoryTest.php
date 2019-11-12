@@ -5,18 +5,20 @@
  *
  * @group JobQueue
  *
- * @licence GNU GPL v2+
- * @author Thiemo Mättig
+ * @license GPL-2.0-or-later
+ * @author Thiemo Kreuz
  */
-class JobQueueMemoryTest extends PHPUnit_Framework_TestCase {
+class JobQueueMemoryTest extends PHPUnit\Framework\TestCase {
+
+	use MediaWikiCoversValidator;
 
 	/**
 	 * @return JobQueueMemory
 	 */
 	private function newJobQueue() {
 		return JobQueue::factory( [
-			'class' => 'JobQueueMemory',
-			'wiki' => wfWikiID(),
+			'class' => JobQueueMemory::class,
+			'domain' => WikiMap::getCurrentWikiDbDomain()->getId(),
 			'type' => 'null',
 		] );
 	}
@@ -52,7 +54,7 @@ class JobQueueMemoryTest extends PHPUnit_Framework_TestCase {
 	public function testJobFromSpecInternal() {
 		$queue = $this->newJobQueue();
 		$job = $queue->jobFromSpecInternal( $this->newJobSpecification() );
-		$this->assertInstanceOf( 'Job', $job );
+		$this->assertInstanceOf( Job::class, $job );
 		$this->assertSame( 'null', $job->getType() );
 		$this->assertArrayHasKey( 'customParameter', $job->getParams() );
 		$this->assertSame( 'Custom title', $job->getTitle()->getText() );

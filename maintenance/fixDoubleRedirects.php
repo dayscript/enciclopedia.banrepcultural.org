@@ -42,13 +42,13 @@ class FixDoubleRedirects extends Maintenance {
 	}
 
 	public function execute() {
-		$async = $this->getOption( 'async', false );
-		$dryrun = $this->getOption( 'dry-run', false );
+		$async = $this->hasOption( 'async' );
+		$dryrun = $this->hasOption( 'dry-run' );
 
 		if ( $this->hasOption( 'title' ) ) {
 			$title = Title::newFromText( $this->getOption( 'title' ) );
 			if ( !$title || !$title->isRedirect() ) {
-				$this->error( $title->getPrefixedText() . " is not a redirect!\n", true );
+				$this->fatalError( $title->getPrefixedText() . " is not a redirect!\n" );
 			}
 		} else {
 			$title = null;
@@ -136,5 +136,5 @@ class FixDoubleRedirects extends Maintenance {
 	}
 }
 
-$maintClass = "FixDoubleRedirects";
+$maintClass = FixDoubleRedirects::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

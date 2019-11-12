@@ -20,8 +20,6 @@
 	<testsuites>
 		<testsuite name="includes">
 			<directory>includes</directory>
-			<!-- Parser tests must be invoked via their suite -->
-			<exclude>includes/parser/ParserIntegrationTest.php</exclude>
 		</testsuite>
 		<testsuite name="languages">
 			<directory>languages</directory>
@@ -33,6 +31,7 @@
 		<testsuite name="skins">
 			<directory>skins</directory>
 			<directory>structure</directory>
+			<file>suites/ExtensionsTestSuite.php</file>
 			<file>suites/LessTestSuite.php</file>
 		</testsuite>
 		<!-- As there is a class Maintenance, we cannot use the name "maintenance" directly -->
@@ -54,6 +53,9 @@
 			<file>suites/ExtensionsParserTestSuite.php</file>
 			<file>suites/LessTestSuite.php</file>
 		</testsuite>
+		<testsuite name="documentation">
+			<directory>documentation</directory>
+		</testsuite>
 	</testsuites>
 	<groups>
 		<exclude>
@@ -67,7 +69,11 @@
 			<directory suffix=".php">../../includes</directory>
 			<directory suffix=".php">../../languages</directory>
 			<directory suffix=".php">../../maintenance</directory>
-			<directory suffix=".php">../../skins</directory>
+			<exclude>
+				<directory suffix=".php">../../languages/messages</directory>
+				<file>../../languages/data/normalize-ar.php</file>
+				<file>../../languages/data/normalize-ml.php</file>
+			</exclude>
 		</whitelist>
 	</filter>
 </phpunit>

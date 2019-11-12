@@ -291,7 +291,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 	/**
 	 * Fetch a value from the session
 	 * @param string|int $key
-	 * @param mixed $default Returned if $this->exists( $key ) would be false
+	 * @param mixed|null $default Returned if $this->exists( $key ) would be false
 	 * @return mixed
 	 */
 	public function get( $key, $default = null ) {
@@ -481,7 +481,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 
 		// Encrypt
 		// @todo: import a pure-PHP library for AES instead of doing $wgSessionInsecureSecrets
-		$iv = \MWCryptRand::generate( 16, true );
+		$iv = random_bytes( 16 );
 		$algorithm = self::getEncryptionAlgorithm();
 		switch ( $algorithm[0] ) {
 			case 'openssl':
@@ -522,7 +522,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 	/**
 	 * Fetch a value from the session that was set with self::setSecret()
 	 * @param string|int $key
-	 * @param mixed $default Returned if $this->exists( $key ) would be false or decryption fails
+	 * @param mixed|null $default Returned if $this->exists( $key ) would be false or decryption fails
 	 * @return mixed
 	 */
 	public function getSecret( $key, $default = null ) {
@@ -537,7 +537,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 		// Extension::OATHAuth.
 
 		// Unseal and check
-		$pieces = explode( '.', $encrypted );
+		$pieces = explode( '.', $encrypted, 4 );
 		if ( count( $pieces ) !== 3 ) {
 			$ex = new \Exception( 'Invalid sealed-secret format' );
 			$this->logger->warning( $ex->getMessage(), [ 'exception' => $ex ] );
@@ -621,31 +621,37 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 	 * @{
 	 */
 
+	/** @inheritDoc */
 	public function count() {
 		$data = &$this->backend->getData();
 		return count( $data );
 	}
 
+	/** @inheritDoc */
 	public function current() {
 		$data = &$this->backend->getData();
 		return current( $data );
 	}
 
+	/** @inheritDoc */
 	public function key() {
 		$data = &$this->backend->getData();
 		return key( $data );
 	}
 
+	/** @inheritDoc */
 	public function next() {
 		$data = &$this->backend->getData();
 		next( $data );
 	}
 
+	/** @inheritDoc */
 	public function rewind() {
 		$data = &$this->backend->getData();
 		reset( $data );
 	}
 
+	/** @inheritDoc */
 	public function valid() {
 		$data = &$this->backend->getData();
 		return key( $data ) !== null;
@@ -654,6 +660,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 	/**
 	 * @note Despite the name, this seems to be intended to implement isset()
 	 *  rather than array_key_exists(). So do that.
+	 * @inheritDoc
 	 */
 	public function offsetExists( $offset ) {
 		$data = &$this->backend->getData();
@@ -666,6 +673,7 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 	 *  data to detect such changes.
 	 * @note Accessing a nonexistent key via this mechanism causes that key to
 	 *  be created with a null value, and does not raise a PHP warning.
+	 * @inheritDoc
 	 */
 	public function &offsetGet( $offset ) {
 		$data = &$this->backend->getData();
@@ -676,10 +684,12 @@ final class Session implements \Countable, \Iterator, \ArrayAccess {
 		return $data[$offset];
 	}
 
+	/** @inheritDoc */
 	public function offsetSet( $offset, $value ) {
 		$this->set( $offset, $value );
 	}
 
+	/** @inheritDoc */
 	public function offsetUnset( $offset ) {
 		$this->remove( $offset );
 	}

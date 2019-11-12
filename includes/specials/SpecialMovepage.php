@@ -75,7 +75,7 @@ class MovePageForm extends UnlistedSpecialPage {
 		$this->outputHeader();
 
 		$request = $this->getRequest();
-		$target = !is_null( $par ) ? $par : $request->getVal( 'target' );
+		$target = $par ?? $request->getVal( 'target' );
 
 		// Yes, the use of getVal() and getText() is wanted, see T22365
 
@@ -105,7 +105,7 @@ class MovePageForm extends UnlistedSpecialPage {
 		$permErrors = $this->oldTitle->getUserPermissionsErrors( 'move', $user );
 		if ( count( $permErrors ) ) {
 			// Auto-block user's IP if the account was "hard" blocked
-			DeferredUpdates::addCallableUpdate( function() use ( $user ) {
+			DeferredUpdates::addCallableUpdate( function () use ( $user ) {
 				$user->spreadAnyEditBlock();
 			} );
 			throw new PermissionsError( 'move', $permErrors );
@@ -122,7 +122,7 @@ class MovePageForm extends UnlistedSpecialPage {
 		$this->moveOverShared = $request->getBool( 'wpMoveOverSharedFile' );
 		$this->watch = $request->getCheck( 'wpWatch' ) && $user->isLoggedIn();
 
-		if ( 'submit' == $request->getVal( 'action' ) && $request->wasPosted()
+		if ( $request->getVal( 'action' ) == 'submit' && $request->wasPosted()
 			&& $user->matchEditToken( $request->getVal( 'wpEditToken' ) )
 		) {
 			$this->doSubmit();
@@ -137,14 +137,15 @@ class MovePageForm extends UnlistedSpecialPage {
 	 * @param array $err Error messages. Each item is an error message.
 	 *    It may either be a string message name or array message name and
 	 *    parameters, like the second argument to OutputPage::wrapWikiMsg().
+	 * @param bool $isPermError Whether the error message is about user permissions.
 	 */
-	function showForm( $err ) {
+	function showForm( $err, $isPermError = false ) {
 		$this->getSkin()->setRelevantTitle( $this->oldTitle );
 
 		$out = $this->getOutput();
 		$out->setPageTitle( $this->msg( 'move-page', $this->oldTitle->getPrefixedText() ) );
+		$out->addModuleStyles( 'mediawiki.special' );
 		$out->addModules( 'mediawiki.special.movePage' );
-		$out->addModuleStyles( 'mediawiki.special.movePage.styles' );
 		$this->addHelpLink( 'Help:Moving a page' );
 
 		$out->addWikiMsg( $this->getConfig()->get( 'FixDoubleRedirects' ) ?
@@ -235,18 +236,22 @@ class MovePageForm extends UnlistedSpecialPage {
 		}
 
 		if ( count( $err ) ) {
-			$out->addHTML( "<div class='errorbox'>\n" );
-			$action_desc = $this->msg( 'action-move' )->plain();
-			$out->addWikiMsg( 'permissionserrorstext-withaction', count( $err ), $action_desc );
+			if ( $isPermError ) {
+				$action_desc = $this->msg( 'action-move' )->plain();
+				$errMsgHtml = $this->msg( 'permissionserrorstext-withaction',
+					count( $err ), $action_desc )->parseAsBlock();
+			} else {
+				$errMsgHtml = $this->msg( 'cannotmove', count( $err ) )->parseAsBlock();
+			}
 
 			if ( count( $err ) == 1 ) {
 				$errMsg = $err[0];
 				$errMsgName = array_shift( $errMsg );
 
 				if ( $errMsgName == 'hookaborted' ) {
-					$out->addHTML( "<p>{$errMsg[0]}</p>\n" );
+					$errMsgHtml .= "<p>{$errMsg[0]}</p>\n";
 				} else {
-					$out->addWikiMsgArray( $errMsgName, $errMsg );
+					$errMsgHtml .= $this->msg( $errMsgName, $errMsg )->parseAsBlock();
 				}
 			} else {
 				$errStr = [];
@@ -260,9 +265,9 @@ class MovePageForm extends UnlistedSpecialPage {
 					}
 				}
 
-				$out->addHTML( '<ul><li>' . implode( "</li>\n<li>", $errStr ) . "</li></ul>\n" );
+				$errMsgHtml .= '<ul><li>' . implode( "</li>\n<li>", $errStr ) . "</li></ul>\n";
 			}
-			$out->addHTML( "</div>\n" );
+			$out->addHTML( Html::errorBox( $errMsgHtml ) );
 		}
 
 		if ( $this->oldTitle->isProtected( 'move' ) ) {
@@ -287,8 +292,8 @@ class MovePageForm extends UnlistedSpecialPage {
 			$out->addHTML( "</div>\n" );
 		}
 
-		// Byte limit (not string length limit) for wpReason and wpNewTitleMain
-		// is enforced in the mediawiki.special.movePage module
+		// Length limit for wpReason and wpNewTitleMain is enforced in the
+		// mediawiki.special.movePage module
 
 		$immovableNamespaces = [];
 		foreach ( array_keys( $this->getLanguage()->getNamespaces() ) as $nsId ) {
@@ -326,11 +331,14 @@ class MovePageForm extends UnlistedSpecialPage {
 			]
 		);
 
+		// HTML maxlength uses "UTF-16 code units", which means that characters outside BMP
+		// (e.g. emojis) count for two each. This limit is overridden in JS to instead count
+		// Unicode codepoints.
 		$fields[] = new OOUI\FieldLayout(
 			new OOUI\TextInputWidget( [
 				'name' => 'wpReason',
 				'id' => 'wpReason',
-				'maxLength' => 200,
+				'maxLength' => CommentStore::COMMENT_CHARACTER_LIMIT,
 				'infusable' => true,
 				'value' => $this->reason,
 			] ),
@@ -351,8 +359,8 @@ class MovePageForm extends UnlistedSpecialPage {
 				[
 					'label' => $this->msg( 'movetalk' )->text(),
 					'help' => new OOUI\HtmlSnippet( $this->msg( 'movepagetalktext' )->parseAsBlock() ),
+					'helpInline' => true,
 					'align' => 'inline',
-					'infusable' => true,
 					'id' => 'wpMovetalk-field',
 				]
 			);
@@ -537,7 +545,16 @@ class MovePageForm extends UnlistedSpecialPage {
 			$permErrors = $nt->getUserPermissionsErrors( 'delete', $user );
 			if ( count( $permErrors ) ) {
 				# Only show the first error
-				$this->showForm( $permErrors );
+				$this->showForm( $permErrors, true );
+
+				return;
+			}
+
+			$page = WikiPage::factory( $nt );
+
+			// Small safety margin to guard against concurrent edits
+			if ( $page->isBatchedDelete( 5 ) ) {
+				$this->showForm( [ [ 'movepage-delete-first' ] ] );
 
 				return;
 			}
@@ -554,7 +571,6 @@ class MovePageForm extends UnlistedSpecialPage {
 			}
 
 			$error = ''; // passed by ref
-			$page = WikiPage::factory( $nt );
 			$deleteStatus = $page->doDeleteArticleReal( $reason, false, 0, true, $error, $user );
 			if ( !$deleteStatus->isGood() ) {
 				$this->showForm( $deleteStatus->getErrorsArray() );
@@ -583,7 +599,7 @@ class MovePageForm extends UnlistedSpecialPage {
 
 		$permStatus = $mp->checkPermissions( $user, $this->reason );
 		if ( !$permStatus->isOK() ) {
-			$this->showForm( $permStatus->getErrorsArray() );
+			$this->showForm( $permStatus->getErrorsArray(), true );
 			return;
 		}
 

@@ -24,6 +24,8 @@
 
 require_once __DIR__ . '/Maintenance.php';
 
+use MediaWiki\MediaWikiServices;
+
 class InitEditCount extends Maintenance {
 	public function __construct() {
 		parent::__construct();
@@ -39,8 +41,6 @@ in the load balancer, usually indicating a replication environment.' );
 
 	public function execute() {
 		$dbw = $this->getDB( DB_MASTER );
-		$user = $dbw->tableName( 'user' );
-		$revision = $dbw->tableName( 'revision' );
 
 		// Autodetect mode...
 		if ( $this->hasOption( 'background' ) ) {
@@ -48,8 +48,11 @@ in the load balancer, usually indicating a replication environment.' );
 		} elseif ( $this->hasOption( 'quick' ) ) {
 			$backgroundMode = false;
 		} else {
-			$backgroundMode = wfGetLB()->getServerCount() > 1;
+			$lb = MediaWikiServices::getInstance()->getDBLoadBalancer();
+			$backgroundMode = $lb->getServerCount() > 1;
 		}
+
+		$actorQuery = ActorMigration::newMigration()->getJoin( 'rev_user' );
 
 		if ( $backgroundMode ) {
 			$this->output( "Using replication-friendly background mode...\n" );
@@ -62,15 +65,16 @@ in the load balancer, usually indicating a replication environment.' );
 			$migrated = 0;
 			for ( $min = 0; $min <= $lastUser; $min += $chunkSize ) {
 				$max = $min + $chunkSize;
-				$result = $dbr->query(
-					"SELECT
-						user_id,
-						COUNT(rev_user) AS user_editcount
-					FROM $user
-					LEFT OUTER JOIN $revision ON user_id=rev_user
-					WHERE user_id > $min AND user_id <= $max
-					GROUP BY user_id",
-					__METHOD__ );
+
+				$revUser = $actorQuery['fields']['rev_user'];
+				$result = $dbr->select(
+					[ 'user', 'rev' => [ 'revision' ] + $actorQuery['tables'] ],
+					[ 'user_id', 'user_editcount' => "COUNT($revUser)" ],
+					"user_id > $min AND user_id <= $max",
+					__METHOD__,
+					[ 'GROUP BY' => 'user_id' ],
+					[ 'rev' => [ 'LEFT JOIN', "user_id = $revUser" ] ] + $actorQuery['joins']
+				);
 
 				foreach ( $result as $row ) {
 					$dbw->update( 'user',
@@ -93,13 +97,22 @@ in the load balancer, usually indicating a replication environment.' );
 			}
 		} else {
 			$this->output( "Using single-query mode...\n" );
-			$sql = "UPDATE $user SET user_editcount=(SELECT COUNT(*) FROM $revision WHERE rev_user=user_id)";
-			$dbw->query( $sql );
+
+			$user = $dbw->tableName( 'user' );
+			$subquery = $dbw->selectSQLText(
+				[ 'revision' ] + $actorQuery['tables'],
+				[ 'COUNT(*)' ],
+				[ 'user_id = ' . $actorQuery['fields']['rev_user'] ],
+				__METHOD__,
+				[],
+				$actorQuery['joins']
+			);
+			$dbw->query( "UPDATE $user SET user_editcount=($subquery)", __METHOD__ );
 		}
 
 		$this->output( "Done!\n" );
 	}
 }
 
-$maintClass = "InitEditCount";
+$maintClass = InitEditCount::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

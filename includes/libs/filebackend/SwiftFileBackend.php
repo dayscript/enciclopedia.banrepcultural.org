@@ -20,7 +20,6 @@
  * @file
  * @ingroup FileBackend
  * @author Russ Nelson
- * @author Aaron Schulz
  */
 
 /**
@@ -35,27 +34,30 @@
 class SwiftFileBackend extends FileBackendStore {
 	/** @var MultiHttpClient */
 	protected $http;
-
 	/** @var int TTL in seconds */
 	protected $authTTL;
-
 	/** @var string Authentication base URL (without version) */
 	protected $swiftAuthUrl;
-
+	/** @var string Override of storage base URL */
+	protected $swiftStorageUrl;
 	/** @var string Swift user (account:user) to authenticate as */
 	protected $swiftUser;
-
 	/** @var string Secret key for user */
 	protected $swiftKey;
-
 	/** @var string Shared secret value for making temp URLs */
 	protected $swiftTempUrlKey;
-
 	/** @var string S3 access key (RADOS Gateway) */
 	protected $rgwS3AccessKey;
-
 	/** @var string S3 authentication key (RADOS Gateway) */
 	protected $rgwS3SecretKey;
+	/** @var array Additional users (account:user) with read permissions on public containers */
+	protected $readUsers;
+	/** @var array Additional users (account:user) with write permissions on public containers */
+	protected $writeUsers;
+	/** @var array Additional users (account:user) with read permissions on private containers */
+	protected $secureReadUsers;
+	/** @var array Additional users (account:user) with write permissions on private containers */
+	protected $secureWriteUsers;
 
 	/** @var BagOStuff */
 	protected $srvCache;
@@ -65,10 +67,8 @@ class SwiftFileBackend extends FileBackendStore {
 
 	/** @var array */
 	protected $authCreds;
-
 	/** @var int UNIX timestamp */
 	protected $authSessionTimestamp = 0;
-
 	/** @var int UNIX timestamp */
 	protected $authErrorTimestamp = null;
 
@@ -77,19 +77,21 @@ class SwiftFileBackend extends FileBackendStore {
 
 	/**
 	 * @see FileBackendStore::__construct()
-	 * Additional $config params include:
+	 * @param array $config Params include:
 	 *   - swiftAuthUrl       : Swift authentication server URL
 	 *   - swiftUser          : Swift user used by MediaWiki (account:username)
 	 *   - swiftKey           : Swift authentication key for the above user
 	 *   - swiftAuthTTL       : Swift authentication TTL (seconds)
 	 *   - swiftTempUrlKey    : Swift "X-Account-Meta-Temp-URL-Key" value on the account.
 	 *                          Do not set this until it has been set in the backend.
+	 *   - swiftStorageUrl    : Swift storage URL (overrides that of the authentication response).
+	 *                          This is useful to set if a TLS proxy is in use.
 	 *   - shardViaHashLevels : Map of container names to sharding config with:
 	 *                             - base   : base of hash characters, 16 or 36
 	 *                             - levels : the number of hash levels (and digits)
 	 *                             - repeat : hash subdirectories are prefixed with all the
 	 *                                        parent hash directory names (e.g. "a/ab/abc")
-	 *   - cacheAuthInfo      : Whether to cache authentication tokens in APC, XCache, ect.
+	 *   - cacheAuthInfo      : Whether to cache authentication tokens in APC, etc.
 	 *                          If those are not available, then the main cache will be used.
 	 *                          This is probably insecure in shared hosting environments.
 	 *   - rgwS3AccessKey     : Rados Gateway S3 "access key" value on the account.
@@ -102,6 +104,10 @@ class SwiftFileBackend extends FileBackendStore {
 	 *                          This is used for generating expiring pre-authenticated URLs.
 	 *                          Only use this when using rgw and to work around
 	 *                          http://tracker.newdream.net/issues/3454.
+	 *   - readUsers           : Swift users with read access to public containers (account:username)
+	 *   - writeUsers          : Swift users with write access to public containers (account:username)
+	 *   - secureReadUsers     : Swift users with read access to private containers (account:username)
+	 *   - secureWriteUsers    : Swift users with write access to private containers (account:username)
 	 */
 	public function __construct( array $config ) {
 		parent::__construct( $config );
@@ -110,21 +116,12 @@ class SwiftFileBackend extends FileBackendStore {
 		$this->swiftUser = $config['swiftUser'];
 		$this->swiftKey = $config['swiftKey'];
 		// Optional settings
-		$this->authTTL = isset( $config['swiftAuthTTL'] )
-			? $config['swiftAuthTTL']
-			: 15 * 60; // some sane number
-		$this->swiftTempUrlKey = isset( $config['swiftTempUrlKey'] )
-			? $config['swiftTempUrlKey']
-			: '';
-		$this->shardViaHashLevels = isset( $config['shardViaHashLevels'] )
-			? $config['shardViaHashLevels']
-			: '';
-		$this->rgwS3AccessKey = isset( $config['rgwS3AccessKey'] )
-			? $config['rgwS3AccessKey']
-			: '';
-		$this->rgwS3SecretKey = isset( $config['rgwS3SecretKey'] )
-			? $config['rgwS3SecretKey']
-			: '';
+		$this->authTTL = $config['swiftAuthTTL'] ?? 15 * 60; // some sane number
+		$this->swiftTempUrlKey = $config['swiftTempUrlKey'] ?? '';
+		$this->swiftStorageUrl = $config['swiftStorageUrl'] ?? null;
+		$this->shardViaHashLevels = $config['shardViaHashLevels'] ?? '';
+		$this->rgwS3AccessKey = $config['rgwS3AccessKey'] ?? '';
+		$this->rgwS3SecretKey = $config['rgwS3SecretKey'] ?? '';
 		// HTTP helper client
 		$this->http = new MultiHttpClient( [] );
 		// Cache container information to mask latency
@@ -132,13 +129,17 @@ class SwiftFileBackend extends FileBackendStore {
 			$this->memCache = $config['wanCache'];
 		}
 		// Process cache for container info
-		$this->containerStatCache = new ProcessCacheLRU( 300 );
+		$this->containerStatCache = new MapCacheLRU( 300 );
 		// Cache auth token information to avoid RTTs
 		if ( !empty( $config['cacheAuthInfo'] ) && isset( $config['srvCache'] ) ) {
 			$this->srvCache = $config['srvCache'];
 		} else {
 			$this->srvCache = new EmptyBagOStuff();
 		}
+		$this->readUsers = $config['readUsers'] ?? [];
+		$this->writeUsers = $config['writeUsers'] ?? [];
+		$this->secureReadUsers = $config['secureReadUsers'] ?? [];
+		$this->secureWriteUsers = $config['secureWriteUsers'] ?? [];
 	}
 
 	public function getFeatures() {
@@ -149,7 +150,7 @@ class SwiftFileBackend extends FileBackendStore {
 	protected function resolveContainerPath( $container, $relStoragePath ) {
 		if ( !mb_check_encoding( $relStoragePath, 'UTF-8' ) ) {
 			return null; // not UTF-8, makes it hard to use CF and the swift HTTP API
-		} elseif ( strlen( urlencode( $relStoragePath ) ) > 1024 ) {
+		} elseif ( strlen( rawurlencode( $relStoragePath ) ) > 1024 ) {
 			return null; // too long for Swift
 		}
 
@@ -172,6 +173,29 @@ class SwiftFileBackend extends FileBackendStore {
 	 * @param array $params
 	 * @return array Sanitized value of 'headers' field in $params
 	 */
+	protected function sanitizeHdrsStrict( array $params ) {
+		if ( !isset( $params['headers'] ) ) {
+			return [];
+		}
+
+		$headers = $this->getCustomHeaders( $params['headers'] );
+		unset( $headers[ 'content-type' ] );
+
+		return $headers;
+	}
+
+	/**
+	 * Sanitize and filter the custom headers from a $params array.
+	 * Only allows certain "standard" Content- and X-Content- headers.
+	 *
+	 * When POSTing data, libcurl adds Content-Type: application/x-www-form-urlencoded
+	 * if Content-Type is not set, which overwrites the stored Content-Type header
+	 * in Swift - therefore for POSTing data do not strip the Content-Type header (the
+	 * previously-stored header that has been already read back from swift is sent)
+	 *
+	 * @param array $params
+	 * @return array Sanitized value of 'headers' field in $params
+	 */
 	protected function sanitizeHdrs( array $params ) {
 		return isset( $params['headers'] )
 			? $this->getCustomHeaders( $params['headers'] )
@@ -188,7 +212,7 @@ class SwiftFileBackend extends FileBackendStore {
 		// Normalize casing, and strip out illegal headers
 		foreach ( $rawHeaders as $name => $value ) {
 			$name = strtolower( $name );
-			if ( preg_match( '/^content-(type|length)$/', $name ) ) {
+			if ( preg_match( '/^content-length$/', $name ) ) {
 				continue; // blacklisted
 			} elseif ( preg_match( '/^(x-)?content-/', $name ) ) {
 				$headers[$name] = $value; // allowed
@@ -255,9 +279,8 @@ class SwiftFileBackend extends FileBackendStore {
 		}
 
 		$sha1Hash = Wikimedia\base_convert( sha1( $params['content'] ), 16, 36, 31 );
-		$contentType = isset( $params['headers']['content-type'] )
-			? $params['headers']['content-type']
-			: $this->getContentType( $params['dst'], $params['content'], null );
+		$contentType = $params['headers']['content-type']
+			?? $this->getContentType( $params['dst'], $params['content'], null );
 
 		$reqs = [ [
 			'method' => 'PUT',
@@ -267,7 +290,7 @@ class SwiftFileBackend extends FileBackendStore {
 				'etag' => md5( $params['content'] ),
 				'content-type' => $contentType,
 				'x-object-meta-sha1base36' => $sha1Hash
-			] + $this->sanitizeHdrs( $params ),
+			] + $this->sanitizeHdrsStrict( $params ),
 			'body' => $params['content']
 		] ];
 
@@ -303,18 +326,17 @@ class SwiftFileBackend extends FileBackendStore {
 			return $status;
 		}
 
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$sha1Hash = sha1_file( $params['src'] );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( $sha1Hash === false ) { // source doesn't exist?
 			$status->fatal( 'backend-fail-store', $params['src'], $params['dst'] );
 
 			return $status;
 		}
 		$sha1Hash = Wikimedia\base_convert( $sha1Hash, 16, 36, 31 );
-		$contentType = isset( $params['headers']['content-type'] )
-			? $params['headers']['content-type']
-			: $this->getContentType( $params['dst'], null, $params['src'] );
+		$contentType = $params['headers']['content-type']
+			?? $this->getContentType( $params['dst'], null, $params['src'] );
 
 		$handle = fopen( $params['src'], 'rb' );
 		if ( $handle === false ) { // source doesn't exist?
@@ -331,7 +353,7 @@ class SwiftFileBackend extends FileBackendStore {
 				'etag' => md5_file( $params['src'] ),
 				'content-type' => $contentType,
 				'x-object-meta-sha1base36' => $sha1Hash
-			] + $this->sanitizeHdrs( $params ),
+			] + $this->sanitizeHdrsStrict( $params ),
 			'body' => $handle // resource
 		] ];
 
@@ -382,7 +404,7 @@ class SwiftFileBackend extends FileBackendStore {
 			'headers' => [
 				'x-copy-from' => '/' . rawurlencode( $srcCont ) .
 					'/' . str_replace( "%2F", "/", rawurlencode( $srcRel ) )
-			] + $this->sanitizeHdrs( $params ), // extra headers merged into object
+			] + $this->sanitizeHdrsStrict( $params ), // extra headers merged into object
 		] ];
 
 		$method = __METHOD__;
@@ -431,7 +453,7 @@ class SwiftFileBackend extends FileBackendStore {
 				'headers' => [
 					'x-copy-from' => '/' . rawurlencode( $srcCont ) .
 						'/' . str_replace( "%2F", "/", rawurlencode( $srcRel ) )
-				] + $this->sanitizeHdrs( $params ) // extra headers merged into object
+				] + $this->sanitizeHdrsStrict( $params ) // extra headers merged into object
 			]
 		];
 		if ( "{$srcCont}/{$srcRel}" !== "{$dstCont}/{$dstRel}" ) {
@@ -593,11 +615,13 @@ class SwiftFileBackend extends FileBackendStore {
 
 		$stat = $this->getContainerStat( $fullCont );
 		if ( is_array( $stat ) ) {
+			$readUsers = array_merge( $this->secureReadUsers, [ $this->swiftUser ] );
+			$writeUsers = array_merge( $this->secureWriteUsers, [ $this->swiftUser ] );
 			// Make container private to end-users...
 			$status->merge( $this->setContainerAccess(
 				$fullCont,
-				[ $this->swiftUser ], // read
-				[ $this->swiftUser ] // write
+				$readUsers,
+				$writeUsers
 			) );
 		} elseif ( $stat === false ) {
 			$status->fatal( 'backend-fail-usable', $params['dir'] );
@@ -614,11 +638,14 @@ class SwiftFileBackend extends FileBackendStore {
 
 		$stat = $this->getContainerStat( $fullCont );
 		if ( is_array( $stat ) ) {
+			$readUsers = array_merge( $this->readUsers, [ $this->swiftUser, '.r:*' ] );
+			$writeUsers = array_merge( $this->writeUsers, [ $this->swiftUser ] );
+
 			// Make container public to end-users...
 			$status->merge( $this->setContainerAccess(
 				$fullCont,
-				[ $this->swiftUser, '.r:*' ], // read
-				[ $this->swiftUser ] // write
+				$readUsers,
+				$writeUsers
 			) );
 		} elseif ( $stat === false ) {
 			$status->fatal( 'backend-fail-usable', $params['dir'] );
@@ -693,14 +720,15 @@ class SwiftFileBackend extends FileBackendStore {
 	 * @param string $path Storage path to object
 	 * @return array New headers
 	 */
-	protected function addMissingMetadata( array $objHdrs, $path ) {
+	protected function addMissingHashMetadata( array $objHdrs, $path ) {
 		if ( isset( $objHdrs['x-object-meta-sha1base36'] ) ) {
 			return $objHdrs; // nothing to do
 		}
 
 		/** @noinspection PhpUnusedLocalVariableInspection */
 		$ps = $this->scopedProfileSection( __METHOD__ . "-{$this->name}" );
-		$this->logger->error( __METHOD__ . ": $path was not stored with SHA-1 metadata." );
+		$this->logger->error( __METHOD__ . ": {path} was not stored with SHA-1 metadata.",
+			[ 'path' => $path ] );
 
 		$objHdrs['x-object-meta-sha1base36'] = false;
 
@@ -740,7 +768,8 @@ class SwiftFileBackend extends FileBackendStore {
 			}
 		}
 
-		$this->logger->error( __METHOD__ . ": unable to set SHA-1 metadata for $path" );
+		$this->logger->error( __METHOD__ . ': unable to set SHA-1 metadata for {path}',
+			[ 'path' => $path ] );
 
 		return $objHdrs; // failed
 	}
@@ -751,8 +780,8 @@ class SwiftFileBackend extends FileBackendStore {
 		$auth = $this->getAuthentication();
 
 		$ep = array_diff_key( $params, [ 'srcs' => 1 ] ); // for error logging
-		// Blindly create tmp files and stream to them, catching any exception if the file does
-		// not exist. Doing stats here is useless and will loop infinitely in addMissingMetadata().
+		// Blindly create tmp files and stream to them, catching any exception
+		// if the file does not exist. Do not waste time doing file stats here.
 		$reqs = []; // (path => op)
 
 		foreach ( $params['srcs'] as $path ) { // each path in this concurrent batch
@@ -831,7 +860,7 @@ class SwiftFileBackend extends FileBackendStore {
 	 *
 	 * @param string $fullCont Resolved container name
 	 * @param string $dir Resolved storage directory with no trailing slash
-	 * @param string|null $after Resolved container relative path to list items after
+	 * @param string|null &$after Resolved container relative path to list items after
 	 * @param int $limit Max number of items to list
 	 * @param array $params Parameters for getDirectoryList()
 	 * @return array List of container relative resolved paths of directories directly under $dir
@@ -911,7 +940,7 @@ class SwiftFileBackend extends FileBackendStore {
 	 *
 	 * @param string $fullCont Resolved container name
 	 * @param string $dir Resolved storage directory with no trailing slash
-	 * @param string|null $after Resolved container relative path of file to list items after
+	 * @param string|null &$after Resolved container relative path of file to list items after
 	 * @param int $limit Max number of items to list
 	 * @param array $params Parameters for getDirectoryList()
 	 * @return array List of resolved container relative paths of files under $dir
@@ -1004,7 +1033,7 @@ class SwiftFileBackend extends FileBackendStore {
 	 * @param array $val Stat value
 	 */
 	public function loadListingStatInternal( $path, array $val ) {
-		$this->cheapCache->set( $path, 'stat', $val );
+		$this->cheapCache->setField( $path, 'stat', $val );
 	}
 
 	protected function doGetFileXAttributes( array $params ) {
@@ -1023,14 +1052,12 @@ class SwiftFileBackend extends FileBackendStore {
 	}
 
 	protected function doGetFileSha1base36( array $params ) {
+		// Avoid using stat entries from file listings, which never include the SHA-1 hash.
+		// Also, recompute the hash if it's not part of the metadata headers for some reason.
+		$params['requireSHA1'] = true;
+
 		$stat = $this->getFileStat( $params );
 		if ( $stat ) {
-			if ( !isset( $stat['sha1'] ) ) {
-				// Stat entries filled by file listings don't include SHA1
-				$this->clearCache( [ $params['src'] ] );
-				$stat = $this->getFileStat( $params );
-			}
-
 			return $stat['sha1'];
 		} else {
 			return false;
@@ -1074,7 +1101,7 @@ class SwiftFileBackend extends FileBackendStore {
 
 		if ( empty( $params['allowOB'] ) ) {
 			// Cancel output buffering and gzipping if set
-			call_user_func( $this->obResetFunc );
+			( $this->obResetFunc )();
 		}
 
 		$handle = fopen( 'php://output', 'wb' );
@@ -1110,8 +1137,8 @@ class SwiftFileBackend extends FileBackendStore {
 		$auth = $this->getAuthentication();
 
 		$ep = array_diff_key( $params, [ 'srcs' => 1 ] ); // for error logging
-		// Blindly create tmp files and stream to them, catching any exception if the file does
-		// not exist. Doing a stat here is useless causes infinite loops in addMissingMetadata().
+		// Blindly create tmp files and stream to them, catching any exception
+		// if the file does not exist. Do not waste time doing file stats here.
 		$reqs = []; // (path => op)
 
 		foreach ( $params['srcs'] as $path ) { // each path in this concurrent batch
@@ -1159,7 +1186,7 @@ class SwiftFileBackend extends FileBackendStore {
 				// Set the file stat process cache in passing
 				$stat = $this->getStatFromHeaders( $rhdrs );
 				$stat['latest'] = $isLatest;
-				$this->cheapCache->set( $path, 'stat', $stat );
+				$this->cheapCache->setField( $path, 'stat', $stat );
 			} elseif ( $rcode === 404 ) {
 				$tmpFiles[$path] = false;
 			} else {
@@ -1186,7 +1213,7 @@ class SwiftFileBackend extends FileBackendStore {
 				return null;
 			}
 
-			$ttl = isset( $params['ttl'] ) ? $params['ttl'] : 86400;
+			$ttl = $params['ttl'] ?? 86400;
 			$expires = time() + $ttl;
 
 			if ( $this->swiftTempUrlKey != '' ) {
@@ -1253,7 +1280,7 @@ class SwiftFileBackend extends FileBackendStore {
 	 * @return StatusValue[]
 	 */
 	protected function doExecuteOpHandlesInternal( array $fileOpHandles ) {
-		/** @var $statuses StatusValue[] */
+		/** @var StatusValue[] $statuses */
 		$statuses = [];
 
 		$auth = $this->getAuthentication();
@@ -1274,7 +1301,7 @@ class SwiftFileBackend extends FileBackendStore {
 			foreach ( $reqs as $stage => &$req ) {
 				list( $container, $relPath ) = $req['url'];
 				$req['url'] = $this->storageUrl( $auth, $container, $relPath );
-				$req['headers'] = isset( $req['headers'] ) ? $req['headers'] : [];
+				$req['headers'] = $req['headers'] ?? [];
 				$req['headers'] = $this->authTokenHeaders( $auth ) + $req['headers'];
 				$httpReqsByStage[$stage][$index] = $req;
 			}
@@ -1288,7 +1315,7 @@ class SwiftFileBackend extends FileBackendStore {
 			foreach ( $httpReqs as $index => $httpReq ) {
 				// Run the callback for each request of this operation
 				$callback = $fileOpHandles[$index]->callback;
-				call_user_func_array( $callback, [ $httpReq, $statuses[$index] ] );
+				$callback( $httpReq, $statuses[$index] );
 				// On failure, abort all remaining requests for this operation
 				// (e.g. abort the DELETE request if the COPY request fails for a move)
 				if ( !$statuses[$index]->isOK() ) {
@@ -1312,7 +1339,7 @@ class SwiftFileBackend extends FileBackendStore {
 	 * (lists are truncated to 10000 item with no way to page), and is just a performance risk.
 	 *
 	 * @param string $container Resolved Swift container
-	 * @param array $readGrps List of the possible criteria for a request to have
+	 * @param array $readUsers List of the possible criteria for a request to have
 	 * access to read a container. Each item is one of the following formats:
 	 *   - account:user        : Grants access if the request is by the given user
 	 *   - ".r:<regex>"        : Grants access if the request is from a referrer host that
@@ -1320,12 +1347,12 @@ class SwiftFileBackend extends FileBackendStore {
 	 *                           Setting this to '*' effectively makes a container public.
 	 *   -".rlistings:<regex>" : Grants access if the request is from a referrer host that
 	 *                           matches the expression and the request is for a listing.
-	 * @param array $writeGrps A list of the possible criteria for a request to have
+	 * @param array $writeUsers A list of the possible criteria for a request to have
 	 * access to write to a container. Each item is of the following format:
 	 *   - account:user       : Grants access if the request is by the given user
 	 * @return StatusValue
 	 */
-	protected function setContainerAccess( $container, array $readGrps, array $writeGrps ) {
+	protected function setContainerAccess( $container, array $readUsers, array $writeUsers ) {
 		$status = $this->newStatus();
 		$auth = $this->getAuthentication();
 
@@ -1339,14 +1366,15 @@ class SwiftFileBackend extends FileBackendStore {
 			'method' => 'POST',
 			'url' => $this->storageUrl( $auth, $container ),
 			'headers' => $this->authTokenHeaders( $auth ) + [
-				'x-container-read' => implode( ',', $readGrps ),
-				'x-container-write' => implode( ',', $writeGrps )
+				'x-container-read' => implode( ',', $readUsers ),
+				'x-container-write' => implode( ',', $writeUsers )
 			]
 		] );
 
 		if ( $rcode != 204 && $rcode !== 202 ) {
 			$status->fatal( 'backend-fail-internal', $this->name );
-			$this->logger->error( __METHOD__ . ': unexpected rcode value (' . $rcode . ')' );
+			$this->logger->error( __METHOD__ . ': unexpected rcode value ({rcode})',
+				[ 'rcode' => $rcode ] );
 		}
 
 		return $status;
@@ -1365,10 +1393,10 @@ class SwiftFileBackend extends FileBackendStore {
 
 		if ( $bypassCache ) { // purge cache
 			$this->containerStatCache->clear( $container );
-		} elseif ( !$this->containerStatCache->has( $container, 'stat' ) ) {
+		} elseif ( !$this->containerStatCache->hasField( $container, 'stat' ) ) {
 			$this->primeContainerCache( [ $container ] ); // check persistent cache
 		}
-		if ( !$this->containerStatCache->has( $container, 'stat' ) ) {
+		if ( !$this->containerStatCache->hasField( $container, 'stat' ) ) {
 			$auth = $this->getAuthentication();
 			if ( !$auth ) {
 				return null;
@@ -1388,7 +1416,7 @@ class SwiftFileBackend extends FileBackendStore {
 				if ( $bypassCache ) {
 					return $stat;
 				} else {
-					$this->containerStatCache->set( $container, 'stat', $stat ); // cache it
+					$this->containerStatCache->setField( $container, 'stat', $stat ); // cache it
 					$this->setContainerCache( $container, $stat ); // update persistent cache
 				}
 			} elseif ( $rcode === 404 ) {
@@ -1401,7 +1429,7 @@ class SwiftFileBackend extends FileBackendStore {
 			}
 		}
 
-		return $this->containerStatCache->get( $container, 'stat' );
+		return $this->containerStatCache->getField( $container, 'stat' );
 	}
 
 	/**
@@ -1423,18 +1451,21 @@ class SwiftFileBackend extends FileBackendStore {
 
 		// @see SwiftFileBackend::setContainerAccess()
 		if ( empty( $params['noAccess'] ) ) {
-			$readGrps = [ '.r:*', $this->swiftUser ]; // public
+			// public
+			$readUsers = array_merge( $this->readUsers, [ '.r:*', $this->swiftUser ] );
+			$writeUsers = array_merge( $this->writeUsers, [ $this->swiftUser ] );
 		} else {
-			$readGrps = [ $this->swiftUser ]; // private
+			// private
+			$readUsers = array_merge( $this->secureReadUsers, [ $this->swiftUser ] );
+			$writeUsers = array_merge( $this->secureWriteUsers, [ $this->swiftUser ] );
 		}
-		$writeGrps = [ $this->swiftUser ]; // sanity
 
 		list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $this->http->run( [
 			'method' => 'PUT',
 			'url' => $this->storageUrl( $auth, $container ),
 			'headers' => $this->authTokenHeaders( $auth ) + [
-				'x-container-read' => implode( ',', $readGrps ),
-				'x-container-write' => implode( ',', $writeGrps )
+				'x-container-read' => implode( ',', $readUsers ),
+				'x-container-write' => implode( ',', $writeUsers )
 			]
 		] );
 
@@ -1550,7 +1581,7 @@ class SwiftFileBackend extends FileBackendStore {
 
 	protected function doPrimeContainerCache( array $containerInfo ) {
 		foreach ( $containerInfo as $container => $info ) {
-			$this->containerStatCache->set( $container, 'stat', $info );
+			$this->containerStatCache->setField( $container, 'stat', $info );
 		}
 	}
 
@@ -1598,7 +1629,9 @@ class SwiftFileBackend extends FileBackendStore {
 			list( $rcode, $rdesc, $rhdrs, $rbody, $rerr ) = $reqs[$path]['response'];
 			if ( $rcode === 200 || $rcode === 204 ) {
 				// Update the object if it is missing some headers
-				$rhdrs = $this->addMissingMetadata( $rhdrs, $path );
+				if ( !empty( $params['requireSHA1'] ) ) {
+					$rhdrs = $this->addMissingHashMetadata( $rhdrs, $path );
+				}
 				// Load the stat array from the headers
 				$stat = $this->getStatFromHeaders( $rhdrs );
 				if ( $this->isRGW ) {
@@ -1631,7 +1664,7 @@ class SwiftFileBackend extends FileBackendStore {
 			'mtime' => $this->convertSwiftDate( $rhdrs['last-modified'], TS_MW ),
 			// Empty objects actually return no content-length header in Ceph
 			'size'  => isset( $rhdrs['content-length'] ) ? (int)$rhdrs['content-length'] : 0,
-			'sha1'  => isset( $metadata['sha1base36'] ) ? $metadata['sha1base36'] : null,
+			'sha1'  => $metadata['sha1base36'] ?? null,
 			// Note: manifiest ETags are not an MD5 of the file
 			'md5'   => ctype_xdigit( $rhdrs['etag'] ) ? $rhdrs['etag'] : null,
 			'xattr' => [ 'metadata' => $metadata, 'headers' => $headers ]
@@ -1674,8 +1707,11 @@ class SwiftFileBackend extends FileBackendStore {
 				if ( $rcode >= 200 && $rcode <= 299 ) { // OK
 					$this->authCreds = [
 						'auth_token' => $rhdrs['x-auth-token'],
-						'storage_url' => $rhdrs['x-storage-url']
+						'storage_url' => ( $this->swiftStorageUrl !== null )
+							? $this->swiftStorageUrl
+							: $rhdrs['x-storage-url']
 					];
+
 					$this->srvCache->set( $cacheKey, $this->authCreds, ceil( $this->authTTL / 2 ) );
 					$this->authSessionTimestamp = time();
 				} elseif ( $rcode === 401 ) {
@@ -1701,8 +1737,8 @@ class SwiftFileBackend extends FileBackendStore {
 
 	/**
 	 * @param array $creds From getAuthentication()
-	 * @param string $container
-	 * @param string $object
+	 * @param string|null $container
+	 * @param string|null $object
 	 * @return string
 	 */
 	protected function storageUrl( array $creds, $container = null, $object = null ) {
@@ -1753,10 +1789,18 @@ class SwiftFileBackend extends FileBackendStore {
 		if ( $code == 401 ) { // possibly a stale token
 			$this->srvCache->delete( $this->getCredsCacheKey( $this->swiftUser ) );
 		}
-		$this->logger->error(
-			"HTTP $code ($desc) in '{$func}' (given '" . FormatJson::encode( $params ) . "')" .
-			( $err ? ": $err" : "" )
-		);
+		$msg = "HTTP {code} ({desc}) in '{func}' (given '{req_params}')";
+		$msgParams = [
+			'code'   => $code,
+			'desc'   => $desc,
+			'func'   => $func,
+			'req_params' => FormatJson::encode( $params ),
+		];
+		if ( $err ) {
+			$msg .= ': {err}';
+			$msgParams['err'] = $err;
+		}
+		$this->logger->error( $msg, $msgParams );
 	}
 }
 
@@ -1888,7 +1932,7 @@ abstract class SwiftFileBackendList implements Iterator {
 	 *
 	 * @param string $container Resolved container name
 	 * @param string $dir Resolved path relative to container
-	 * @param string $after
+	 * @param string &$after
 	 * @param int $limit
 	 * @param array $params
 	 * @return Traversable|array

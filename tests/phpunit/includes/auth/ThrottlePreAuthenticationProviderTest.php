@@ -3,11 +3,12 @@
 namespace MediaWiki\Auth;
 
 use Wikimedia\TestingAccessWrapper;
+use stdClass;
 
 /**
  * @group AuthManager
  * @group Database
- * @covers MediaWiki\Auth\ThrottlePreAuthenticationProvider
+ * @covers \MediaWiki\Auth\ThrottlePreAuthenticationProvider
  */
 class ThrottlePreAuthenticationProviderTest extends \MediaWikiTestCase {
 	public function testConstructor() {
@@ -121,7 +122,7 @@ class ThrottlePreAuthenticationProviderTest extends \MediaWikiTestCase {
 		$user = \User::newFromName( 'RandomUser' );
 		$creator = \User::newFromName( $creatorname );
 		if ( $hook ) {
-			$mock = $this->getMockBuilder( 'stdClass' )
+			$mock = $this->getMockBuilder( stdClass::class )
 				->setMethods( [ 'onExemptFromAccountCreationThrottle' ] )
 				->getMock();
 			$mock->expects( $this->any() )->method( 'onExemptFromAccountCreationThrottle' )

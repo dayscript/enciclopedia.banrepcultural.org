@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on June 14, 2007
- *
  * Copyright © 2006 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -97,7 +93,7 @@ class ApiQueryCategoryMembers extends ApiQueryGeneratorBase {
 		// how to have efficient subcategory access :-) ~~~~ (oh well, domas)
 		$miser_ns = [];
 		if ( $this->getConfig()->get( 'MiserMode' ) ) {
-			$miser_ns = $params['namespace'];
+			$miser_ns = $params['namespace'] ?: [];
 		} else {
 			$this->addWhereFld( 'page_namespace', $params['namespace'] );
 		}
@@ -139,7 +135,7 @@ class ApiQueryCategoryMembers extends ApiQueryGeneratorBase {
 				// Add a WHERE clause for sortkey and from
 				$this->dieContinueUsageIf( !$this->validateHexSortkey( $cont[1] ) );
 				$escSortkey = $this->getDB()->addQuotes( hex2bin( $cont[1] ) );
-				$from = intval( $cont[2] );
+				$from = (int)$cont[2];
 				$op = $dir == 'newer' ? '>' : '<';
 				// $contWhere is used further down
 				$contWhere = "cl_sortkey $op $escSortkey OR " .
@@ -249,7 +245,7 @@ class ApiQueryCategoryMembers extends ApiQueryGeneratorBase {
 					ApiResult::META_TYPE => 'assoc',
 				];
 				if ( $fld_ids ) {
-					$vals['pageid'] = intval( $row->page_id );
+					$vals['pageid'] = (int)$row->page_id;
 				}
 				if ( $fld_title ) {
 					$title = Title::makeTitle( $row->page_namespace, $row->page_title );

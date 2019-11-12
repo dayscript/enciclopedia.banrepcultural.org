@@ -1,9 +1,5 @@
 <?php
 /**
- *
- *
- * Created on Dec 27, 2012
- *
  * Copyright © 2012 Yuri Astrakhan "<Firstname><Lastname>@gmail.com"
  *
  * This program is free software; you can redistribute it and/or modify
@@ -82,12 +78,12 @@ class ApiModuleManager extends ContextSource {
 	 * @code
 	 *  $modules['foo'] = 'ApiFoo';
 	 *  $modules['bar'] = [
-	 *      'class' => 'ApiBar',
+	 *      'class' => ApiBar::class,
 	 *      'factory' => function( $main, $name ) { ... }
 	 *  ];
 	 *  $modules['xyzzy'] = [
-	 *      'class' => 'ApiXyzzy',
-	 *      'factory' => [ 'XyzzyFactory', 'newApiModule' ]
+	 *      'class' => ApiXyzzy::class,
+	 *      'factory' => [ XyzzyFactory::class, 'newApiModule' ]
 	 *  ];
 	 * @endcode
 	 *
@@ -97,11 +93,10 @@ class ApiModuleManager extends ContextSource {
 	 * @param string $group Which group modules belong to (action,format,...)
 	 */
 	public function addModules( array $modules, $group ) {
-
 		foreach ( $modules as $name => $moduleSpec ) {
 			if ( is_array( $moduleSpec ) ) {
 				$class = $moduleSpec['class'];
-				$factory = ( isset( $moduleSpec['factory'] ) ? $moduleSpec['factory'] : null );
+				$factory = ( $moduleSpec['factory'] ?? null );
 			} else {
 				$class = $moduleSpec;
 				$factory = null;
@@ -148,7 +143,7 @@ class ApiModuleManager extends ContextSource {
 	 * Get module instance by name, or instantiate it if it does not exist
 	 *
 	 * @param string $moduleName Module name
-	 * @param string $group Optionally validate that the module is in a specific group
+	 * @param string|null $group Optionally validate that the module is in a specific group
 	 * @param bool $ignoreCache If true, force-creates a new instance and does not cache it
 	 *
 	 * @return ApiBase|null The new module instance, or null if failed
@@ -210,7 +205,7 @@ class ApiModuleManager extends ContextSource {
 
 	/**
 	 * Get an array of modules in a specific group or all if no group is set.
-	 * @param string $group Optional group filter
+	 * @param string|null $group Optional group filter
 	 * @return array List of module names
 	 */
 	public function getNames( $group = null ) {
@@ -229,7 +224,7 @@ class ApiModuleManager extends ContextSource {
 
 	/**
 	 * Create an array of (moduleName => moduleClass) for a specific group or for all.
-	 * @param string $group Name of the group to get or null for all
+	 * @param string|null $group Name of the group to get or null for all
 	 * @return array Name=>class map
 	 */
 	public function getNamesWithClasses( $group = null ) {
@@ -261,7 +256,7 @@ class ApiModuleManager extends ContextSource {
 	/**
 	 * Returns true if the specific module is defined at all or in a specific group.
 	 * @param string $moduleName Module name
-	 * @param string $group Group name to check against, or null to check all groups,
+	 * @param string|null $group Group name to check against, or null to check all groups,
 	 * @return bool True if defined
 	 */
 	public function isDefined( $moduleName, $group = null ) {

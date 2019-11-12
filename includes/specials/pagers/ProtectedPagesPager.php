@@ -19,13 +19,11 @@
  * @ingroup Pager
  */
 
-use \MediaWiki\Linker\LinkRenderer;
+use MediaWiki\Linker\LinkRenderer;
 
-/**
- * @todo document
- */
 class ProtectedPagesPager extends TablePager {
-	public $mForm, $mConds;
+
+	public $mConds;
 	private $type, $level, $namespace, $sizetype, $size, $indefonly, $cascadeonly, $noredirect;
 
 	/**
@@ -34,11 +32,11 @@ class ProtectedPagesPager extends TablePager {
 	private $linkRenderer;
 
 	/**
-	 * @param SpecialProtectedpages $form
+	 * @param SpecialPage $form
 	 * @param array $conds
-	 * @param $type
-	 * @param $level
-	 * @param $namespace
+	 * @param string $type
+	 * @param string $level
+	 * @param int $namespace
 	 * @param string $sizetype
 	 * @param int $size
 	 * @param bool $indefonly
@@ -46,13 +44,12 @@ class ProtectedPagesPager extends TablePager {
 	 * @param bool $noredirect
 	 * @param LinkRenderer $linkRenderer
 	 */
-	function __construct( $form, $conds = [], $type, $level, $namespace,
-		$sizetype = '', $size = 0, $indefonly = false, $cascadeonly = false, $noredirect = false,
+	public function __construct( $form, $conds, $type, $level, $namespace,
+		$sizetype, $size, $indefonly, $cascadeonly, $noredirect,
 		LinkRenderer $linkRenderer
 	) {
-		$this->mForm = $form;
 		$this->mConds = $conds;
-		$this->type = ( $type ) ? $type : 'edit';
+		$this->type = $type ?: 'edit';
 		$this->level = $level;
 		$this->namespace = $namespace;
 		$this->sizetype = $sizetype;
@@ -120,7 +117,7 @@ class ProtectedPagesPager extends TablePager {
 	 * @throws MWException
 	 */
 	function formatValue( $field, $value ) {
-		/** @var $row object */
+		/** @var object $row */
 		$row = $this->mCurrentRow;
 
 		switch ( $field ) {
@@ -236,7 +233,8 @@ class ProtectedPagesPager extends TablePager {
 						LogPage::DELETED_COMMENT,
 						$this->getUser()
 					) ) {
-						$formatted = Linker::formatComment( $value !== null ? $value : '' );
+						$value = CommentStore::getStore()->getComment( 'log_comment', $row )->text;
+						$formatted = Linker::formatComment( $value ?? '' );
 					} else {
 						$formatted = $this->msg( 'rev-deleted-comment' )->escaped();
 					}
@@ -284,8 +282,14 @@ class ProtectedPagesPager extends TablePager {
 			$conds[] = 'page_namespace=' . $this->mDb->addQuotes( $this->namespace );
 		}
 
+		$commentQuery = CommentStore::getStore()->getJoin( 'log_comment' );
+		$actorQuery = ActorMigration::newMigration()->getJoin( 'log_user' );
+
 		return [
-			'tables' => [ 'page', 'page_restrictions', 'log_search', 'logging' ],
+			'tables' => [
+				'page', 'page_restrictions', 'log_search',
+				'logparen' => [ 'logging' ] + $commentQuery['tables'] + $actorQuery['tables'],
+			],
 			'fields' => [
 				'pr_id',
 				'page_namespace',
@@ -296,10 +300,8 @@ class ProtectedPagesPager extends TablePager {
 				'pr_expiry',
 				'pr_cascade',
 				'log_timestamp',
-				'log_user',
-				'log_comment',
 				'log_deleted',
-			],
+			] + $commentQuery['fields'] + $actorQuery['fields'],
 			'conds' => $conds,
 			'join_conds' => [
 				'log_search' => [
@@ -307,12 +309,12 @@ class ProtectedPagesPager extends TablePager {
 						'ls_field' => 'pr_id', 'ls_value = ' . $this->mDb->buildStringCast( 'pr_id' )
 					]
 				],
-				'logging' => [
+				'logparen' => [
 					'LEFT JOIN', [
 						'ls_log_id = log_id'
 					]
 				]
-			]
+			] + $commentQuery['joins'] + $actorQuery['joins']
 		];
 	}
 

@@ -22,8 +22,6 @@ OO.initClass( ve.ui.MWSyntaxHighlightWindow );
 
 /* Static properties */
 
-ve.ui.MWSyntaxHighlightWindow.static.icon = 'alienextension';
-
 ve.ui.MWSyntaxHighlightWindow.static.title = OO.ui.deferMsg( 'syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-title' );
 
 ve.ui.MWSyntaxHighlightWindow.static.dir = 'ltr';
@@ -36,10 +34,13 @@ ve.ui.MWSyntaxHighlightWindow.static.dir = 'ltr';
 ve.ui.MWSyntaxHighlightWindow.prototype.initialize = function () {
 	var noneMsg = ve.msg( 'syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-none' );
 
+	this.languageValid = null;
+
 	this.language = new OO.ui.ComboBoxInputWidget( {
+		$overlay: this.$overlay,
 		menu: {
 			filterFromInput: true,
-			items: $.map( ve.dm.MWSyntaxHighlightNode.static.getLanguages(), function ( lang ) {
+			items: ve.dm.MWSyntaxHighlightNode.static.getLanguages().map( function ( lang ) {
 				return new OO.ui.MenuOptionWidget( { data: lang, label: lang || noneMsg } );
 			} )
 		},
@@ -47,9 +48,18 @@ ve.ui.MWSyntaxHighlightWindow.prototype.initialize = function () {
 			return ve.dm.MWSyntaxHighlightNode.static.isLanguageSupported( input );
 		}
 	} );
-	this.language.connect( this, { change: 'onLanguageInputChange' } );
 
 	this.showLinesCheckbox = new OO.ui.CheckboxInputWidget();
+
+	this.startLineNumber = new OO.ui.NumberInputWidget( {
+		min: 0,
+		isInteger: true
+	} );
+
+	// Events
+	this.language.connect( this, { change: 'onLanguageInputChange' } );
+	this.showLinesCheckbox.connect( this, { change: 'onShowLinesCheckboxChange' } );
+	this.startLineNumber.connect( this, { change: 'onStartLineNumberChange' } );
 
 	this.languageField = new OO.ui.FieldLayout( this.language, {
 		classes: [ 've-ui-mwSyntaxHighlightWindow-languageField' ],
@@ -64,6 +74,11 @@ ve.ui.MWSyntaxHighlightWindow.prototype.initialize = function () {
 		align: 'inline',
 		label: ve.msg( 'syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-showlines' )
 	} );
+	this.startLineField = new OO.ui.FieldLayout( this.startLineNumber, {
+		classes: [ 've-ui-mwSyntaxHighlightWindow-startLineField' ],
+		align: 'left',
+		label: ve.msg( 'syntaxhighlight-visualeditor-mwsyntaxhighlightinspector-startingline' )
+	} );
 };
 
 /**
@@ -75,7 +90,36 @@ ve.ui.MWSyntaxHighlightWindow.prototype.onLanguageInputChange = function () {
 	var validity, inspector = this;
 	validity = this.language.getValidity();
 	validity.always( function () {
-		inspector.getActions().setAbilities( { done: validity.state() === 'resolved' } );
+		inspector.languageValid = validity.state() === 'resolved';
+		inspector.updateActions();
+	} );
+};
+
+/**
+ * Handle change events from the show lines chechbox
+ *
+ * @param {boolean} value Widget value
+ */
+ve.ui.MWSyntaxHighlightWindow.prototype.onShowLinesCheckboxChange = function () {
+	var showLines = this.showLinesCheckbox.isSelected();
+	this.input.toggleLineNumbers( showLines );
+	this.startLineNumber.setDisabled( !showLines );
+	this.updateActions();
+};
+
+/**
+ * Handle change events from the start line input
+ *
+ * @param {string} value Widget value
+ */
+ve.ui.MWSyntaxHighlightWindow.prototype.onStartLineNumberChange = function ( value ) {
+	var inspector = this,
+		input = this.input;
+
+	input.loadingPromise.done( function () {
+		input.editor.setOption( 'firstLineNumber', value !== '' ? +value : 1 );
+	} ).always( function () {
+		inspector.updateActions();
 	} );
 };
 
@@ -99,12 +143,14 @@ ve.ui.MWSyntaxHighlightWindow.prototype.getReadyProcess = function ( data, proce
 ve.ui.MWSyntaxHighlightWindow.prototype.getSetupProcess = function ( data, process ) {
 	return process.next( function () {
 		var attrs = this.selectedNode ? this.selectedNode.getAttribute( 'mw' ).attrs : {},
-			language = attrs.lang || '',
-			showLines = attrs.line !== undefined;
+			language = attrs.lang ? attrs.lang.toLowerCase() : '',
+			showLines = attrs.line !== undefined,
+			startLine = attrs.start;
 
 		this.language.setValue( language );
 
 		this.showLinesCheckbox.setSelected( showLines );
+		this.startLineNumber.setValue( startLine );
 	}, this );
 };
 
@@ -118,12 +164,19 @@ ve.ui.MWSyntaxHighlightWindow.prototype.getTeardownProcess = function ( data, pr
 /**
  * @inheritdoc ve.ui.MWExtensionWindow
  */
-ve.ui.MWSyntaxHighlightWindow.prototype.updateMwData = function ( mwData ) {
-	var language, showLines;
+ve.ui.MWSyntaxHighlightWindow.prototype.updateActions = function () {
+	this.getActions().setAbilities( { done: this.languageValid && this.isModified() } );
+};
 
-	language = this.language.getValue();
-	showLines = this.showLinesCheckbox.isSelected();
+/**
+ * @inheritdoc ve.ui.MWExtensionWindow
+ */
+ve.ui.MWSyntaxHighlightWindow.prototype.updateMwData = function ( mwData ) {
+	var language = this.language.getValue(),
+		showLines = this.showLinesCheckbox.isSelected(),
+		startLine = this.startLineNumber.getValue();
 
 	mwData.attrs.lang = language || undefined;
 	mwData.attrs.line = showLines ? '1' : undefined;
+	mwData.attrs.start = startLine !== '' ? startLine : undefined;
 };

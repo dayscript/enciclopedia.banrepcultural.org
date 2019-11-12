@@ -33,17 +33,17 @@
 class UsersPager extends AlphabeticPager {
 
 	/**
-	 * @var array A array with user ids as key and a array of groups as value
+	 * @var array[] A array with user ids as key and a array of groups as value
 	 */
 	protected $userGroupCache;
 
 	/**
-	 * @param IContextSource $context
-	 * @param array $par (Default null)
-	 * @param bool $including Whether this page is being transcluded in
+	 * @param IContextSource|null $context
+	 * @param array|null $par (Default null)
+	 * @param bool|null $including Whether this page is being transcluded in
 	 * another page
 	 */
-	function __construct( IContextSource $context = null, $par = null, $including = null ) {
+	public function __construct( IContextSource $context = null, $par = null, $including = null ) {
 		if ( $context ) {
 			$this->setContext( $context );
 		}
@@ -70,6 +70,7 @@ class UsersPager extends AlphabeticPager {
 			$this->requestedGroup = '';
 		}
 		$this->editsOnly = $request->getBool( 'editsOnly' );
+		$this->temporaryGroupsOnly = $request->getBool( 'temporaryGroupsOnly' );
 		$this->creationSort = $request->getBool( 'creationSort' );
 		$this->including = $including;
 		$this->mDefaultDirection = $request->getBool( 'desc' )
@@ -110,9 +111,13 @@ class UsersPager extends AlphabeticPager {
 
 		$options = [];
 
+		if ( $this->requestedGroup != '' || $this->temporaryGroupsOnly ) {
+			$conds[] = 'ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() ) .
+			( !$this->temporaryGroupsOnly ? ' OR ug_expiry IS NULL' : '' );
+		}
+
 		if ( $this->requestedGroup != '' ) {
 			$conds['ug_group'] = $this->requestedGroup;
-			$conds[] = 'ug_expiry IS NULL OR ug_expiry >= ' . $dbr->addQuotes( $dbr->timestamp() );
 		}
 
 		if ( $this->requestedUser != '' ) {
@@ -137,7 +142,8 @@ class UsersPager extends AlphabeticPager {
 				'user_id' => $this->creationSort ? 'user_id' : 'MAX(user_id)',
 				'edits' => 'MAX(user_editcount)',
 				'creation' => 'MIN(user_registration)',
-				'ipb_deleted' => 'MAX(ipb_deleted)' // block/hide status
+				'ipb_deleted' => 'MAX(ipb_deleted)', // block/hide status
+				'ipb_sitewide' => 'MAX(ipb_sitewide)'
 			],
 			'options' => $options,
 			'join_conds' => [
@@ -209,7 +215,8 @@ class UsersPager extends AlphabeticPager {
 			$created = $this->msg( 'usercreated', $d, $t, $row->user_name )->escaped();
 			$created = ' ' . $this->msg( 'parentheses' )->rawParams( $created )->escaped();
 		}
-		$blocked = !is_null( $row->ipb_deleted ) ?
+
+		$blocked = !is_null( $row->ipb_deleted ) && $row->ipb_sitewide === '1' ?
 			' ' . $this->msg( 'listusers-blocked', $userName )->escaped() :
 			'';
 
@@ -218,7 +225,7 @@ class UsersPager extends AlphabeticPager {
 		return Html::rawElement( 'li', [], "{$item}{$edits}{$created}{$blocked}" );
 	}
 
-	function doBatchLookups() {
+	protected function doBatchLookups() {
 		$batch = new LinkBatch();
 		$userIds = [];
 		# Give some pointers to make user links
@@ -270,71 +277,96 @@ class UsersPager extends AlphabeticPager {
 	function getPageHeader() {
 		list( $self ) = explode( '/', $this->getTitle()->getPrefixedDBkey() );
 
-		$this->getOutput()->addModules( 'mediawiki.userSuggest' );
-
-		# Form tag
-		$out = Xml::openElement(
-				'form',
-				[ 'method' => 'get', 'action' => wfScript(), 'id' => 'mw-listusers-form' ]
-			) .
-			Xml::fieldset( $this->msg( 'listusers' )->text() ) .
-			Html::hidden( 'title', $self );
-
-		# Username field (with autocompletion support)
-		$out .= Xml::label( $this->msg( 'listusersfrom' )->text(), 'offset' ) . ' ' .
-			Html::input(
-				'username',
-				$this->requestedUser,
-				'text',
-				[
-					'class' => 'mw-autocomplete-user',
-					'id' => 'offset',
-					'size' => 20,
-					'autofocus' => $this->requestedUser === ''
-				]
-			) . ' ';
-
-		# Group drop-down list
-		$sel = new XmlSelect( 'group', 'group', $this->requestedGroup );
-		$sel->addOption( $this->msg( 'group-all' )->text(), '' );
+		$groupOptions = [ $this->msg( 'group-all' )->text() => '' ];
 		foreach ( $this->getAllGroups() as $group => $groupText ) {
-			$sel->addOption( $groupText, $group );
+			$groupOptions[ $groupText ] = $group;
 		}
 
-		$out .= Xml::label( $this->msg( 'group' )->text(), 'group' ) . ' ';
-		$out .= $sel->getHTML() . '<br />';
-		$out .= Xml::checkLabel(
-			$this->msg( 'listusers-editsonly' )->text(),
-			'editsOnly',
-			'editsOnly',
-			$this->editsOnly
-		);
-		$out .= '&#160;';
-		$out .= Xml::checkLabel(
-			$this->msg( 'listusers-creationsort' )->text(),
-			'creationSort',
-			'creationSort',
-			$this->creationSort
-		);
-		$out .= '&#160;';
-		$out .= Xml::checkLabel(
-			$this->msg( 'listusers-desc' )->text(),
-			'desc',
-			'desc',
-			$this->mDefaultDirection
-		);
-		$out .= '<br />';
+		$formDescriptor = [
+			'user' => [
+				'class' => HTMLUserTextField::class,
+				'label' => $this->msg( 'listusersfrom' )->text(),
+				'name' => 'username',
+				'default' => $this->requestedUser,
+			],
+			'dropdown' => [
+				'label' => $this->msg( 'group' )->text(),
+				'name' => 'group',
+				'default' => $this->requestedGroup,
+				'class' => HTMLSelectField::class,
+				'options' => $groupOptions,
+			],
+			'editsOnly' => [
+				'type' => 'check',
+				'label' => $this->msg( 'listusers-editsonly' )->text(),
+				'name' => 'editsOnly',
+				'id' => 'editsOnly',
+				'default' => $this->editsOnly
+			],
+			'temporaryGroupsOnly' => [
+				'type' => 'check',
+				'label' => $this->msg( 'listusers-temporarygroupsonly' )->text(),
+				'name' => 'temporaryGroupsOnly',
+				'id' => 'temporaryGroupsOnly',
+				'default' => $this->temporaryGroupsOnly
+			],
+			'creationSort' => [
+				'type' => 'check',
+				'label' => $this->msg( 'listusers-creationsort' )->text(),
+				'name' => 'creationSort',
+				'id' => 'creationSort',
+				'default' => $this->creationSort
+			],
+			'desc' => [
+				'type' => 'check',
+				'label' => $this->msg( 'listusers-desc' )->text(),
+				'name' => 'desc',
+				'id' => 'desc',
+				'default' => $this->mDefaultDirection
+			],
+			'limithiddenfield' => [
+				'class' => HTMLHiddenField::class,
+				'name' => 'limit',
+				'default' => $this->mLimit
+			]
+		];
 
-		Hooks::run( 'SpecialListusersHeaderForm', [ $this, &$out ] );
+		$beforeSubmitButtonHookOut = '';
+		Hooks::run( 'SpecialListusersHeaderForm', [ $this, &$beforeSubmitButtonHookOut ] );
 
-		# Submit button and form bottom
-		$out .= Html::hidden( 'limit', $this->mLimit );
-		$out .= Xml::submitButton( $this->msg( 'listusers-submit' )->text() );
-		Hooks::run( 'SpecialListusersHeader', [ $this, &$out ] );
-		$out .= Xml::closeElement( 'fieldset' ) .
-			Xml::closeElement( 'form' );
+		if ( $beforeSubmitButtonHookOut !== '' ) {
+			$formDescriptor[ 'beforeSubmitButtonHookOut' ] = [
+				'class' => HTMLInfoField::class,
+				'raw' => true,
+				'default' => $beforeSubmitButtonHookOut
+			];
+		}
 
-		return $out;
+		$formDescriptor[ 'submit' ] = [
+			'class' => HTMLSubmitField::class,
+			'buttonlabel-message' => 'listusers-submit',
+		];
+
+		$beforeClosingFieldsetHookOut = '';
+		Hooks::run( 'SpecialListusersHeader', [ $this, &$beforeClosingFieldsetHookOut ] );
+
+		if ( $beforeClosingFieldsetHookOut !== '' ) {
+			$formDescriptor[ 'beforeClosingFieldsetHookOut' ] = [
+				'class' => HTMLInfoField::class,
+				'raw' => true,
+				'default' => $beforeClosingFieldsetHookOut
+			];
+		}
+
+		$htmlForm = HTMLForm::factory( 'ooui', $formDescriptor, $this->getContext() );
+		$htmlForm
+			->setMethod( 'get' )
+			->setAction( Title::newFromText( $self )->getLocalURL() )
+			->setId( 'mw-listusers-form' )
+			->setFormIdentifier( 'mw-listusers-form' )
+			->suppressDefaultSubmit()
+			->setWrapperLegendMsg( 'listusers' );
+		return $htmlForm->prepareForm()->getHTML( true );
 	}
 
 	/**
@@ -373,15 +405,15 @@ class UsersPager extends AlphabeticPager {
 	 * and the relevant UserGroupMembership objects
 	 *
 	 * @param int $uid User id
-	 * @param array|null $cache
-	 * @return array (group name => UserGroupMembership object)
+	 * @param array[]|null $cache
+	 * @return UserGroupMembership[] (group name => UserGroupMembership object)
 	 */
 	protected static function getGroupMemberships( $uid, $cache = null ) {
 		if ( $cache === null ) {
 			$user = User::newFromId( $uid );
 			return $user->getGroupMemberships();
 		} else {
-			return isset( $cache[$uid] ) ? $cache[$uid] : [];
+			return $cache[$uid] ?? [];
 		}
 	}
 
@@ -389,7 +421,7 @@ class UsersPager extends AlphabeticPager {
 	 * Format a link to a group description page
 	 *
 	 * @param string|UserGroupMembership $group Group name or UserGroupMembership object
-	 * @param string $username Username
+	 * @param string $username
 	 * @return string
 	 */
 	protected function buildGroupLink( $group, $username ) {

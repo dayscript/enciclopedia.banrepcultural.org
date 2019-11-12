@@ -1,12 +1,9 @@
 <?php
 
 /**
- * Tests for OracleInstaller
- *
  * @group Database
  * @group Installer
  */
-
 class OracleInstallerTest extends MediaWikiTestCase {
 
 	/**

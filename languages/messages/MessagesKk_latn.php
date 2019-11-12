@@ -12,21 +12,10 @@
  * @author Urhixidur
  */
 
-/**
- * Bul qazaqşa tildeswiniñ jersindirw faýlı
- *
- * ŞETKİ PAÝDALANWŞILAR: BUL FAÝLDI TİKELEÝ ÖÑDEMEÑİZ!
- *
- * Bul faýldağı özgerister bağdarlamalıq jasaqtama kezekti jañartılğanda joğaltıladı.
- * Wïkïde öz baptalımdarıñızdı isteý alasız.
- * Äkimşi bop kirgeniñizde, [[Arnaýı:Barlıq xabarlar]] degen betke ötiñiz de
- * mında tizimdelingen MedïaWïkï:* sïpatı bar betterdi öñdeñiz.
- */
-
 $fallback = 'kk-cyrl';
 
 $separatorTransformTable = [
-	',' => "\xc2\xa0",
+	',' => "\u{00A0}",
 	'.' => ',',
 ];
 

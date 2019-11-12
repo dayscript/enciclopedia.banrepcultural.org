@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @license GPL 2+
  * @author Matthew Flaschen
  */
 
@@ -74,25 +73,25 @@ abstract class ChangesListFilter {
 	protected $description;
 
 	/**
-	 * List of conflicting groups
+	 * Array of associative arrays with conflict information.  See
+	 * setUnidirectionalConflict
 	 *
-	 * @var array $conflictingGroups Array of associative arrays with conflict
-	 *   information.  See setUnidirectionalConflict
+	 * @var array $conflictingGroups
 	 */
 	protected $conflictingGroups = [];
 
 	/**
-	 * List of conflicting filters
+	 * Array of associative arrays with conflict information.  See
+	 * setUnidirectionalConflict
 	 *
-	 * @var array $conflictingFilters Array of associative arrays with conflict
-	 *   information.  See setUnidirectionalConflict
+	 * @var array $conflictingFilters
 	 */
 	protected $conflictingFilters = [];
 
 	/**
-	 * List of filters that are a subset of the current filter
+	 * Array of associative arrays with subset information
 	 *
-	 * @var array $subsetFilters Array of associative arrays with subset information
+	 * @var array $subsetFilters
 	 */
 	protected $subsetFilters = [];
 
@@ -102,6 +101,12 @@ abstract class ChangesListFilter {
 	 * @var string $priority
 	 */
 	protected $priority;
+
+	/**
+	 *
+	 * @var string $defaultHighlightColor
+	 */
+	protected $defaultHighlightColor;
 
 	const RESERVED_NAME_CHAR = '_';
 
@@ -117,23 +122,22 @@ abstract class ChangesListFilter {
 	 * UI it's for.
 	 *
 	 * @param array $filterDefinition ChangesListFilter definition
-	 *
-	 * $filterDefinition['name'] string Name of filter; use lowercase with no
-	 *  punctuation
-	 * $filterDefinition['cssClassSuffix'] string CSS class suffix, used to mark
-	 *  that a particular row belongs to this filter (when a row is included by the
-	 *  filter) (optional)
-	 * $filterDefinition['isRowApplicableCallable'] Callable taking two parameters, the
-	 *  IContextSource, and the RecentChange object for the row, and returning true if
-	 *  the row is attributed to this filter.  The above CSS class will then be
-	 *  automatically added (optional, required if cssClassSuffix is used).
-	 * $filterDefinition['group'] ChangesListFilterGroup Group.  Filter group this
-	 *  belongs to.
-	 * $filterDefinition['label'] string i18n key of label for structured UI.
-	 * $filterDefinition['description'] string i18n key of description for structured
-	 *  UI.
-	 * $filterDefinition['priority'] int Priority integer.  Higher value means higher
-	 *  up in the group's filter list.
+	 * * $filterDefinition['name'] string Name of filter; use lowercase with no
+	 *     punctuation
+	 * * $filterDefinition['cssClassSuffix'] string CSS class suffix, used to mark
+	 *     that a particular row belongs to this filter (when a row is included by the
+	 *     filter) (optional)
+	 * * $filterDefinition['isRowApplicableCallable'] Callable taking two parameters, the
+	 *     IContextSource, and the RecentChange object for the row, and returning true if
+	 *     the row is attributed to this filter.  The above CSS class will then be
+	 *     automatically added (optional, required if cssClassSuffix is used).
+	 * * $filterDefinition['group'] ChangesListFilterGroup Group.  Filter group this
+	 *     belongs to.
+	 * * $filterDefinition['label'] string i18n key of label for structured UI.
+	 * * $filterDefinition['description'] string i18n key of description for structured
+	 *     UI.
+	 * * $filterDefinition['priority'] int Priority integer.  Higher value means higher
+	 *     up in the group's filter list.
 	 */
 	public function __construct( array $filterDefinition ) {
 		if ( isset( $filterDefinition['group'] ) ) {
@@ -179,20 +183,15 @@ abstract class ChangesListFilter {
 	 * (not filtered out), even for the hide-based filters.  So e.g. conflicting with
 	 * 'hideanons' means there is a conflict if only anonymous users are *shown*.
 	 *
-	 * @param ChangesListFilterGroup|ChangesListFilter $other Other
-	 *  ChangesListFilterGroup or ChangesListFilter
+	 * @param ChangesListFilterGroup|ChangesListFilter $other
 	 * @param string $globalKey i18n key for top-level conflict message
 	 * @param string $forwardKey i18n key for conflict message in this
 	 *  direction (when in UI context of $this object)
 	 * @param string $backwardKey i18n key for conflict message in reverse
 	 *  direction (when in UI context of $other object)
 	 */
-	public function conflictsWith( $other, $globalKey, $forwardKey,
-		$backwardKey ) {
-
-		if ( $globalKey === null || $forwardKey === null ||
-			$backwardKey === null ) {
-
+	public function conflictsWith( $other, $globalKey, $forwardKey, $backwardKey ) {
+		if ( $globalKey === null || $forwardKey === null || $backwardKey === null ) {
 			throw new MWException( 'All messages must be specified' );
 		}
 
@@ -215,15 +214,12 @@ abstract class ChangesListFilter {
 	 *
 	 * Internal use ONLY.
 	 *
-	 * @param ChangesListFilterGroup|ChangesListFilter $other Other
-	 *  ChangesListFilterGroup or ChangesListFilter
+	 * @param ChangesListFilterGroup|ChangesListFilter $other
 	 * @param string $globalDescription i18n key for top-level conflict message
 	 * @param string $contextDescription i18n key for conflict message in this
 	 *  direction (when in UI context of $this object)
 	 */
-	public function setUnidirectionalConflict( $other, $globalDescription,
-		$contextDescription ) {
-
+	public function setUnidirectionalConflict( $other, $globalDescription, $contextDescription ) {
 		if ( $other instanceof ChangesListFilterGroup ) {
 			$this->conflictingGroups[] = [
 				'group' => $other->getName(),
@@ -251,7 +247,7 @@ abstract class ChangesListFilter {
 	 * This means that anything in the results for the other filter is also in the
 	 * results for this one.
 	 *
-	 * @param ChangesListFilter The filter the current instance is a superset of
+	 * @param ChangesListFilter $other The filter the current instance is a superset of
 	 */
 	public function setAsSupersetOf( ChangesListFilter $other ) {
 		if ( $other->getGroup() !== $this->getGroup() ) {
@@ -316,6 +312,7 @@ abstract class ChangesListFilter {
 	 * structured UI.
 	 *
 	 * This can either be the exact filter, or a new filter that replaces it.
+	 * @return bool
 	 */
 	public function isFeatureAvailableOnStructuredUi() {
 		return $this->displaysOnStructuredUi();
@@ -346,7 +343,7 @@ abstract class ChangesListFilter {
 	 *
 	 * @param IContextSource $ctx Context source
 	 * @param RecentChange $rc Recent changes object
-	 * @param Non-associative array of CSS class names; appended to if needed
+	 * @param array &$classes Non-associative array of CSS class names; appended to if needed
 	 */
 	public function applyCssClassIfNeeded( IContextSource $ctx, RecentChange $rc, array &$classes ) {
 		if ( $this->isRowApplicableCallable === null ) {
@@ -374,6 +371,7 @@ abstract class ChangesListFilter {
 			'priority' => $this->priority,
 			'subset' => $this->subsetFilters,
 			'conflicts' => [],
+			'defaultHighlightColor' => $this->defaultHighlightColor
 		];
 
 		$output['messageKeys'] = [
@@ -467,7 +465,7 @@ abstract class ChangesListFilter {
 	 * @param FormOptions $opts
 	 * @return bool
 	 */
-	public function activelyInConflictWithFilter( ChangeslistFilter $filter, FormOptions $opts ) {
+	public function activelyInConflictWithFilter( ChangesListFilter $filter, FormOptions $opts ) {
 		if ( $this->isSelected( $opts ) && $filter->isSelected( $opts ) ) {
 			/** @var ChangesListFilter $siblingFilter */
 			foreach ( $this->getSiblings() as $siblingFilter ) {
@@ -483,7 +481,7 @@ abstract class ChangesListFilter {
 		return false;
 	}
 
-	private function hasConflictWithFilter( ChangeslistFilter $filter ) {
+	private function hasConflictWithFilter( ChangesListFilter $filter ) {
 		return in_array( $filter, $this->getConflictingFilters() );
 	}
 
@@ -499,5 +497,12 @@ abstract class ChangesListFilter {
 				return $filter !== $this;
 			}
 		);
+	}
+
+	/**
+	 * @param string $defaultHighlightColor
+	 */
+	public function setDefaultHighlightColor( $defaultHighlightColor ) {
+		$this->defaultHighlightColor = $defaultHighlightColor;
 	}
 }

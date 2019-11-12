@@ -3,7 +3,7 @@
  *
  * @copyright 2011-2016 VisualEditor Team and others; see http://ve.mit-license.org
  */
-( function ( $, mw ) {
+( function () {
 
 	/**
 	 * API Results Queue object.
@@ -48,7 +48,7 @@
 	 *  are set up. Note: The promise must have an .abort() functionality.
 	 */
 	mw.widgets.APIResultsQueue.prototype.setup = function () {
-		return $.Deferred().resolve().promise( { abort: $.noop } );
+		return $.Deferred().resolve().promise( { abort: function () {} } );
 	};
 
 	/**
@@ -221,4 +221,4 @@
 	mw.widgets.APIResultsQueue.prototype.getThreshold = function () {
 		return this.threshold;
 	};
-}( jQuery, mediaWiki ) );
+}() );

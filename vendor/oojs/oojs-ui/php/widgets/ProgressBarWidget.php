@@ -15,10 +15,10 @@ class ProgressBarWidget extends Widget {
 
 	/**
 	 * @param array $config Configuration options
-	 * @param bool|int $config['progress'] The type of progress bar (determinate or indeterminate).
-	 *                                     To create a determinate progress bar,specify a number
-	 *                                     that reflects the initial percent complete.
-	 *                                     By default, the progress bar is indeterminate.
+	 *      - bool|int $config['progress'] Numeric value between 0 and 100 (the percent complete)
+	 *          for determinate progress bar, or `false` for indeterminate progress bar
+	 *          (default: false)
+	 * @param-taint $config escapes_html
 	 */
 	public function __construct( array $config = [] ) {
 		parent::__construct( $config );
@@ -46,7 +46,8 @@ class ProgressBarWidget extends Widget {
 	}
 
 	/**
-	 * @param bool|int $progress
+	 * @param bool|int $progress Numeric value between 0 and 100 (the percent complete)
+	 *     for determinate progress bar, or `false` for indeterminate progress bar (default: false)
 	 */
 	public function setProgress( $progress ) {
 		$this->progress = $progress;

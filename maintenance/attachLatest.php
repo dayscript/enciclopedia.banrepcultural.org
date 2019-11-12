@@ -24,6 +24,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\MediaWikiServices;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -53,6 +55,7 @@ class AttachLatest extends Maintenance {
 			$conds,
 			__METHOD__ );
 
+		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
 		$n = 0;
 		foreach ( $result as $row ) {
 			$pageId = intval( $row->page_id );
@@ -78,6 +81,7 @@ class AttachLatest extends Maintenance {
 			if ( $this->hasOption( 'fix' ) ) {
 				$page = WikiPage::factory( $title );
 				$page->updateRevisionOn( $dbw, $revision );
+				$lbFactory->waitForReplication();
 			}
 			$n++;
 		}
@@ -88,5 +92,5 @@ class AttachLatest extends Maintenance {
 	}
 }
 
-$maintClass = "AttachLatest";
+$maintClass = AttachLatest::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

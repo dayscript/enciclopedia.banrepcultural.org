@@ -35,7 +35,7 @@ if ( defined( 'THUMB_HANDLER' ) ) {
 	wfThumbHandle404();
 } else {
 	// Called directly, use $_GET params
-	wfStreamThumb( $_GET );
+	wfStreamThumb( $wgRequest->getQueryValues() );
 }
 
 $mediawiki = new MediaWiki();
@@ -94,7 +94,7 @@ function wfStreamThumb( array $params ) {
 
 	$headers = []; // HTTP headers to send
 
-	$fileName = isset( $params['f'] ) ? $params['f'] : '';
+	$fileName = $params['f'] ?? '';
 
 	// Backwards compatibility parameters
 	if ( isset( $params['w'] ) ) {
@@ -235,16 +235,16 @@ function wfStreamThumb( array $params ) {
 		// Fix IE brokenness
 		$imsString = preg_replace( '/;.*$/', '', $_SERVER["HTTP_IF_MODIFIED_SINCE"] );
 		// Calculate time
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$imsUnix = strtotime( $imsString );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( wfTimestamp( TS_UNIX, $img->getTimestamp() ) <= $imsUnix ) {
 			HttpStatus::header( 304 );
 			return;
 		}
 	}
 
-	$rel404 = isset( $params['rel404'] ) ? $params['rel404'] : null;
+	$rel404 = $params['rel404'] ?? null;
 	unset( $params['r'] ); // ignore 'r' because we unconditionally pass File::RENDER
 	unset( $params['f'] ); // We're done with 'f' parameter.
 	unset( $params['rel404'] ); // moved to $rel404
@@ -337,7 +337,16 @@ function wfStreamThumb( array $params ) {
 		return;
 	}
 
-	list( $thumb, $errorMsg ) = wfGenerateThumbnail( $img, $params, $thumbName, $thumbPath );
+	$thumbProxyUrl = $img->getRepo()->getThumbProxyUrl();
+
+	if ( strlen( $thumbProxyUrl ) ) {
+		wfProxyThumbnailRequest( $img, $thumbName );
+		// No local fallback when in proxy mode
+		return;
+	} else {
+		// Generate the thumbnail locally
+		list( $thumb, $errorMsg ) = wfGenerateThumbnail( $img, $params, $thumbName, $thumbPath );
+	}
 
 	/** @var MediaTransformOutput|MediaTransformError|bool $thumb */
 
@@ -375,6 +384,43 @@ function wfStreamThumb( array $params ) {
 				'error' => $status->getWikiText( false, false, 'en' ) ] );
 		}
 	}
+}
+
+/**
+ * Proxies thumbnail request to a service that handles thumbnailing
+ *
+ * @param File $img
+ * @param string $thumbName
+ */
+function wfProxyThumbnailRequest( $img, $thumbName ) {
+	$thumbProxyUrl = $img->getRepo()->getThumbProxyUrl();
+
+	// Instead of generating the thumbnail ourselves, we proxy the request to another service
+	$thumbProxiedUrl = $thumbProxyUrl . $img->getThumbRel( $thumbName );
+
+	$req = MWHttpRequest::factory( $thumbProxiedUrl );
+	$secret = $img->getRepo()->getThumbProxySecret();
+
+	// Pass a secret key shared with the proxied service if any
+	if ( strlen( $secret ) ) {
+		$req->setHeader( 'X-Swift-Secret', $secret );
+	}
+
+	// Send request to proxied service
+	$status = $req->execute();
+
+	// Simply serve the response from the proxied service as-is
+	header( 'HTTP/1.1 ' . $req->getStatus() );
+
+	$headers = $req->getResponseHeaders();
+
+	foreach ( $headers as $key => $values ) {
+		foreach ( $values as $value ) {
+			header( $key . ': ' . $value, false );
+		}
+	}
+
+	echo $req->getContent();
 }
 
 /**
@@ -454,7 +500,7 @@ function wfGenerateThumbnail( File $file, array $params, $thumbName, $thumbPath 
 	}
 
 	/** @noinspection PhpUnusedLocalVariableInspection */
-	$done = true; // no PHP fatal occured
+	$done = true; // no PHP fatal occurred
 
 	if ( !$thumb || $thumb->isError() ) {
 		// Randomize TTL to reduce stampedes
@@ -530,15 +576,6 @@ function wfExtractThumbParams( $file, $params ) {
 	$thumbname = $params['thumbName'];
 	unset( $params['thumbName'] );
 
-	// Do the hook first for older extensions that rely on it.
-	if ( !Hooks::run( 'ExtractThumbParameters', [ $thumbname, &$params ] ) ) {
-		// Check hooks if parameters can be extracted
-		// Hooks return false if they manage to *resolve* the parameters
-		// This hook should be considered deprecated
-		wfDeprecated( 'ExtractThumbParameters', '1.22' );
-		return $params; // valid thumbnail URL (via extension or config)
-	}
-
 	// FIXME: Files in the temp zone don't set a MIME type, which means
 	// they don't have a handler. Which means we can't parse the param
 	// string. However, not a big issue as what good is a param string
@@ -581,7 +618,7 @@ function wfExtractThumbParams( $file, $params ) {
  * @return void
  */
 function wfThumbErrorText( $status, $msgText ) {
-	wfThumbError( $status, htmlspecialchars( $msgText ) );
+	wfThumbError( $status, htmlspecialchars( $msgText, ENT_NOQUOTES ) );
 }
 
 /**
@@ -589,7 +626,7 @@ function wfThumbErrorText( $status, $msgText ) {
  *
  * @param int $status
  * @param string $msgHtml HTML
- * @param string $msgText Short error description, for internal logging. Defaults to $msgHtml.
+ * @param string|null $msgText Short error description, for internal logging. Defaults to $msgHtml.
  *   Only used for HTTP 500 errors.
  * @param array $context Error context, for internal logging. Only used for HTTP 500 errors.
  * @return void
@@ -611,9 +648,10 @@ function wfThumbError( $status, $msgHtml, $msgText = null, $context = [] ) {
 	if ( $wgShowHostnames ) {
 		header( 'X-MW-Thumbnail-Renderer: ' . wfHostname() );
 		$url = htmlspecialchars(
-			isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : ''
+			$_SERVER['REQUEST_URI'] ?? '',
+			ENT_NOQUOTES
 		);
-		$hostname = htmlspecialchars( wfHostname() );
+		$hostname = htmlspecialchars( wfHostname(), ENT_NOQUOTES );
 		$debug = "<!-- $url -->\n<!-- $hostname -->\n";
 	} else {
 		$debug = '';

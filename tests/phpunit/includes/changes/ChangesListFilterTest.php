@@ -23,15 +23,14 @@ class ChangesListFilterTest extends MediaWikiTestCase {
 				'filters' => [],
 			]
 		);
-
 	}
 
-	// @codingStandardsIgnoreStart
 	/**
+	 * phpcs:disable Generic.Files.LineLength
 	 * @expectedException MWException
 	 * @expectedExceptionMessage Filter names may not contain '_'.  Use the naming convention: 'lowercase'
+	 * phpcs:enable
 	 */
-	// @codingStandardsIgnoreEnd
 	public function testReservedCharacter() {
 		$filter = new MockChangesListFilter(
 			[
@@ -42,12 +41,10 @@ class ChangesListFilterTest extends MediaWikiTestCase {
 		);
 	}
 
-	// @codingStandardsIgnoreStart
 	/**
 	 * @expectedException MWException
 	 * @expectedExceptionMessage Two filters in a group cannot have the same name: 'somename'
 	 */
-	// @codingStandardsIgnoreEnd
 	public function testDuplicateName() {
 		new MockChangesListFilter(
 			[
@@ -85,7 +82,7 @@ class ChangesListFilterTest extends MediaWikiTestCase {
 			]
 		);
 
-		$groupB =  $this->getGroup(
+		$groupB = $this->getGroup(
 			[
 				'name' => 'groupB',
 				'filters' => [

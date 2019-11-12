@@ -19,7 +19,6 @@
  *
  * @file
  * @defgroup Redis Redis
- * @author Aaron Schulz
  */
 
 use Psr\Log\LoggerAwareInterface;
@@ -82,9 +81,7 @@ class RedisConnectionPool implements LoggerAwareInterface {
 				__CLASS__ . ' requires a Redis client library. ' .
 				'See https://www.mediawiki.org/wiki/Redis#Setup' );
 		}
-		$this->logger = isset( $options['logger'] )
-			? $options['logger']
-			: new \Psr\Log\NullLogger();
+		$this->logger = $options['logger'] ?? new \Psr\Log\NullLogger();
 		$this->connectTimeout = $options['connectTimeout'];
 		$this->readTimeout = $options['readTimeout'];
 		$this->persistent = $options['persistent'];
@@ -171,7 +168,7 @@ class RedisConnectionPool implements LoggerAwareInterface {
 	 *
 	 * @param string $server A hostname/port combination or the absolute path of a UNIX socket.
 	 *                       If a hostname is specified but no port, port 6379 will be used.
-	 * @param LoggerInterface $logger PSR-3 logger intance. [optional]
+	 * @param LoggerInterface|null $logger PSR-3 logger intance. [optional]
 	 * @return RedisConnRef|bool Returns false on failure
 	 * @throws MWException
 	 */
@@ -248,13 +245,11 @@ class RedisConnectionPool implements LoggerAwareInterface {
 
 				return false;
 			}
-			if ( $this->password !== null ) {
-				if ( !$conn->auth( $this->password ) ) {
-					$logger->error(
-						'Authentication error connecting to "{redis_server}"',
-						[ 'redis_server' => $server ]
-					);
-				}
+			if ( ( $this->password !== null ) && !$conn->auth( $this->password ) ) {
+				$logger->error(
+					'Authentication error connecting to "{redis_server}"',
+					[ 'redis_server' => $server ]
+				);
 			}
 		} catch ( RedisException $e ) {
 			$this->downServers[$server] = time() + self::SERVER_DOWN_TTL;
@@ -367,15 +362,13 @@ class RedisConnectionPool implements LoggerAwareInterface {
 	 * @return bool Success
 	 */
 	public function reauthenticateConnection( $server, Redis $conn ) {
-		if ( $this->password !== null ) {
-			if ( !$conn->auth( $this->password ) ) {
-				$this->logger->error(
-					'Authentication error connecting to "{redis_server}"',
-					[ 'redis_server' => $server ]
-				);
+		if ( $this->password !== null && !$conn->auth( $this->password ) ) {
+			$this->logger->error(
+				'Authentication error connecting to "{redis_server}"',
+				[ 'redis_server' => $server ]
+			);
 
-				return false;
-			}
+			return false;
 		}
 
 		return true;
@@ -385,7 +378,7 @@ class RedisConnectionPool implements LoggerAwareInterface {
 	 * Adjust or reset the connection handle read timeout value
 	 *
 	 * @param Redis $conn
-	 * @param int $timeout Optional
+	 * @param int|null $timeout Optional
 	 */
 	public function resetTimeout( Redis $conn, $timeout = null ) {
 		$conn->setOption( Redis::OPT_READ_TIMEOUT, $timeout ?: $this->readTimeout );
@@ -397,9 +390,14 @@ class RedisConnectionPool implements LoggerAwareInterface {
 	function __destruct() {
 		foreach ( $this->connections as $server => &$serverConnections ) {
 			foreach ( $serverConnections as $key => &$connection ) {
-				/** @var Redis $conn */
-				$conn = $connection['conn'];
-				$conn->close();
+				try {
+					/** @var Redis $conn */
+					$conn = $connection['conn'];
+					$conn->close();
+				} catch ( RedisException $e ) {
+					// The destructor can be called on shutdown when random parts of the system
+					// have been destructed already, causing weird errors. Ignore them.
+				}
 			}
 		}
 	}

@@ -21,7 +21,6 @@
  *
  * @file
  * @ingroup Maintenance
- * @author Aaron Schulz
  */
 
 require_once __DIR__ . '/Maintenance.php';
@@ -131,5 +130,5 @@ class DeleteArchivedFiles extends Maintenance {
 	}
 }
 
-$maintClass = "DeleteArchivedFiles";
+$maintClass = DeleteArchivedFiles::class;
 require_once RUN_MAINTENANCE_IF_MAIN;

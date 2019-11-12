@@ -7,6 +7,7 @@
  */
 
 /**
+ * @group Preferences
  * @group Database
  *
  * @covers SpecialPreferences
@@ -20,12 +21,11 @@ class SpecialPreferencesTest extends MediaWikiTestCase {
 	 * Test specifications by Alexandre "ialex" Emsenhuber.
 	 * @todo give this test a real name explaining what is being tested here
 	 */
-	public function testBug41337() {
-
+	public function testT43337() {
 		// Set a low limit
 		$this->setMwGlobals( 'wgMaxSigChars', 2 );
 
-		$user = $this->createMock( 'User' );
+		$user = $this->createMock( User::class );
 		$user->expects( $this->any() )
 			->method( 'isAnon' )
 			->will( $this->returnValue( false ) );
@@ -42,6 +42,10 @@ class SpecialPreferencesTest extends MediaWikiTestCase {
 				[ 'nickname', null, false, 'superlongnickname' ],
 			]
 			) );
+
+		# Needs to return something
+		$user->method( 'getOptions' )
+			->willReturn( [] );
 
 		# Forge a request to call the special page
 		$context = new RequestContext();

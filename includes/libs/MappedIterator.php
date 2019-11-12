@@ -18,7 +18,6 @@
  * http://www.gnu.org/copyleft/gpl.html
  *
  * @file
- * @author Aaron Schulz
  */
 
 /**
@@ -61,7 +60,7 @@ class MappedIterator extends FilterIterator {
 		}
 		parent::__construct( $baseIterator );
 		$this->vCallback = $vCallback;
-		$this->aCallback = isset( $options['accept'] ) ? $options['accept'] : null;
+		$this->aCallback = $options['accept'] ?? null;
 	}
 
 	public function next() {

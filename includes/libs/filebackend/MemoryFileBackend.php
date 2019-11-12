@@ -19,7 +19,6 @@
  *
  * @file
  * @ingroup FileBackend
- * @author Aaron Schulz
  */
 
 /**
@@ -71,9 +70,9 @@ class MemoryFileBackend extends FileBackendStore {
 			return $status;
 		}
 
-		MediaWiki\suppressWarnings();
+		Wikimedia\suppressWarnings();
 		$data = file_get_contents( $params['src'] );
-		MediaWiki\restoreWarnings();
+		Wikimedia\restoreWarnings();
 		if ( $data === false ) { // source doesn't exist?
 			$status->fatal( 'backend-fail-store', $params['src'], $params['dst'] );
 

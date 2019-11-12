@@ -47,6 +47,10 @@ class HTMLSelectAndOtherField extends HTMLSelectField {
 			$textAttribs['class'][] = $this->mClass;
 		}
 
+		if ( isset( $this->mParams['maxlength-unit'] ) ) {
+			$textAttribs['data-mw-maxlength-unit'] = $this->mParams['maxlength-unit'];
+		}
+
 		$allowedParams = [
 			'required',
 			'autofocus',
@@ -54,6 +58,7 @@ class HTMLSelectAndOtherField extends HTMLSelectField {
 			'disabled',
 			'tabindex',
 			'maxlength', // gets dynamic with javascript, see mediawiki.htmlform.js
+			'maxlength-unit', // 'bytes' or 'codepoints', see mediawiki.htmlform.js
 		];
 
 		$textAttribs += $this->getAttributes( $allowedParams );
@@ -63,14 +68,83 @@ class HTMLSelectAndOtherField extends HTMLSelectField {
 		return "$select<br />\n$textbox";
 	}
 
+	protected function getOOUIModules() {
+		return [ 'mediawiki.widgets.SelectWithInputWidget' ];
+	}
+
 	public function getInputOOUI( $value ) {
-		return false;
+		$this->mParent->getOutput()->addModuleStyles( 'mediawiki.widgets.SelectWithInputWidget.styles' );
+
+		# TextInput
+		$textAttribs = [
+			'name' => $this->mName . '-other',
+			'value' => $value[2],
+		];
+
+		$allowedParams = [
+			'required',
+			'autofocus',
+			'multiple',
+			'disabled',
+			'tabindex',
+			'maxlength',
+		];
+
+		$textAttribs += OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( $allowedParams )
+		);
+
+		if ( $this->mClass !== '' ) {
+			$textAttribs['classes'] = [ $this->mClass ];
+		}
+
+		# DropdownInput
+		$dropdownInputAttribs = [
+			'name' => $this->mName,
+			'id' => $this->mID . '-select',
+			'options' => $this->getOptionsOOUI(),
+			'value' => $value[1],
+		];
+
+		$allowedParams = [
+			'tabindex',
+			'disabled',
+		];
+
+		$dropdownInputAttribs += OOUI\Element::configFromHtmlAttributes(
+			$this->getAttributes( $allowedParams )
+		);
+
+		if ( $this->mClass !== '' ) {
+			$dropdownInputAttribs['classes'] = [ $this->mClass ];
+		}
+
+		$disabled = false;
+		if ( isset( $this->mParams[ 'disabled' ] ) && $this->mParams[ 'disabled' ] ) {
+			$disabled = true;
+		}
+
+		return $this->getInputWidget( [
+			'id' => $this->mID,
+			'disabled' => $disabled,
+			'textinput' => $textAttribs,
+			'dropdowninput' => $dropdownInputAttribs,
+			'or' => false,
+			'classes' => [ 'mw-htmlform-select-and-other-field' ],
+			'data' => [
+				'maxlengthUnit' => $this->mParams['maxlength-unit'] ?? 'bytes'
+			],
+		] );
+	}
+
+	public function getInputWidget( $params ) {
+		return new MediaWiki\Widget\SelectWithInputWidget( $params );
 	}
 
 	/**
 	 * @param WebRequest $request
 	 *
-	 * @return array("<overall message>","<select value>","<text field value>")
+	 * @return array ["<overall message>","<select value>","<text field value>"]
 	 */
 	public function loadDataFromRequest( $request ) {
 		if ( $request->getCheck( $this->mName ) ) {
@@ -108,7 +182,7 @@ class HTMLSelectAndOtherField extends HTMLSelectField {
 	}
 
 	public function getSize() {
-		return isset( $this->mParams['size'] ) ? $this->mParams['size'] : 45;
+		return $this->mParams['size'] ?? 45;
 	}
 
 	public function validate( $value, $alldata ) {

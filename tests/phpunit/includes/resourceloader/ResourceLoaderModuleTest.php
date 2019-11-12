@@ -65,6 +65,19 @@ class ResourceLoaderModuleTest extends ResourceLoaderTestCase {
 	}
 
 	/**
+	 * @covers ResourceLoaderModule::getVersionHash
+	 */
+	public function testGetVersionHash_parentDefinition() {
+		$context = $this->getResourceLoaderContext();
+		$module = $this->getMockBuilder( ResourceLoaderModule::class )
+			->setMethods( [ 'getDefinitionSummary' ] )->getMock();
+		$module->method( 'getDefinitionSummary' )->willReturn( [ 'a' => 'summary' ] );
+
+		$this->setExpectedException( LogicException::class, 'must call parent' );
+		$module->getVersionHash( $context );
+	}
+
+	/**
 	 * @covers ResourceLoaderModule::validateScriptFile
 	 */
 	public function testValidateScriptFile() {
@@ -94,14 +107,64 @@ class ResourceLoaderModuleTest extends ResourceLoaderTestCase {
 		);
 	}
 
+	public static function provideBuildContentScripts() {
+		return [
+			[
+				"mw.foo()",
+				"mw.foo()\n",
+			],
+			[
+				"mw.foo();",
+				"mw.foo();\n",
+			],
+			[
+				"mw.foo();\n",
+				"mw.foo();\n",
+			],
+			[
+				"mw.foo()\n",
+				"mw.foo()\n",
+			],
+			[
+				"mw.foo()\n// mw.bar();",
+				"mw.foo()\n// mw.bar();\n",
+			],
+			[
+				"mw.foo()\n// mw.bar()",
+				"mw.foo()\n// mw.bar()\n",
+			],
+			[
+				"mw.foo()// mw.bar();",
+				"mw.foo()// mw.bar();\n",
+			],
+		];
+	}
+
+	/**
+	 * @dataProvider provideBuildContentScripts
+	 * @covers ResourceLoaderModule::buildContent
+	 */
+	public function testBuildContentScripts( $raw, $build, $message = null ) {
+		$context = $this->getResourceLoaderContext();
+		$module = new ResourceLoaderTestModule( [
+			'script' => $raw
+		] );
+		$this->assertEquals( $raw, $module->getScript( $context ), 'Raw script' );
+		$this->assertEquals(
+			$build,
+			$module->getModuleContent( $context )[ 'scripts' ],
+			$message
+		);
+	}
+
 	/**
 	 * @covers ResourceLoaderModule::getRelativePaths
 	 * @covers ResourceLoaderModule::expandRelativePaths
 	 */
 	public function testPlaceholderize() {
-		$getRelativePaths = new ReflectionMethod( 'ResourceLoaderModule', 'getRelativePaths' );
+		$getRelativePaths = new ReflectionMethod( ResourceLoaderModule::class, 'getRelativePaths' );
 		$getRelativePaths->setAccessible( true );
-		$expandRelativePaths = new ReflectionMethod( 'ResourceLoaderModule', 'expandRelativePaths' );
+		$expandRelativePaths = new ReflectionMethod( ResourceLoaderModule::class, 'expandRelativePaths' );
 		$expandRelativePaths->setAccessible( true );
 
 		$this->setMwGlobals( [
@@ -128,6 +191,45 @@ class ResourceLoaderModuleTest extends ResourceLoaderTestCase {
 			$raw,
 			$expandRelativePaths->invoke( null, $canonical ),
 			'Substitute placeholders'
+		);
+	}
+
+	/**
+	 * @covers ResourceLoaderModule::getHeaders
+	 * @covers ResourceLoaderModule::getPreloadLinks
+	 */
+	public function testGetHeaders() {
+		$context = $this->getResourceLoaderContext();
+
+		$module = new ResourceLoaderTestModule();
+		$this->assertSame( [], $module->getHeaders( $context ), 'Default' );
+
+		$module = $this->getMockBuilder( ResourceLoaderTestModule::class )
+			->setMethods( [ 'getPreloadLinks' ] )->getMock();
+		$module->method( 'getPreloadLinks' )->willReturn( [
+			 'https://example.org/script.js' => [ 'as' => 'script' ],
+		] );
+		$this->assertSame(
+			[
+				'Link: <https://example.org/script.js>;rel=preload;as=script'
+			],
+			$module->getHeaders( $context ),
+			'Preload one resource'
+		);
+
+		$module = $this->getMockBuilder( ResourceLoaderTestModule::class )
+			->setMethods( [ 'getPreloadLinks' ] )->getMock();
+		$module->method( 'getPreloadLinks' )->willReturn( [
+			 'https://example.org/script.js' => [ 'as' => 'script' ],
+			 '/example.png' => [ 'as' => 'image' ],
+		] );
+		$this->assertSame(
+			[
+				'Link: <https://example.org/script.js>;rel=preload;as=script,' .
+					'</example.png>;rel=preload;as=image'
+			],
+			$module->getHeaders( $context ),
+			'Preload two resources'
 		);
 	}
 }

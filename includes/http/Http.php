@@ -25,7 +25,7 @@ use MediaWiki\Logger\LoggerFactory;
  * @ingroup HTTP
  */
 class Http {
-	static public $httpEngine = false;
+	public static $httpEngine = false;
 
 	/**
 	 * Perform an HTTP request
@@ -33,7 +33,7 @@ class Http {
 	 * @param string $method HTTP method. Usually GET/POST
 	 * @param string $url Full URL to act on. If protocol-relative, will be expanded to an http:// URL
 	 * @param array $options Options to pass to MWHttpRequest object.
-	 *	Possible keys for the array:
+	 * 	Possible keys for the array:
 	 *    - timeout             Timeout length in seconds
 	 *    - connectTimeout      Timeout for connection, in seconds (curl only)
 	 *    - postData            An array of key-value pairs or a url-encoded form data
@@ -58,8 +58,9 @@ class Http {
 	 * @param string $caller The method making this request, for profiling
 	 * @return string|bool (bool)false on failure or a string on success
 	 */
-	public static function request( $method, $url, $options = [], $caller = __METHOD__ ) {
-		wfDebug( "HTTP: $method: $url\n" );
+	public static function request( $method, $url, array $options = [], $caller = __METHOD__ ) {
+		$logger = LoggerFactory::getInstance( 'http' );
+		$logger->debug( "$method: $url" );
 
 		$options['method'] = strtoupper( $method );
 
@@ -77,7 +78,6 @@ class Http {
 			return $req->getContent();
 		} else {
 			$errors = $status->getErrorsByType( 'error' );
-			$logger = LoggerFactory::getInstance( 'http' );
 			$logger->warning( Status::wrap( $status )->getWikiText( false, false, 'en' ),
 				[ 'error' => $errors, 'caller' => $caller, 'content' => $req->getContent() ] );
 			return false;
@@ -95,7 +95,7 @@ class Http {
 	 * @param string $caller The method making this request, for profiling
 	 * @return string|bool false on error
 	 */
-	public static function get( $url, $options = [], $caller = __METHOD__ ) {
+	public static function get( $url, array $options = [], $caller = __METHOD__ ) {
 		$args = func_get_args();
 		if ( isset( $args[1] ) && ( is_string( $args[1] ) || is_numeric( $args[1] ) ) ) {
 			// Second was used to be the timeout
@@ -106,7 +106,7 @@ class Http {
 			$options['timeout'] = $args[1];
 			$caller = __METHOD__;
 		}
-		return Http::request( 'GET', $url, $options, $caller );
+		return self::request( 'GET', $url, $options, $caller );
 	}
 
 	/**
@@ -118,8 +118,8 @@ class Http {
 	 * @param string $caller The method making this request, for profiling
 	 * @return string|bool false on error
 	 */
-	public static function post( $url, $options = [], $caller = __METHOD__ ) {
-		return Http::request( 'POST', $url, $options, $caller );
+	public static function post( $url, array $options = [], $caller = __METHOD__ ) {
+		return self::request( 'POST', $url, $options, $caller );
 	}
 
 	/**
@@ -132,11 +132,14 @@ class Http {
 	}
 
 	/**
-	 * Checks that the given URI is a valid one. Hardcoding the
-	 * protocols, because we only want protocols that both cURL
-	 * and php support.
+	 * Check that the given URI is a valid one.
 	 *
-	 * file:// should not be allowed here for security purpose (r67684)
+	 * This hardcodes a small set of protocols only, because we want to
+	 * deterministically reject protocols not supported by all HTTP-transport
+	 * methods.
+	 *
+	 * "file://" specifically must not be allowed, for security purpose
+	 * (see <https://www.mediawiki.org/wiki/Special:Code/MediaWiki/r67684>).
 	 *
 	 * @todo FIXME this is wildly inaccurate and fails to actually check most stuff
 	 *
@@ -163,5 +166,22 @@ class Http {
 		}
 
 		return "";
+	}
+
+	/**
+	 * Get a configured MultiHttpClient
+	 * @param array $options
+	 * @return MultiHttpClient
+	 */
+	public static function createMultiClient( array $options = [] ) {
+		global $wgHTTPConnectTimeout, $wgHTTPTimeout, $wgHTTPProxy;
+
+		return new MultiHttpClient( $options + [
+			'connTimeout' => $wgHTTPConnectTimeout,
+			'reqTimeout' => $wgHTTPTimeout,
+			'userAgent' => self::userAgent(),
+			'proxy' => $wgHTTPProxy,
+			'logger' => LoggerFactory::getInstance( 'http' )
+		] );
 	}
 }

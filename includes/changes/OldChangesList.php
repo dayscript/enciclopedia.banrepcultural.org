@@ -20,19 +20,20 @@
  * @file
  */
 
+use MediaWiki\MediaWikiServices;
+
 class OldChangesList extends ChangesList {
 
 	/**
 	 * Format a line using the old system (aka without any javascript).
 	 *
-	 * @param RecentChange $rc Passed by reference
+	 * @param RecentChange &$rc Passed by reference
 	 * @param bool $watched (default false)
-	 * @param int $linenumber (default null)
+	 * @param int|null $linenumber (default null)
 	 *
 	 * @return string|bool
 	 */
 	public function recentChangesLine( &$rc, $watched = false, $linenumber = null ) {
-
 		$classes = $this->getHTMLClasses( $rc, $watched );
 		// use mw-line-even/mw-line-odd class only if linenumber is given (feature from T16468)
 		if ( $linenumber ) {
@@ -50,16 +51,27 @@ class OldChangesList extends ChangesList {
 				$rc->mAttribs['rc_namespace'] . '-' . $rc->mAttribs['rc_title'] );
 		}
 
+		$attribs = $this->getDataAttributes( $rc );
+
 		// Avoid PHP 7.1 warning from passing $this by reference
 		$list = $this;
-		if ( !Hooks::run( 'OldChangesListRecentChangesLine', [ &$list, &$html, $rc, &$classes ] ) ) {
+		if ( !Hooks::run( 'OldChangesListRecentChangesLine',
+			[ &$list, &$html, $rc, &$classes, &$attribs ] )
+		) {
 			return false;
 		}
+		$attribs = array_filter( $attribs,
+			[ Sanitizer::class, 'isReservedDataAttribute' ],
+			ARRAY_FILTER_USE_KEY
+		);
 
 		$dateheader = ''; // $html now contains only <li>...</li>, for hooks' convenience.
 		$this->insertDateHeader( $dateheader, $rc->mAttribs['rc_timestamp'] );
 
-		return "$dateheader<li class=\"" . implode( ' ', $classes ) . "\">" . $html . "</li>\n";
+		$html = $this->getHighlightsContainerDiv() . $html;
+		$attribs['class'] = implode( ' ', $classes );
+
+		return $dateheader . Html::rawElement( 'li', $attribs,  $html ) . "\n";
 	}
 
 	/**
@@ -76,14 +88,15 @@ class OldChangesList extends ChangesList {
 		if ( $rc->mAttribs['rc_log_type'] ) {
 			$logtitle = SpecialPage::getTitleFor( 'Log', $rc->mAttribs['rc_log_type'] );
 			$this->insertLog( $html, $logtitle, $rc->mAttribs['rc_log_type'] );
-			$flags = $this->recentChangesFlags( [ 'unpatrolled' =>$unpatrolled,
+			$flags = $this->recentChangesFlags( [ 'unpatrolled' => $unpatrolled,
 				'bot' => $rc->mAttribs['rc_bot'] ], '' );
 			if ( $flags !== '' ) {
 				$html .= ' ' . $flags;
 			}
 		// Log entries (old format) or log targets, and special pages
 		} elseif ( $rc->mAttribs['rc_namespace'] == NS_SPECIAL ) {
-			list( $name, $htmlubpage ) = SpecialPageFactory::resolveAlias( $rc->mAttribs['rc_title'] );
+			list( $name, $htmlubpage ) = MediaWikiServices::getInstance()->getSpecialPageFactory()->
+				resolveAlias( $rc->mAttribs['rc_title'] );
 			if ( $name == 'Log' ) {
 				$this->insertLog( $html, $rc->getTitle(), $htmlubpage );
 			}
@@ -108,7 +121,7 @@ class OldChangesList extends ChangesList {
 		if ( $this->getConfig()->get( 'RCShowChangedSize' ) ) {
 			$cd = $this->formatCharacterDifference( $rc );
 			if ( $cd !== '' ) {
-				$html .= $cd . '  <span class="mw-changeslist-separator">. .</span> ';
+				$html .= $cd . '  <span class="mw-changeslist-separator"></span> ';
 			}
 		}
 
@@ -134,6 +147,15 @@ class OldChangesList extends ChangesList {
 		# How many users watch this page
 		if ( $rc->numberofWatchingusers > 0 ) {
 			$html .= ' ' . $this->numberofWatchingusers( $rc->numberofWatchingusers );
+		}
+
+		$html = Html::rawElement( 'span', [
+			'class' => 'mw-changeslist-line-inner',
+			'data-target-page' => $rc->getTitle(), // Used for reliable determination of the affiliated page
+		], $html );
+		if ( is_callable( $this->changeLinePrefixer ) ) {
+			$prefix = call_user_func( $this->changeLinePrefixer, $rc, $this, false );
+			$html = Html::rawElement( 'span', [ 'class' => 'mw-changeslist-line-prefix' ], $prefix ) . $html;
 		}
 
 		return $html;

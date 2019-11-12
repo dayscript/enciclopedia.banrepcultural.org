@@ -1,12 +1,15 @@
 <?php
 
+use MediaWiki\Block\Restriction\PageRestriction;
+
 /**
  * @covers Action
  *
- * @author Thiemo Mättig
- *
  * @group Action
  * @group Database
+ *
+ * @license GPL-2.0-or-later
+ * @author Thiemo Kreuz
  */
 class ActionTest extends MediaWikiTestCase {
 
@@ -19,8 +22,10 @@ class ActionTest extends MediaWikiTestCase {
 			'disabled' => false,
 			'view' => true,
 			'edit' => true,
-			'revisiondelete' => 'SpecialPageAction',
+			'revisiondelete' => SpecialPageAction::class,
 			'dummy' => true,
+			'access' => 'ControlledAccessDummyAction',
+			'unblock' => 'RequiresUnblockDummyAction',
 			'string' => 'NamedDummyAction',
 			'declared' => 'NonExistingClassName',
 			'callable' => [ $this, 'dummyActionCallback' ],
@@ -182,6 +187,53 @@ class ActionTest extends MediaWikiTestCase {
 		return new CalledDummyAction( $context->getWikiPage(), $context );
 	}
 
+	public function testCanExecute() {
+		$user = $this->getTestUser()->getUser();
+		$user->mRights = [ 'access' ];
+		$action = Action::factory( 'access', $this->getPage(), $this->getContext() );
+		$this->assertNull( $action->canExecute( $user ) );
+	}
+
+	public function testCanExecuteNoRight() {
+		$user = $this->getTestUser()->getUser();
+		$user->mRights = [];
+		$action = Action::factory( 'access', $this->getPage(), $this->getContext() );
+
+		try {
+			$action->canExecute( $user );
+		} catch ( Exception $e ) {
+			$this->assertInstanceOf( PermissionsError::class, $e );
+		}
+	}
+
+	public function testCanExecuteRequiresUnblock() {
+		$user = $this->getTestUser()->getUser();
+		$user->mRights = [];
+
+		$page = $this->getExistingTestPage();
+		$action = Action::factory( 'unblock', $page, $this->getContext() );
+
+		$block = new Block( [
+			'address' => $user,
+			'by' => $this->getTestSysop()->getUser()->getId(),
+			'expiry' => 'infinity',
+			'sitewide' => false,
+		] );
+		$block->setRestrictions( [
+			new PageRestriction( 0, $page->getTitle()->getArticleID() ),
+		] );
+
+		$block->insert();
+
+		try {
+			$action->canExecute( $user );
+		} catch ( Exception $e ) {
+			$this->assertInstanceOf( UserBlockedError::class, $e );
+		}
+
+		$block->delete();
+	}
+
 }
 
 class DummyAction extends Action {
@@ -195,6 +247,10 @@ class DummyAction extends Action {
 
 	public function execute() {
 	}
+
+	public function canExecute( User $user ) {
+		return $this->checkCanExecute( $user );
+	}
 }
 
 class NamedDummyAction extends DummyAction {
@@ -204,4 +260,16 @@ class CalledDummyAction extends DummyAction {
 }
 
 class InstantiatedDummyAction extends DummyAction {
+}
+
+class ControlledAccessDummyAction extends DummyAction {
+	public function getRestriction() {
+		return 'access';
+	}
+}
+
+class RequiresUnblockDummyAction extends DummyAction {
+	public function requiresUnblock() {
+		return true;
+	}
 }

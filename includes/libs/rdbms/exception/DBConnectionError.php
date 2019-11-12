@@ -25,10 +25,10 @@ namespace Wikimedia\Rdbms;
  */
 class DBConnectionError extends DBExpectedError {
 	/**
-	 * @param IDatabase $db Object throwing the error
+	 * @param IDatabase|null $db Object throwing the error
 	 * @param string $error Error text
 	 */
-	function __construct( IDatabase $db = null, $error = 'unknown error' ) {
+	public function __construct( IDatabase $db = null, $error = 'unknown error' ) {
 		$msg = 'Cannot access the database';
 		if ( trim( $error ) != '' ) {
 			$msg .= ": $error";
@@ -38,4 +38,7 @@ class DBConnectionError extends DBExpectedError {
 	}
 }
 
+/**
+ * @deprecated since 1.29
+ */
 class_alias( DBConnectionError::class, 'DBConnectionError' );
