@@ -19,6 +19,11 @@ class StrictTypeCheck implements TypeCheckInterface
         return $value->{$property};
     }
 
+    public static function propertySet(&$value, $property, $data)
+    {
+        $value->{$property} = $data;
+    }
+
     public static function propertyExists($value, $property)
     {
         return property_exists($value, $property);
@@ -26,6 +31,10 @@ class StrictTypeCheck implements TypeCheckInterface
 
     public static function propertyCount($value)
     {
+        if (!is_object($value)) {
+            return 0;
+        }
+
         return count(get_object_vars($value));
     }
 }

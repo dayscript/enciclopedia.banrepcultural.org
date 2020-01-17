@@ -2,10 +2,16 @@
 /**
  * Verify alternative syntax is not being used
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_AlternativeSyntax_AlternativeSyntaxSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\AlternativeSyntax;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class AlternativeSyntaxSniff implements Sniff {
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		// Per https://www.mediawiki.org/wiki/Manual:Coding_conventions/PHP
 		// section on alternative syntax.
@@ -19,7 +25,12 @@ class MediaWiki_Sniffs_AlternativeSyntax_AlternativeSyntaxSniff
 		];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 		$error = 'Alternative syntax such as "%s" should not be used';
 		$data = [ $tokens[$stackPtr]['content'] ];

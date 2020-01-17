@@ -10,32 +10,31 @@
  * Pass: parent::dirname( __FILE__ )
  */
 
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_Usage_DirUsageSniff implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+namespace MediaWiki\Sniffs\Usage;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class DirUsageSniff implements Sniff {
+
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		// As per https://www.mediawiki.org/wiki/Manual:Coding_conventions/PHP#Other
 		return [ T_STRING ];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 
-		$ignore = [
-				   T_DOUBLE_COLON    => true,
-				   T_OBJECT_OPERATOR => true,
-				   T_FUNCTION        => true,
-				   T_CONST           => true,
-				  ];
-
 		// Check if the function is dirname()
-		if ( strtolower( $tokens[$stackPtr]['content'] ) != "dirname" ) {
-			return;
-		}
-
-		// Check if it's a PHP function
-		$prevToken = $phpcsFile->findPrevious( T_WHITESPACE, ( $stackPtr - 1 ), null, true );
-		if ( isset( $ignore[$tokens[$prevToken]['code']] ) === true ) {
+		if ( strcasecmp( $tokens[$stackPtr]['content'], 'dirname' ) !== 0 ) {
 			return;
 		}
 
@@ -51,6 +50,16 @@ class MediaWiki_Sniffs_Usage_DirUsageSniff implements PHP_CodeSniffer_Sniff {
 			return;
 		}
 
+		// Check if it's a PHP function
+		$prevToken = $phpcsFile->findPrevious( T_WHITESPACE, ( $stackPtr - 1 ), null, true );
+		if ( $tokens[$prevToken]['code'] === T_OBJECT_OPERATOR
+			|| $tokens[$prevToken]['code'] === T_DOUBLE_COLON
+			|| $tokens[$prevToken]['code'] === T_FUNCTION
+			|| $tokens[$prevToken]['code'] === T_CONST
+		) {
+			return;
+		}
+
 		// Find close paranthesis
 		$nextToken = $phpcsFile->findNext( T_WHITESPACE, ( $nextToken + 1 ), null, true );
 		if ( $tokens[$nextToken]['code'] !== T_CLOSE_PARENTHESIS ) {
@@ -62,7 +71,7 @@ class MediaWiki_Sniffs_Usage_DirUsageSniff implements PHP_CodeSniffer_Sniff {
 			$stackPtr,
 			'FunctionFound'
 		);
-		if ( $fix === true ) {
+		if ( $fix ) {
 			$curToken = $stackPtr;
 			while ( $curToken <= $nextToken ) {
 				if ( $tokens[$curToken]['code'] === T_FILE ) {

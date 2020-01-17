@@ -6,10 +6,16 @@
  * Pass: } elseif ( $a == 1 ) {
  * Fail: }\nelseif ( $a == 1 ) {
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_ControlStructures_IfElseStructureSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\ControlStructures;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class IfElseStructureSniff implements Sniff {
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		return [
 			T_ELSE,
@@ -17,21 +23,33 @@ class MediaWiki_Sniffs_ControlStructures_IfElseStructureSniff
 		];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 		$prevToken = $tokens[$stackPtr - 1];
 		$nextToken = $tokens[$stackPtr + 1];
+		$isAlternativeIfSyntax = false;
+		if ( isset( $tokens[$stackPtr]['scope_opener'] ) ) {
+			$scopeOpener = $tokens[$stackPtr]['scope_opener'];
+			$isAlternativeIfSyntax = $tokens[$scopeOpener]['code'] === T_COLON;
+		}
 
 		// single space expected before else and elseif structure
-		if ( $prevToken['code'] !== T_WHITESPACE
-			|| $prevToken['content'] !== " " ) {
+		if ( !$isAlternativeIfSyntax &&
+			( $prevToken['code'] !== T_WHITESPACE
+			|| $prevToken['content'] !== " " )
+		) {
 			$fix = $phpcsFile->addFixableWarning(
 				'Single space expected before "%s"',
 				$stackPtr + 1,
 				'SpaceBeforeElse',
 				[ $tokens[$stackPtr]['content'] ]
 			);
-			if ( $fix === true ) {
+			if ( $fix ) {
 				if ( $prevToken['code'] === T_CLOSE_CURLY_BRACKET ) {
 					$phpcsFile->fixer->addContentBefore( $stackPtr, ' ' );
 				} else {
@@ -48,15 +66,17 @@ class MediaWiki_Sniffs_ControlStructures_IfElseStructureSniff
 			return;
 		}
 		// single space expected after else structure
-		if ( $nextToken['code'] !== T_WHITESPACE
-			|| $nextToken['content'] !== " " ) {
+		if ( !$isAlternativeIfSyntax &&
+			( $nextToken['code'] !== T_WHITESPACE
+			|| $nextToken['content'] !== " " )
+		) {
 			$fix = $phpcsFile->addFixableWarning(
 				'Single space expected after "%s"',
 				$stackPtr + 1,
 				'SpaceAfterElse',
 				[ $tokens[$stackPtr]['content'] ]
 			);
-			if ( $fix === true ) {
+			if ( $fix ) {
 				if ( $nextToken['code'] === T_OPEN_CURLY_BRACKET ) {
 					$phpcsFile->fixer->addContent( $stackPtr, ' ' );
 				} else {
@@ -65,6 +85,24 @@ class MediaWiki_Sniffs_ControlStructures_IfElseStructureSniff
 					for ( $i = 2; $tokens[$stackPtr + $i]['code'] === T_WHITESPACE; $i++ ) {
 						$phpcsFile->fixer->replaceToken( $stackPtr + $i, '' );
 					}
+				}
+			}
+		}
+		// no space expected after else structure, when it is alternative syntax
+		if ( $isAlternativeIfSyntax
+			&& $nextToken['code'] === T_WHITESPACE
+		) {
+			$fix = $phpcsFile->addFixableWarning(
+				'No space expected after "%s"',
+				$stackPtr + 1,
+				'SpaceAfterElse',
+				[ $tokens[$stackPtr]['content'] ]
+			);
+			if ( $fix ) {
+				// Replace all after whitespace with no space
+				$phpcsFile->fixer->replaceToken( $stackPtr + 1, '' );
+				for ( $i = 2; $tokens[$stackPtr + $i]['code'] === T_WHITESPACE; $i++ ) {
+					$phpcsFile->fixer->replaceToken( $stackPtr + $i, '' );
 				}
 			}
 		}

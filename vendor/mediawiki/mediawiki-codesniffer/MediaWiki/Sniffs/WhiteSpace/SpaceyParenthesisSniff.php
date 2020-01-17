@@ -8,10 +8,17 @@
  *
  * Also disallow wfFoo( ) and wfFoo(  $param )
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\WhiteSpace;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class SpaceyParenthesisSniff implements Sniff {
+
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		return [
 			T_OPEN_PARENTHESIS,
@@ -21,30 +28,55 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
 		];
 	}
 
-	private function isOpen( $token ) {
-		return $token === T_OPEN_PARENTHESIS
-			|| $token === T_OPEN_SHORT_ARRAY;
-	}
-
+	/**
+	 * @param int $token PHPCS token code.
+	 * @return boolean Whether the token code is closed.
+	 */
 	private function isClosed( $token ) {
 		return $token === T_CLOSE_PARENTHESIS
 			|| $token === T_CLOSE_SHORT_ARRAY;
 	}
 
+	/**
+	 * @param int $token PHPCS token code.
+	 * @return boolean Whether the token code is parenthesis.
+	 */
 	private function isParenthesis( $token ) {
 		return $token === T_OPEN_PARENTHESIS
 			|| $token === T_CLOSE_PARENTHESIS;
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
-		$tokens = $phpcsFile->getTokens();
+	/**
+	 * @param int $token PHPCS token code.
+	 * @return boolean Whether the token code is a comment.
+	 */
+	private function isComment( $token ) {
+		return $token === T_COMMENT
+			|| $token === T_PHPCS_ENABLE
+			|| $token === T_PHPCS_DISABLE
+			|| $token === T_PHPCS_SET
+			|| $token === T_PHPCS_IGNORE
+			|| $token === T_PHPCS_IGNORE_FILE;
+	}
 
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void|int
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
+		$tokens = $phpcsFile->getTokens();
 		$currentToken = $tokens[$stackPtr];
 
-		if ( $this->isOpen( $currentToken['code'] )
-			&& $tokens[$stackPtr - 1]['code'] === T_WHITESPACE
+		if ( $this->isClosed( $currentToken['code'] ) ) {
+			$this->processCloseParenthesis( $phpcsFile, $stackPtr );
+			return;
+		}
+
+		if ( $tokens[$stackPtr - 1]['code'] === T_WHITESPACE
 			&& ( $tokens[$stackPtr - 2]['code'] === T_STRING
-				|| $tokens[$stackPtr - 2]['code'] === T_ARRAY ) ) {
+				|| $tokens[$stackPtr - 2]['code'] === T_ARRAY )
+		) {
 			// String (or 'array') followed by whitespace followed by
 			// opening brace is probably a function call.
 			if ( $this->isParenthesis( $currentToken['code'] ) ) {
@@ -57,15 +89,21 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
 				$stackPtr - 1,
 				'SpaceBeforeOpeningParenthesis'
 			);
-			if ( $fix === true ) {
+			if ( $fix ) {
 				$phpcsFile->fixer->replaceToken( $stackPtr - 1, '' );
 			}
 		}
 
+		// Shorten out as early as possible on empty parenthesis
+		if ( $this->isClosed( $tokens[$stackPtr + 1]['code'] ) ) {
+			// Intentionally do not process the closing parenthesis again
+			return $stackPtr + 2;
+		}
+
 		// Check for space between parentheses without any arguments
-		if ( $this->isOpen( $currentToken['code'] )
-			&& $tokens[$stackPtr + 1]['code'] === T_WHITESPACE
-			&& $this->isClosed( $tokens[$stackPtr + 2]['code'] ) ) {
+		if ( $tokens[$stackPtr + 1]['code'] === T_WHITESPACE
+			&& $this->isClosed( $tokens[$stackPtr + 2]['code'] )
+		) {
 			if ( $this->isParenthesis( $currentToken['code'] ) ) {
 				$msg = 'parentheses';
 			} else {
@@ -76,43 +114,40 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
 				$stackPtr + 1,
 				'UnnecessarySpaceBetweenParentheses'
 			);
-			if ( $fix === true ) {
+			if ( $fix ) {
 				$phpcsFile->fixer->replaceToken( $stackPtr + 1, '' );
 			}
-			return;
+
+			// Intentionally do not process the closing parenthesis again
+			return $stackPtr + 3;
 		}
 
-		// Same check as above, but ignore since it was already processed
-		if ( $this->isClosed( $currentToken['code'] )
-			&& $tokens[$stackPtr - 1]['code'] === T_WHITESPACE
-			&& $this->isOpen( $tokens[$stackPtr - 2]['code'] ) ) {
-			return;
-		}
-
-		if ( $this->isOpen( $currentToken['code'] ) ) {
-			$this->processOpenParenthesis( $phpcsFile, $tokens, $stackPtr );
-		} else {
-			// T_CLOSE_PARENTHESIS
-			$this->processCloseParenthesis( $phpcsFile, $tokens, $stackPtr );
-		}
+		$this->processOpenParenthesis( $phpcsFile, $stackPtr );
 	}
 
-	protected function processOpenParenthesis( PHP_CodeSniffer_File $phpcsFile, $tokens, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 */
+	protected function processOpenParenthesis( File $phpcsFile, $stackPtr ) {
+		$tokens = $phpcsFile->getTokens();
 		$nextToken = $tokens[$stackPtr + 1];
 		// No space or not single space
 		if ( ( $nextToken['code'] === T_WHITESPACE &&
-				strpos( $nextToken['content'], "\n" ) === false
-				&& $nextToken['content'] != ' ' )
-			|| ( !$this->isClosed( $nextToken['code'] ) && $nextToken['code'] !== T_WHITESPACE ) ) {
+				$nextToken['content'] !== $phpcsFile->eolChar
+				&& $nextToken['content'] !== ' ' )
+			|| $nextToken['code'] !== T_WHITESPACE
+		) {
 			$fix = $phpcsFile->addFixableWarning(
 				'Single space expected after opening parenthesis',
 				$stackPtr + 1,
 				'SingleSpaceAfterOpenParenthesis'
 			);
-			if ( $fix === true ) {
+			if ( $fix ) {
 				if ( $nextToken['code'] === T_WHITESPACE
-					&& strpos( $nextToken['content'], "\n" ) === false
-					&& $nextToken['content'] != ' ' ) {
+					&& $nextToken['content'] !== $phpcsFile->eolChar
+					&& $nextToken['content'] !== ' '
+				) {
 					$phpcsFile->fixer->replaceToken( $stackPtr + 1, ' ' );
 				} else {
 					$phpcsFile->fixer->addContent( $stackPtr, ' ' );
@@ -121,31 +156,37 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
 		}
 	}
 
-	protected function processCloseParenthesis( PHP_CodeSniffer_File $phpcsFile, $tokens, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 */
+	protected function processCloseParenthesis( File $phpcsFile, $stackPtr ) {
+		$tokens = $phpcsFile->getTokens();
 		$previousToken = $tokens[$stackPtr - 1];
 
-		if ( $this->isOpen( $previousToken['code'] )
-			|| ( $previousToken['code'] === T_WHITESPACE
+		if ( ( $previousToken['code'] === T_WHITESPACE
 				&& $previousToken['content'] === ' ' )
-			|| ( $previousToken['code'] === T_COMMENT
-				&& substr( $previousToken['content'], -1, 1 ) === "\n" ) ) {
+			|| ( $this->isComment( $previousToken['code'] )
+				&& substr( $previousToken['content'], -1, 1 ) === "\n" )
+		) {
 			// If previous token was
 			// '(' or ' ' or a comment ending with a newline
 			return;
 		}
 
-		// If any of the whitespace tokens immediately before this token have a newline
+		// If any of the whitespace tokens immediately before this token is a newline
 		$ptr = $stackPtr - 1;
 		while ( $tokens[$ptr]['code'] === T_WHITESPACE ) {
-			if ( strpos( $tokens[$ptr]['content'], "\n" ) !== false ) {
+			if ( $tokens[$ptr]['content'] === $phpcsFile->eolChar ) {
 				return;
 			}
 			$ptr--;
 		}
 
 		// If the comment before all the whitespaces immediately preceding the ')' ends with a newline
-		if ( $tokens[$ptr]['code'] === T_COMMENT
-			&& substr( $tokens[$ptr]['content'], -1, 1 ) === "\n" ) {
+		if ( $this->isComment( $tokens[$ptr]['code'] )
+			&& substr( $tokens[$ptr]['content'], -1, 1 ) === "\n"
+		) {
 			return;
 		}
 
@@ -154,7 +195,7 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceyParenthesisSniff
 			$stackPtr,
 			'SingleSpaceBeforeCloseParenthesis'
 		);
-		if ( $fix === true ) {
+		if ( $fix ) {
 			if ( $previousToken['code'] === T_WHITESPACE ) {
 				$phpcsFile->fixer->replaceToken( $stackPtr - 1, ' ' );
 			} else {

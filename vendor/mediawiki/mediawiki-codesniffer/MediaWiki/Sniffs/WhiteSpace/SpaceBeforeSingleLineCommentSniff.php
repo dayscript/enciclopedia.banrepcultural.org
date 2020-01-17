@@ -2,23 +2,45 @@
 /**
 * Verify comments are preceeded by a single space.
 */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_WhiteSpace_SpaceBeforeSingleLineCommentSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\WhiteSpace;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class SpaceBeforeSingleLineCommentSniff implements Sniff {
+
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		return [
 			T_COMMENT
 		];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 		$currToken = $tokens[$stackPtr];
+		$preToken = $phpcsFile->findPrevious( T_WHITESPACE, $stackPtr - 1, null, true );
+		if ( $preToken !== false &&
+			$tokens[$preToken]['line'] === $tokens[$stackPtr]['line']
+		) {
+			$phpcsFile->addWarning(
+				'Comments should start on new line.',
+				$stackPtr,
+				'NewLineComment'
+			);
+		}
 		if ( $currToken['code'] === T_COMMENT ) {
 			// Accounting for multiple line comments, as single line comments
 			// use only '//' and '#'
-			// Also ignoring phpdoc comments starting with '///',
+			// Also ignoring PHPDoc comments starting with '///',
 			// as there are no coding standards documented for these
 			if ( substr( $currToken['content'], 0, 2 ) === '/*'
 				|| substr( $currToken['content'], 0, 3 ) === '///'
@@ -27,28 +49,29 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceBeforeSingleLineCommentSniff
 			}
 
 			// Checking whether the comment is an empty one
-			if ( ( substr( $currToken['content'], 0, 2 ) === '//'
-					&& rtrim( $currToken['content'] ) === '//' )
-				|| ( $currToken['content'][0] === '#'
-					&& rtrim( $currToken['content'] ) === '#' )
+			if ( ( substr( $currToken['content'], 0, 2 ) === '//' &&
+				rtrim( $currToken['content'] ) === '//' ) ||
+				( $currToken['content'][0] === '#' &&
+					rtrim( $currToken['content'] ) === '#' )
 			) {
-				$phpcsFile->addWarning( 'Unnecessary empty comment found',
-					$stackPtr,
-					'EmptyComment'
-				);
+				return;
 			// Checking whether there is a space between the comment delimiter
 			// and the comment
-			} elseif ( substr( $currToken['content'], 0, 2 ) === '//'
-				&& $currToken['content'][2] !== ' '
-			) {
+			} elseif ( substr( $currToken['content'], 0, 2 ) === '//' ) {
+				$commentContent = substr( $currToken['content'], 2 );
+				$commentTrim = ltrim( $commentContent );
+				if ( strlen( $commentContent ) !== ( strlen( $commentTrim ) + 1 ) ||
+					$currToken['content'][2] !== ' '
+				) {
 				$error = 'Single space expected between "//" and comment';
 				$fix = $phpcsFile->addFixableWarning( $error, $stackPtr,
 					'SingleSpaceBeforeSingleLineComment'
 				);
-				if ( $fix === true ) {
-					$content = $currToken['content'];
-					$newContent = preg_replace( '/^\/\/\t?/', '// ', $content );
+				if ( $fix ) {
+					$newContent = '// ';
+					$newContent .= $commentTrim;
 					$phpcsFile->fixer->replaceToken( $stackPtr, $newContent );
+				}
 				}
 			// Finding what the comment delimiter is and checking whether there is a space
 			// between the comment delimiter and the comment.
@@ -63,18 +86,11 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceBeforeSingleLineCommentSniff
 					$fix = $phpcsFile->addFixableWarning( $error, $stackPtr,
 						'SingleSpaceBeforeSingleLineComment'
 					);
-					if ( $fix === true ) {
+					if ( $fix ) {
 						$content = $currToken['content'];
-						$delimiter = substr( $currToken['content'], 0, $startComment );
-						if ( $content[$startComment+1] === '\t' ) {
-							$newContent = preg_replace(
-								'/^' . $delimiter . '\t/', $delimiter . ' ', $content
-							);
-						} else {
-							$newContent = preg_replace(
-								'/^' . $delimiter . '/', $delimiter . ' ', $content
-							);
-						}
+						$newContent = '# ';
+						$tmpContent = substr( $content, 1 );
+						$newContent .= ltrim( $tmpContent );
 						$phpcsFile->fixer->replaceToken( $stackPtr, $newContent );
 					}
 				}

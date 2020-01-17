@@ -2,10 +2,17 @@
 /**
  * Verify specific control structures are followed by a single space.
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_WhiteSpace_SpaceAfterControlStructureSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\WhiteSpace;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class SpaceAfterControlStructureSniff implements Sniff {
+
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		// Per https://www.mediawiki.org/wiki/Manual:Coding_conventions/PHP#Spaces
 		return [
@@ -19,14 +26,19 @@ class MediaWiki_Sniffs_WhiteSpace_SpaceAfterControlStructureSniff
 		];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 		$nextToken = $tokens[$stackPtr + 1];
 		if ( $nextToken['code'] !== T_WHITESPACE || $nextToken['content'] !== ' ' ) {
 			$error = 'Control structure "%s" must be followed by a single space';
 			$data = [ $tokens[$stackPtr]['content'] ];
 			$fix = $phpcsFile->addFixableWarning( $error, $stackPtr, 'Incorrect', $data );
-			if ( $fix === true ) {
+			if ( $fix ) {
 				if ( $nextToken['code'] !== T_WHITESPACE ) {
 					$phpcsFile->fixer->addContent( $stackPtr, ' ' );
 				} else {

@@ -10,10 +10,17 @@
  * Pass: if ( $a === array( 1 => 0 ) )
  * Pass: while ( $a < 0 )
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_ControlStructures_AssignmentInControlStructuresSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\ControlStructures;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+use PHP_CodeSniffer\Util\Tokens;
+
+class AssignmentInControlStructuresSniff implements Sniff {
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		return [
 			T_IF,
@@ -21,18 +28,25 @@ class MediaWiki_Sniffs_ControlStructures_AssignmentInControlStructuresSniff
 			T_ELSEIF,
 		];
 	}
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
-		$token  = $tokens[$stackPtr];
+		$token = $tokens[$stackPtr];
 
 		$next = $token['parenthesis_opener'] + 1;
-		$end  = $token['parenthesis_closer'];
+		$end = $token['parenthesis_closer'];
 		while ( $next < $end ) {
 			$code = $tokens[$next]['code'];
 			// Check if any assignment operator was used. Allow T_DOUBLE_ARROW as that can
 			// be used in an array like `if ( $foo === array( 'foo' => 'bar' ) )`
-			if ( in_array( $code, PHP_CodeSniffer_Tokens::$assignmentTokens, true )
-				&& $code !== T_DOUBLE_ARROW ) {
+			if ( array_key_exists( $code, Tokens::$assignmentTokens )
+				&& $code !== T_DOUBLE_ARROW
+			) {
 				$error = 'Assignment expression not allowed within "%s".';
 				$phpcsFile->addError(
 					$error,

@@ -11,6 +11,8 @@ return array(
     'Mail' => array($vendorDir . '/pear/mail', $vendorDir . '/pear/mail_mime'),
     'Liuggio' => array($vendorDir . '/liuggio/statsd-php-client/src'),
     'Less' => array($vendorDir . '/wikimedia/less.php/lib'),
+    'Kafka\\' => array($vendorDir . '/nmred/kafka-php/src'),
+    'JakubOnderka\\PhpConsoleHighlighter' => array($vendorDir . '/jakub-onderka/php-console-highlighter/src'),
     'Console' => array($vendorDir . '/pear/console_getopt'),
     'ComposerVendorHtaccessCreator' => array($baseDir . '/includes/composer'),
     'ComposerHookHandler' => array($baseDir . '/includes/composer'),

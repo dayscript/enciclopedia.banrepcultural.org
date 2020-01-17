@@ -104,18 +104,19 @@ class BanrepculturalTemplate extends BaseTemplate {
 			<div id="mw-head">
 				<div id="header1-wrapper">
 					<div id="header1">
-						<div id="header-social-links" class="social-links">
-							<a target="_blank" class="facebook-link" href="http://www.banrepcultural.org/redes"></a>
-							<a target="_blank" class="youtube-link" href="http://www.banrepcultural.org/redes"></a>
-							<a target="_blank" class="instagram-link" href="http://www.banrepcultural.org/redes"></a>
-							<a target="_blank" class="twitter-link" href="http://www.banrepcultural.org/redes"></a>
+						<div id="header-social-links" class="social-links-b">
+							<a target="_blank" class="facebook-link-b" href="http://www.banrepcultural.org/redes"></a>
+							<a target="_blank" class="youtube-link-b" href="http://www.banrepcultural.org/redes"></a>
+							<a target="_blank" class="instagram-link-b" href="http://www.banrepcultural.org/redes"></a>
+							<a target="_blank" class="twitter-link-b" href="http://www.banrepcultural.org/redes"></a>
 						</div>
 						<div id="header-site-links">
-							<a target="_blank" id="kids-link" href="http://www.banrepcultural.org/ninos-y-ninas">Niñ@s</a>
-							<a target="_blank" id="accessibility-link" href="http://www.banrepcultural.org/accesibilidad">Accesibilidad</a>
-							<a target="_blank" id="news-link" href="http://www.banrepcultural.org/noticias">Noticias</a>
-							<a target="_blank" id="mail-link" href="http://www.banrepcultural.org/servicios/listas-de-correo">Lista de correos</a>
-							<a target="_blank" id="register-link" href="http://www.banrepcultural.org/servicios/asociacion">Hazte socio</a>
+							<a target="_blank" id="kids-link-b" href="http://www.banrepcultural.org/ninos-y-ninas">Niñ@s</a>
+							<a target="_blank" id="accessibility-link-b" href="http://www.banrepcultural.org/accesibilidad">Accesibilidad</a>
+							<a target="_blank" id="news-link-b" href="http://www.banrepcultural.org/noticias">Noticias</a>
+							<a target="_blank" id="mail-link-b" href="http://www.banrepcultural.org/servicios/listas-de-correo">Lista de correos</a>
+							<a target="_blank" id="register-link-b" href="http://www.banrepcultural.org/servicios/asociacion">Hazte socio</a>
+							<a target="_blank" id="catalogo-link-b" href="http://ticuna.banrep.gov.co:8080/opac/inicio.htm">Catálogo bibliográfico</a>
 						</div>
 					</div>
 				</div>

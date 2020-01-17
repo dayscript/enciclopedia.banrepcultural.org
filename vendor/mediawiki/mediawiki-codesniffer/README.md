@@ -11,11 +11,11 @@ coding conventions that are validated by these rules. :-)
 How to install
 --------------
 1. Create a composer.json which adds this project as a dependency:
-    
+
     ```
     {
     	"require-dev": {
-    		"mediawiki/mediawiki-codesniffer": "0.7.2"
+    		"mediawiki/mediawiki-codesniffer": "25.0.0"
     	},
     	"scripts": {
     		"test": [
@@ -25,16 +25,16 @@ How to install
     	}
     }
     ```
-2. Create a phpcs.xml with our configuration:
-    
+2. Create a .phpcs.xml with our configuration:
+
     ```
     <?xml version="1.0"?>
     <ruleset>
-    	<rule ref="vendor/mediawiki/mediawiki-codesniffer/MediaWiki"/>
+    	<rule ref="./vendor/mediawiki/mediawiki-codesniffer/MediaWiki"/>
     	<file>.</file>
+    	<arg name="bootstrap" value="./vendor/mediawiki/mediawiki-codesniffer/utils/bootstrap-ci.php"/>
     	<arg name="extensions" value="php,php5,inc"/>
-    	<arg name="encoding" value="utf8"/>
-    	<exclude-pattern>vendor</exclude-pattern>
+    	<arg name="encoding" value="UTF-8"/>
     </ruleset>
     ```
 3. Install: `composer update`
@@ -51,6 +51,6 @@ TODO
 * Migrate the old code-utils/check-vars.php
 
 ---
-[0]: https://pear.php.net/package/PHP_CodeSniffer
+[0]: https://packagist.org/packages/squizlabs/php_codesniffer
 [1]: https://www.mediawiki.org/wiki/Manual:Coding_conventions/PHP
 [2]: https://www.mediawiki.org/wiki/Continuous_integration/Entry_points#PHP

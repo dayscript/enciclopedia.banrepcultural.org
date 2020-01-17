@@ -2,17 +2,29 @@
 /**
  * Check multiple consecutive newlines in a file.
  */
-// @codingStandardsIgnoreStart
-class MediaWiki_Sniffs_WhiteSpace_MultipleEmptyLinesSniff
-	implements PHP_CodeSniffer_Sniff {
-	// @codingStandardsIgnoreEnd
+
+namespace MediaWiki\Sniffs\WhiteSpace;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+
+class MultipleEmptyLinesSniff implements Sniff {
+
+	/**
+	 * @inheritDoc
+	 */
 	public function register() {
 		return [
 			T_WHITESPACE
 		];
 	}
 
-	public function process( PHP_CodeSniffer_File $phpcsFile, $stackPtr ) {
+	/**
+	 * @param File $phpcsFile
+	 * @param int $stackPtr The current token index.
+	 * @return void|int
+	 */
+	public function process( File $phpcsFile, $stackPtr ) {
 		$tokens = $phpcsFile->getTokens();
 
 		if ( $stackPtr > 2
@@ -28,13 +40,13 @@ class MediaWiki_Sniffs_WhiteSpace_MultipleEmptyLinesSniff
 					// If the next non T_WHITESPACE token is more than 1 line away,
 					// then there were multiple empty lines.
 					$error = 'Multiple empty lines should not exist in a row; found %s consecutive empty lines';
-					$fix   = $phpcsFile->addFixableError(
+					$fix = $phpcsFile->addFixableError(
 						$error,
 						$stackPtr,
 						'MultipleEmptyLines',
 						[ $lines ]
 					);
-					if ( $fix === true ) {
+					if ( $fix ) {
 						$phpcsFile->fixer->beginChangeset();
 						$i = $stackPtr;
 						while ( $tokens[$i]['line'] !== $tokens[$next]['line'] ) {
@@ -45,6 +57,9 @@ class MediaWiki_Sniffs_WhiteSpace_MultipleEmptyLinesSniff
 						$phpcsFile->fixer->endChangeset();
 					}
 				}
+
+			// Skip all whitespace we already checked above
+			return $next + 1;
 		}
 	}
 }
