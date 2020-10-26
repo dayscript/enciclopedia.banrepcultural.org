@@ -110,7 +110,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 	private $analysisConfig;
 
 	/**
-	 * @var array(String) list of available plugins
+	 * @var array list of available plugins
 	 */
 	private $availablePlugins;
 
@@ -123,11 +123,6 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 	 * @var bool
 	 */
 	protected $optimizeIndexForExperimentalHighlighter;
-
-	/**
-	 * @var int|string
-	 */
-	protected $maxShardsPerNode;
 
 	/**
 	 * @var int
@@ -211,7 +206,6 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 			$wgCirrusSearchPrefixSearchStartsWithAnyWord,
 			$wgCirrusSearchBannedPlugins,
 			$wgCirrusSearchOptimizeIndexForExperimentalHighlighter,
-			$wgCirrusSearchMaxShardsPerNode,
 			$wgCirrusSearchRefreshInterval,
 			$wgCirrusSearchMasterTimeout;
 
@@ -235,8 +229,14 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 		$this->bannedPlugins = $wgCirrusSearchBannedPlugins;
 		$this->optimizeIndexForExperimentalHighlighter = $wgCirrusSearchOptimizeIndexForExperimentalHighlighter;
 		$this->masterTimeout = $wgCirrusSearchMasterTimeout;
-		$this->maxShardsPerNode = $wgCirrusSearchMaxShardsPerNode[ $this->indexType ] ?? 'unlimited';
 		$this->refreshInterval = $wgCirrusSearchRefreshInterval;
+
+		if ( $this->indexType === Connection::ARCHIVE_INDEX_TYPE &&
+			!$this->getConnection()->getSettings()->isPrivateCluster()
+		) {
+			$this->fatalError( "Not allowing {$this->indexType} on a non-private cluster" );
+			return true;
+		}
 
 		$this->initMappingConfigBuilder();
 
@@ -334,7 +334,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 
 		$status = $indexCreator->createIndex(
 			$rebuild,
-			$this->maxShardsPerNode,
+			$this->getMaxShardsPerNode(),
 			$this->getShardCount(),
 			$this->getReplicaCount(),
 			$this->refreshInterval,
@@ -361,7 +361,7 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 			$this->getIndex(), $this->getReplicaCount(), $this );
 		$validators[] = $this->getShardAllocationValidator();
 		$validators[] = new \CirrusSearch\Maintenance\Validators\MaxShardsPerNodeValidator(
-			$this->getIndex(), $this->indexType, $this->maxShardsPerNode, $this );
+			$this->getIndex(), $this->indexType, $this->getMaxShardsPerNode(), $this );
 		return $validators;
 	}
 
@@ -603,6 +603,14 @@ class UpdateOneSearchIndexConfig extends Maintenance {
 	 */
 	private function getReplicaCount() {
 		return $this->getConnection()->getSettings()->getReplicaCount( $this->indexType );
+	}
+
+	/**
+	 * @return int Maximum number of shards that can be allocated on a single elasticsearch
+	 *  node. -1 for unlimited.
+	 */
+	private function getMaxShardsPerNode() {
+		return $this->getConnection()->getSettings()->getMaxShardsPerNode( $this->indexType );
 	}
 
 	private function initAnalysisConfig() {

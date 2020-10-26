@@ -131,13 +131,18 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 			return;
 		}
 
+		$dbw = $this->getDB( DB_MASTER );
+		if ( !$dbw->fieldExists( $table, $idField ) ||
+			!$dbw->fieldExists( $table, $nameField )
+		) {
+			$this->output( "Skipping $table, fields $idField and/or $nameField do not exist\n" );
+			return;
+		}
+
 		$primaryKey = (array)$primaryKey;
 		$pkFilter = array_flip( $primaryKey );
-		$this->output(
-			"Beginning cleanup of $table\n"
-		);
+		$this->output( "Beginning cleanup of $table\n" );
 
-		$dbw = $this->getDB( DB_MASTER );
 		$next = '1=1';
 		$countAssigned = 0;
 		$countPrefixed = 0;
@@ -166,13 +171,13 @@ class CleanupUsersWithNoId extends LoggedUpdateMaintenance {
 
 				$id = 0;
 				if ( $this->assign ) {
-					$id = (int)User::idFromName( $name );
+					$id = User::idFromName( $name );
 					if ( !$id ) {
 						// See if any extension wants to create it.
 						if ( !isset( $this->triedCreations[$name] ) ) {
 							$this->triedCreations[$name] = true;
 							if ( !Hooks::run( 'ImportHandleUnknownUser', [ $name ] ) ) {
-								$id = (int)User::idFromName( $name, User::READ_LATEST );
+								$id = User::idFromName( $name, User::READ_LATEST );
 							}
 						}
 					}

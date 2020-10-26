@@ -2,6 +2,7 @@
 
 namespace CirrusSearch\Job;
 
+use CirrusSearch\Updater;
 use JobQueueGroup;
 use Title;
 
@@ -30,7 +31,7 @@ use Title;
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * http://www.gnu.org/copyleft/gpl.html
  */
-class LinksUpdate extends Job {
+class LinksUpdate extends CirrusTitleJob {
 	public function __construct( $title, $params ) {
 		parent::__construct( $title, $params );
 
@@ -46,9 +47,7 @@ class LinksUpdate extends Job {
 	 * @return bool
 	 */
 	protected function doJob() {
-		global $wgCirrusSearchRefreshInterval;
-
-		$updater = $this->createUpdater();
+		$updater = Updater::build( $this->searchConfig, $this->params['cluster'] ?? null );
 		$res = $updater->updateFromTitle( $this->title );
 		if ( $res === false ) {
 			// Couldn't update. Bail early and retry rather than adding an
@@ -59,20 +58,21 @@ class LinksUpdate extends Job {
 		// Queue IncomingLinkCount jobs when pages are newly linked or unlinked
 		$titleKeys = array_merge( $this->params[ 'addedLinks' ],
 			$this->params[ 'removedLinks' ] );
+		$refreshInterval = $this->searchConfig->get( 'CirrusSearchRefreshInterval' );
 		foreach ( $titleKeys as $titleKey ) {
 			$title = Title::newFromDBkey( $titleKey );
 			if ( !$title ) {
 				continue;
 			}
-			$linkCount = new IncomingLinkCount( $title, [
-				'cluster' => $this->params['cluster'],
-			] );
 			// If possible, delay the job execution by a few seconds so Elasticsearch
 			// can refresh to contain what we just sent it.  The delay should be long
 			// enough for Elasticsearch to complete the refresh cycle, which normally
 			// takes wgCirrusSearchRefreshInterval seconds but we double it and add
 			// one just in case.
-			$linkCount->setDelay( 2 * $wgCirrusSearchRefreshInterval + 1 );
+			$delay = 2 * $refreshInterval + 1;
+			$linkCount = new IncomingLinkCount( $title, [
+				'cluster' => $this->params['cluster'],
+			] + self::buildJobDelayOptions( IncomingLinkCount::class, $delay ) );
 			JobQueueGroup::singleton()->push( $linkCount );
 		}
 

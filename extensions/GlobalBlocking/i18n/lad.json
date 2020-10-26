@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Menachem.Moreira",
+			"Universal Life"
+		]
+	},
+	"globalblocking-block-reason": "Razon:",
+	"globalblocking-ipaddress": "Adreso de IP:",
+	"globalblocking-search-ip": "Adreso de IP:",
+	"globalblocking-unblock-reason": "Razon:",
+	"globalblocking-whitelist-reason": "Razon:"
+}

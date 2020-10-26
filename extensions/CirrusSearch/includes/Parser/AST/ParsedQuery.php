@@ -92,7 +92,6 @@ class ParsedQuery {
 	private $featuresUsed;
 
 	/**
-	 * ParsedQuery constructor.
 	 * @param ParsedNode $root
 	 * @param string $query cleaned up query string
 	 * @param string $rawQuery original query as received by the search engine
@@ -154,6 +153,7 @@ class ParsedQuery {
 		}
 		return $this->query;
 	}
+
 	/**
 	 * The raw query as received by the search engine
 	 * @return string

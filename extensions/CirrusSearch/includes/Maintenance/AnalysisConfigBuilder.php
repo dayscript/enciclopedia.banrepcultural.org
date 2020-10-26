@@ -123,9 +123,7 @@ class AnalysisConfigBuilder {
 		case 'no':
 			return false;
 		case 'default':
-			if ( isset( $this->languagesWithIcuFolding[ $language ] ) ) {
-				return $this->languagesWithIcuFolding[ $language ];
-			}
+			return $this->languagesWithIcuFolding[$language] ?? false;
 		default:
 			return false;
 		}
@@ -148,9 +146,7 @@ class AnalysisConfigBuilder {
 		case 'no':
 			return false;
 		case 'default':
-			if ( isset( $this->languagesWithIcuTokenization[ $language ] ) ) {
-				return $this->languagesWithIcuTokenization[ $language ];
-			}
+			return $this->languagesWithIcuTokenization[$language] ?? false;
 		default:
 			return false;
 		}
@@ -184,11 +180,9 @@ class AnalysisConfigBuilder {
 	 * @return array|null the similarity config
 	 */
 	public function buildSimilarityConfig() {
-		if ( $this->similarity != null && isset( $this->similarity[ 'similarity' ] ) ) {
-			return $this->similarity[ 'similarity' ];
-		}
-		return null;
+		return $this->similarity['similarity'] ?? null;
 	}
+
 	/**
 	 * replace the standard tokenizer with icu_tokenizer
 	 * @param mixed[] $config
@@ -1413,6 +1407,12 @@ STEMMER_RULES
 				}
 			}
 		}
+		if ( !empty( $analyzer[ 'tokenizer' ] ) ) {
+			$tokenizer = $analyzer[ 'tokenizer' ];
+			if ( isset( $langConfig[ 'tokenizer' ][ $tokenizer ] ) && !isset( $config[ 'tokenizer' ][ $tokenizer ] ) ) {
+				$config[ 'tokenizer' ][ $tokenizer ] = $langConfig[ 'tokenizer' ][ $tokenizer ];
+			}
+		}
 	}
 
 	/**
@@ -1431,8 +1431,7 @@ STEMMER_RULES
 		foreach ( $languages as $lang ) {
 			$langConfig = $this->buildConfig( $lang );
 			// Analyzer is: tokenizer + filter + char_filter
-			// Tokenizers don't seem to be subject to customization now
-			// Char filters are nicely namespaced
+			// Char filters & Tokenizers are nicely namespaced
 			// Filters are NOT - e.g. lowercase & icu_folding filters are different for different
 			// languages! So we need to do some disambiguation here.
 			$langConfig[ 'filter' ] = $this->resolveFilters( $langConfig, $config[ 'filter' ], $defaultFilters, $lang );

@@ -5,6 +5,7 @@ namespace CirrusSearch\Query;
 use CirrusSearch\Parser\AST\KeywordFeatureNode;
 use CirrusSearch\Query\Builder\QueryBuildingContext;
 use CirrusSearch\Search\Escaper;
+use CirrusSearch\Search\Fetch\HighlightedField;
 use CirrusSearch\Search\Filters;
 use CirrusSearch\Search\SearchContext;
 use CirrusSearch\SearchConfig;
@@ -38,7 +39,13 @@ class InTitleFeature extends BaseRegexFeature {
 	private $escaper;
 
 	public function __construct( SearchConfig $config ) {
-		parent::__construct( $config, [ 'title', 'redirect.title' ] );
+		parent::__construct(
+			$config,
+			[
+				'title' => HighlightedField::TARGET_TITLE_SNIPPET,
+				'redirect.title' => HighlightedField::TARGET_REDIRECT_SNIPPET
+			]
+		);
 		$this->escaper = new Escaper( $config->get( 'LanguageCode' ), $config->get( 'CirrusSearchAllowLeadingWildcard' ) );
 	}
 
@@ -73,5 +80,10 @@ class InTitleFeature extends BaseRegexFeature {
 	 */
 	protected function getNonRegexFilterQuery( KeywordFeatureNode $node, QueryBuildingContext $context ) {
 		return Filters::intitle( $this->escaper, $node->getQuotedValue() );
+	}
+
+	public function buildNonRegexHLFields( KeywordFeatureNode $node, QueryBuildingContext $context ) {
+		// we highlight this field a bit differently as it's part of the main query
+		return [];
 	}
 }

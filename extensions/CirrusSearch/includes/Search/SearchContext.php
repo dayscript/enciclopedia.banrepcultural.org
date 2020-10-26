@@ -5,15 +5,17 @@ namespace CirrusSearch\Search;
 use CirrusSearch\CirrusDebugOptions;
 use CirrusSearch\ExternalIndex;
 use CirrusSearch\Fallbacks\FallbackRunner;
-use CirrusSearch\OtherIndexes;
+use CirrusSearch\OtherIndexesUpdater;
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\Query\Builder\FilterBuilder;
+use CirrusSearch\Search\Fetch\FetchPhaseConfigBuilder;
 use CirrusSearch\Search\Rescore\BoostFunctionBuilder;
 use CirrusSearch\Search\Rescore\RescoreBuilder;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\WarningCollector;
 use Elastica\Aggregation\AbstractAggregation;
 use Elastica\Query\AbstractQuery;
+use Wikimedia\Assert\Assert;
 
 /**
  * The search context, maintains the state of the current search query.
@@ -55,7 +57,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $profileContext = SearchProfileService::CONTEXT_DEFAULT;
 
 	/**
-	 * @var array
+	 * @var string[]
 	 */
 	private $profileContextParams = [];
 
@@ -89,13 +91,6 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 * @var AbstractQuery[] List of filters that query results must not match
 	 */
 	private $notFilters = [];
-
-	/**
-	 * @var array[][] $config List of configurations for highlighting additional
-	 *  fields such as source_text. Passed to ResultType::getHighlightingConfiguration
-	 *  to generate final highlighting configuration.
-	 */
-	private $extraHighlightFields = [];
 
 	/**
 	 * @var AbstractQuery|null Query that should be used for highlighting if different
@@ -152,6 +147,11 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $escaper;
 
 	/**
+	 * @var FetchPhaseConfigBuilder
+	 */
+	private $fetchPhaseBuilder;
+
+	/**
 	 * @var int[] weights of different syntaxes
 	 */
 	private static $syntaxWeights = [
@@ -182,7 +182,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $isDirty = false;
 
 	/**
-	 * @var ResultsType Type of the result for the context.
+	 * @var ResultsType|FullTextResultsType Type of the result for the context.
 	 */
 	private $resultsType;
 
@@ -206,17 +206,20 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 * @param int[]|null $namespaces
 	 * @param CirrusDebugOptions|null $options
 	 * @param FallbackRunner|null $fallbackRunner
+	 * @param FetchPhaseConfigBuilder|null $fetchPhaseConfigBuilder
 	 */
 	public function __construct(
 		SearchConfig $config,
 		array $namespaces = null,
 		CirrusDebugOptions $options = null,
-		FallbackRunner $fallbackRunner = null
+		FallbackRunner $fallbackRunner = null,
+		FetchPhaseConfigBuilder $fetchPhaseConfigBuilder = null
 	) {
 		$this->config = $config;
 		$this->namespaces = $namespaces;
 		$this->debugOptions = $options ?? CirrusDebugOptions::defaultOptions();
 		$this->fallbackRunner = $fallbackRunner ?? FallbackRunner::noopRunner();
+		$this->fetchPhaseBuilder = $fetchPhaseConfigBuilder ?? new FetchPhaseConfigBuilder( $config );
 		$this->loadConfig();
 	}
 
@@ -229,6 +232,10 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	public function withConfig( SearchConfig $config ) {
 		$other = clone $this;
 		$other->config = $config;
+		$other->fetchPhaseBuilder = $this->fetchPhaseBuilder->withConfig( $config );
+		if ( $other->resultsType instanceof FullTextResultsType ) {
+			$other->resultsType = $this->resultsType->withFetchPhaseBuilder( $other->fetchPhaseBuilder );
+		}
 		$other->loadConfig();
 
 		return $other;
@@ -286,6 +293,13 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 */
 	public function getProfileContext() {
 		return $this->profileContext;
+	}
+
+	/**
+	 * @return string[]
+	 */
+	public function getProfileContextParams(): array {
+		return $this->profileContextParams;
 	}
 
 	/**
@@ -418,17 +432,6 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	}
 
 	/**
-	 * @param string $field The field to add highlighting configuration for.
-	 * @param array $config Configuration for highlighting the article source. Passed
-	 *  to ResultType::getHighlightingConfiguration to generate final highlighting
-	 *  configuration.
-	 */
-	public function addHighlightField( $field, array $config ) {
-		$this->isDirty = true;
-		$this->extraHighlightFields[$field][] = $config;
-	}
-
-	/**
 	 * @param AbstractQuery|null $query Query that should be used for highlighting if different
 	 *  from the query used for selecting.
 	 */
@@ -448,16 +451,25 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	}
 
 	/**
-	 * @param ResultsType $resultsType
-	 * @return array|null Highlight portion of query to be sent to elasticsearch
+	 * @return FetchPhaseConfigBuilder
 	 */
-	public function getHighlight( ResultsType $resultsType ) {
-		$highlight = $resultsType->getHighlightingConfiguration( $this->extraHighlightFields );
+	public function getFetchPhaseBuilder(): FetchPhaseConfigBuilder {
+		return $this->fetchPhaseBuilder;
+	}
+
+	/**
+	 * @param ResultsType $resultsType
+	 * @param AbstractQuery $mainQuery Will be combined with highlighting query
+	 *  to provide highlightable terms.
+	 * @return array|null Fetch portion of query to be sent to elasticsearch
+	 */
+	public function getHighlight( ResultsType $resultsType, AbstractQuery $mainQuery ) {
+		$highlight = $resultsType->getHighlightingConfiguration( [] );
 		if ( !$highlight ) {
 			return null;
 		}
 
-		$query = $this->getHighlightQuery();
+		$query = $this->getHighlightQuery( $mainQuery );
 		if ( $query ) {
 			$highlight['highlight_query'] = $query->toArray();
 		}
@@ -466,18 +478,22 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	}
 
 	/**
+	 * @param AbstractQuery $mainQuery
 	 * @return AbstractQuery|null Query that should be used for highlighting if different
 	 *  from the query used for selecting.
 	 */
-	private function getHighlightQuery() {
+	private function getHighlightQuery( AbstractQuery $mainQuery ) {
 		if ( empty( $this->nonTextHighlightQueries ) ) {
+			// If no explicit highlight query is provided elastic
+			// will fallback to $mainQuery without specifying it.
 			return $this->highlightQuery;
 		}
 
 		$bool = new \Elastica\Query\BoolQuery();
-		if ( $this->highlightQuery ) {
-			$bool->addShould( $this->highlightQuery );
-		}
+		// If no explicit highlight query is provided we
+		// need to include the main query along with
+		// the non-text queries to highlight those fields.
+		$bool->addShould( $this->highlightQuery ?: $mainQuery );
 		foreach ( $this->nonTextHighlightQueries as $nonTextHighlightQuery ) {
 			$bool->addShould( $nonTextHighlightQuery );
 		}
@@ -697,9 +713,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 * @return ResultsType $resultsType results type to return
 	 */
 	public function getResultsType() {
-		if ( $this->resultsType === null ) {
-			return new FullTextResultsType();
-		}
+		Assert::precondition( $this->resultsType !== null, "resultsType unset" );
 		return $this->resultsType;
 	}
 
@@ -709,13 +723,13 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 * Must be called only once the list of namespaces has been set.
 	 *
 	 * @return ExternalIndex[]
-	 * @see OtherIndexes::getExtraIndexesForNamespaces()
+	 * @see OtherIndexesUpdater::getExtraIndexesForNamespaces()
 	 */
 	public function getExtraIndices() {
 		if ( $this->getLimitSearchToLocalWiki() || !$this->getNamespaces() ) {
 			return [];
 		}
-		return OtherIndexes::getExtraIndexesForNamespaces(
+		return OtherIndexesUpdater::getExtraIndexesForNamespaces(
 			$this->config,
 			$this->getNamespaces()
 		);
@@ -801,13 +815,26 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 * @param FallbackRunner|null $fallbackRunner
 	 * @return SearchContext
 	 */
-	public static function fromSearchQuery( SearchQuery $query, FallbackRunner $fallbackRunner = null ) {
-		$searchContext = new SearchContext( $query->getSearchConfig(), $query->getNamespaces(),
-			$query->getDebugOptions(), $fallbackRunner );
+	public static function fromSearchQuery( SearchQuery $query, FallbackRunner $fallbackRunner = null ): SearchContext {
+		$searchContext = new SearchContext(
+			$query->getSearchConfig(),
+			$query->getNamespaces(),
+			$query->getDebugOptions(),
+			$fallbackRunner,
+			new FetchPhaseConfigBuilder( $query->getSearchConfig(), $query->getSearchEngineEntryPoint() )
+		);
 		$searchContext->limitSearchToLocalWiki = !$query->getCrossSearchStrategy()->isExtraIndicesSearchSupported();
 
 		$searchContext->rescoreProfile = $query->getForcedProfile( SearchProfileService::RESCORE );
+		$profileContext = $query->getSearchConfig()
+			->getProfileService()
+			->getDispatchService()
+			->bestRoute( $query )
+			->getProfileContext();
+		$searchContext->setProfileContext( $profileContext );
+		// TODO: Clarify what happens when user forces a profile, should we disable the dispatch service?
 		$searchContext->fulltextQueryBuilderProfile = $query->getForcedProfile( SearchProfileService::FT_QUERY_BUILDER );
+		$searchContext->profileContextParams = $query->getProfileContextParameters();
 
 		foreach ( $query->getContextualFilters() as $filter ) {
 			$filter->populate( $searchContext );

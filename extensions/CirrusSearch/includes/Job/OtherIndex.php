@@ -2,7 +2,7 @@
 
 namespace CirrusSearch\Job;
 
-use CirrusSearch\OtherIndexes;
+use CirrusSearch\OtherIndexesUpdater;
 use CirrusSearch\SearchConfig;
 use JobQueueGroup;
 use Title;
@@ -25,7 +25,7 @@ use Title;
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * http://www.gnu.org/copyleft/gpl.html
  */
-class OtherIndex extends Job {
+class OtherIndex extends CirrusGenericJob {
 	/**
 	 * Check if we need to make a job and inject one if so.
 	 *
@@ -37,7 +37,7 @@ class OtherIndex extends Job {
 	public static function queueIfRequired( SearchConfig $config, array $titles, $cluster ) {
 		$titlesToUpdate = [];
 		foreach ( $titles as $title ) {
-			if ( OtherIndexes::getExternalIndexes( $config, $title, $cluster ) ) {
+			if ( OtherIndexesUpdater::getExternalIndexes( $config, $title, $cluster ) ) {
 				$titlesToUpdate[] = [ $title->getNamespace(), $title->getText() ];
 			}
 		}
@@ -45,7 +45,7 @@ class OtherIndex extends Job {
 			// Note that we're updating a bunch of titles but we have to pick one to
 			// attach to the job so we pick the first one.
 			JobQueueGroup::singleton()->push(
-				new self( $titles[0], [
+				new self( [
 					'titles' => $titlesToUpdate,
 					'cluster' => $cluster,
 				] )
@@ -62,11 +62,7 @@ class OtherIndex extends Job {
 			list( $namespace, $title ) = $titleArr;
 			$titles[] = Title::makeTitle( $namespace, $title );
 		}
-		$flags = [];
-		if ( $this->params['cluster'] ) {
-			$flags[] = 'same-cluster';
-		}
-		$otherIdx = new OtherIndexes( $this->connection, $this->searchConfig, $flags, wfWikiID() );
+		$otherIdx = OtherIndexesUpdater::buildOtherIndexesUpdater( $this->searchConfig, $this->params['cluster'], wfWikiID() );
 		$otherIdx->updateOtherIndex( $titles );
 
 		return true;

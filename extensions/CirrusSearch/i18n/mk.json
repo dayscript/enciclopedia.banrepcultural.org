@@ -1,10 +1,11 @@
 {
 	"@metadata": {
 		"authors": [
-			"Bjankuloski06"
+			"Bjankuloski06",
+			"Vlad5250"
 		]
 	},
-	"cirrussearch-desc": "Пребарување со Solr",
+	"cirrussearch-desc": "Пребарување за МедијаВики на основа на Elasticsearch",
 	"cirrussearch-backend-error": "Не можам наполно да го изведам пребарувањето поради привремен проблем. Обидете се подоцна.",
 	"cirrussearch-parse-error": "Не го разбрав барањето. Упростете го. Ова го заведувам за да го подобриме пребарувачкиот систем.",
 	"cirrussearch-too-busy-error": "Пребарувањето во моментов е презафатено. Обидете се подоцна.",
@@ -36,7 +37,7 @@
 	"cirrussearch-qi-profile-popular-inclinks": "Ранг заснован првенствено на бројот на дојдовни врски",
 	"prefs-completion": "Довршување на пребарувањето",
 	"cirrussearch-pref-completion-section-desc": "Допишувачки предлагач",
-	"cirrussearch-pref-completion-profile-help": "Задај го поведениот на самодополнувачките предлози (пребарување при внесување).\n\n[https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:CirrusSearch/CompletionSuggester Дополнувачкиот предлагач] е алгоритам за давање предлози при пребарување со подобрено исправање на грешки при пишувањето и подобро утврдување на релевантност. Пребарувањето со претставка е стариот алгоритам за пребарување при внесување.",
+	"cirrussearch-pref-completion-profile-help": "Задај го поведението на самодополнувачките предлози (пребарување при внесување).\n\n[https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:CirrusSearch/CompletionSuggester Дополнувачкиот предлагач] е алгоритам за давање предлози при пребарување со подобрено исправање на грешки при пишувањето и подобро утврдување на релевантност. Пребарувањето со претставка е стариот алгоритам за пребарување при внесување.",
 	"cirrussearch-completion-profile-fuzzy-pref-name": "По основно (препорачано)",
 	"cirrussearch-completion-profile-fuzzy-pref-desc": "Исправува до две грешки при пишување. Отстранува пренасочувања кои се многу слични на главниот наслов.",
 	"cirrussearch-completion-profile-fuzzy-subphrases-pref-name": "Наоѓање подизрази (препорачано за подолги наслови на страници)",
@@ -58,6 +59,7 @@
 	"cirrussearch-feature-deepcat-endpoint": "На $wgCirrusSearchCategoryEndpoint треба да му се зададе важечка SPARQL-завршница за да се користи длабоко пребарување на категории.",
 	"cirrussearch-feature-deepcat-exception": "Не успеа длабокото SPARQL-пребарување на категории",
 	"cirrussearch-feature-deepcat-toomany": "Длабокото пребарување даде премногу категории",
+	"cirrussearch-feature-deepcat-invalid-title": "Укажаната категорија е неважечка.",
 	"cirrussearch-incategory-feature-no-valid-categories": "Нема укажано важечки категории за „$1“.",
 	"cirrussearch-mlt-feature-no-valid-titles": "Нема укажано важечки наслови за „$1“.",
 	"cirrussearch-mlt-not-configured": "Можноста „$1“ е погрешно поставена. Обратете се кај администратор за да го исправи $wgCirrusSearchMoreLikeThisFields",
@@ -70,5 +72,6 @@
 	"cirrussearch-article-words": "Зборови во сите содржински страници",
 	"cirrussearch-keyword-prefix-ns-mismatch": "Именскиот простор пронајден во пребраното <code>prefix:</code> не е складен со побараните именски простори. Можете да го поправите ставајќи <code>all:</code> пред барањето.",
 	"cirrussearch-autoselect-profile": "Пребарувачот нека го одреди најпогодниот профил.",
-	"cirrussearch-offset-too-large": "Не можев да го добијам исходот. Поддржани се до $1 ставки, но побарани се ставки почнувајќи од $2."
+	"cirrussearch-offset-too-large": "Не можев да го добијам исходот. Поддржани се до $1 ставки, но побарани се ставки почнувајќи од $2.",
+	"cirrussearch-offset-not-allowed-with-random-sort": "Го занемарувам барањетп за страничење на произволно подредени исходни ставки."
 }

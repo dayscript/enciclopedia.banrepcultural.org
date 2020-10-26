@@ -5,6 +5,8 @@ namespace CirrusSearch\Query;
 use CirrusSearch\Parser\AST\KeywordFeatureNode;
 use CirrusSearch\Query\Builder\QueryBuildingContext;
 use CirrusSearch\Search\Escaper;
+use CirrusSearch\Search\Fetch\HighlightedField;
+use CirrusSearch\Search\Fetch\HighlightFieldGenerator;
 use CirrusSearch\Search\Filters;
 use CirrusSearch\Search\SearchContext;
 use CirrusSearch\SearchConfig;
@@ -48,7 +50,7 @@ class InSourceFeature extends BaseRegexFeature {
 	 * @param SearchConfig $config
 	 */
 	public function __construct( SearchConfig $config ) {
-		parent::__construct( $config, [ self::FIELD ] );
+		parent::__construct( $config, [ self::FIELD => HighlightedField::TARGET_MAIN_SNIPPET ] );
 		$this->escaper = new Escaper( $config->get( 'LanguageCode' ), $config->get( 'CirrusSearchAllowLeadingWildcard' ) );
 	}
 
@@ -70,7 +72,9 @@ class InSourceFeature extends BaseRegexFeature {
 	protected function doApply( SearchContext $context, $key, $value, $quotedValue, $negated ) {
 		$filter = Filters::insource( $context->escaper(), $quotedValue );
 		if ( !$negated ) {
-			$context->addHighlightField( self::FIELD, [ 'query' => $filter ] );
+			foreach ( $this->doGetNonRegexHLFields( $context->getFetchPhaseBuilder(), $filter ) as $field ) {
+				$context->getFetchPhaseBuilder()->addHLField( $field );
+			}
 		}
 		return [ $filter, false ];
 	}
@@ -82,5 +86,25 @@ class InSourceFeature extends BaseRegexFeature {
 	 */
 	protected function getNonRegexFilterQuery( KeywordFeatureNode $node, QueryBuildingContext $context ) {
 		return Filters::insource( $this->escaper, $node->getQuotedValue() );
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function buildNonRegexHLFields( KeywordFeatureNode $node, QueryBuildingContext $buildingContext ) {
+		$query = Filters::insource( $this->escaper, $node->getQuotedValue() );
+		return $this->doGetNonRegexHLFields( $buildingContext->getHighlightFieldGenerator(), $query );
+	}
+
+	/**
+	 * @param HighlightFieldGenerator $generator
+	 * @param AbstractQuery $query
+	 * @return HighlightedField[]
+	 */
+	private function doGetNonRegexHLFields( HighlightFieldGenerator $generator, AbstractQuery $query ): array {
+		$field = $generator->newHighlightField( self::FIELD . '.plain',
+			HighlightedField::TARGET_MAIN_SNIPPET, HighlightedField::EXPERT_SYNTAX_PRIORITY );
+		$field->setHighlightQuery( $query );
+		return [ $field ];
 	}
 }

@@ -2,21 +2,16 @@
 
 namespace CirrusSearch\Maintenance;
 
+use CirrusSearch\BuildDocument\Completion\SuggestBuilder;
 use CirrusSearch\Connection;
 use CirrusSearch\DataSender;
 use CirrusSearch\ElasticaErrorHandler;
-use CirrusSearch\BuildDocument\Completion\DefaultSortSuggestionsBuilder;
-use CirrusSearch\BuildDocument\Completion\NaiveSubphrasesSuggestionsBuilder;
-use CirrusSearch\BuildDocument\Completion\SuggestBuilder;
-use CirrusSearch\BuildDocument\Completion\SuggestScoringMethodFactory;
-use CirrusSearch\BuildDocument\Completion\SuggestScoringMethod;
 use CirrusSearch\Maintenance\Validators\AnalyzersValidator;
 use CirrusSearch\MetaStore\MetaStoreIndex;
 use CirrusSearch\MetaStore\MetaVersionStore;
 use CirrusSearch\SearchConfig;
 use Elastica;
 use Elastica\Index;
-use Elastica\Multi\Search as MultiSearch;
 use Elastica\Query;
 use Elastica\Request;
 use Elastica\Status;
@@ -81,16 +76,6 @@ class UpdateSuggesterIndex extends Maintenance {
 	private $indexIdentifier;
 
 	/**
-	 * @var string the score method name to use.
-	 */
-	private $scoreMethodName;
-
-	/**
-	 * @var SuggestScoringMethod the score function to use.
-	 */
-	private $scoreMethod;
-
-	/**
 	 * @var Index old suggester index that will be deleted at the end of the process
 	 */
 	private $oldIndex;
@@ -106,12 +91,7 @@ class UpdateSuggesterIndex extends Maintenance {
 	private $optimizeIndex;
 
 	/**
-	 * @var string|int
-	 */
-	protected $maxShardsPerNode;
-
-	/**
-	 * @var array(String) list of available plugins
+	 * @var array list of available plugins
 	 */
 	private $availablePlugins;
 
@@ -183,18 +163,23 @@ class UpdateSuggesterIndex extends Maintenance {
 	public function execute() {
 		global $wgLanguageCode,
 			$wgCirrusSearchBannedPlugins,
-			$wgCirrusSearchMasterTimeout,
-			$wgCirrusSearchMaxShardsPerNode,
-			$wgCirrusSearchCompletionDefaultScore;
+			$wgCirrusSearchMasterTimeout;
 
 		$this->disablePoolCountersAndLogging();
 		$this->masterTimeout = $this->getOption( 'masterTimeout', $wgCirrusSearchMasterTimeout );
 		$this->indexTypeName = Connection::TITLE_SUGGEST_TYPE;
 
+		$useCompletion = $this->getSearchConfig()->get( 'CirrusSearchUseCompletionSuggester' );
+
+		if ( $useCompletion !== 'build' && $useCompletion !== 'yes' && $useCompletion !== true ) {
+			$this->fatalError( "Completion suggester disabled, quitting..." );
+		}
+
 		// Check that all shards and replicas settings are set
 		try {
 			$this->getShardCount();
 			$this->getReplicaCount();
+			$this->getMaxShardsPerNode();
 		} catch ( \Exception $e ) {
 			$this->fatalError(
 				"Failed to get shard count and replica count information: {$e->getMessage()}"
@@ -220,24 +205,6 @@ class UpdateSuggesterIndex extends Maintenance {
 
 		$this->utils->checkElasticsearchVersion();
 
-		$this->maxShardsPerNode = $wgCirrusSearchMaxShardsPerNode[$this->indexTypeName] ?? 'unlimited';
-
-		$this->scoreMethodName = $this->getOption(
-			'scoringMethod', $wgCirrusSearchCompletionDefaultScore
-		);
-		$this->scoreMethod = SuggestScoringMethodFactory::getScoringMethod( $this->scoreMethodName );
-
-		$extraBuilders = [];
-		if ( $this->getSearchConfig()->get( 'CirrusSearchCompletionSuggesterUseDefaultSort' ) ) {
-			$extraBuilders[] = new DefaultSortSuggestionsBuilder();
-		}
-		$subPhrasesConfig = $this->getSearchConfig()
-			->get( 'CirrusSearchCompletionSuggesterSubphrases' );
-		if ( $subPhrasesConfig['build'] ) {
-			$extraBuilders[] = NaiveSubphrasesSuggestionsBuilder::create( $subPhrasesConfig );
-		}
-		$this->builder = new SuggestBuilder( $this->scoreMethod, $extraBuilders );
-
 		try {
 			// If the version does not exist it's certainly because nothing has been indexed.
 			if ( !MetaStoreIndex::cirrusReady( $this->getConnection() ) ) {
@@ -250,6 +217,8 @@ class UpdateSuggesterIndex extends Maintenance {
 				$this->fatalError( 'Index/Cluster is frozen. Giving up.' );
 			}
 
+			$this->builder = SuggestBuilder::create( $this->getConnection(),
+				$this->getOption( 'scoringMethod' ), $this->indexBaseName );
 			# check for broken indices and delete them
 			$this->checkAndDeleteBrokenIndices();
 
@@ -375,10 +344,8 @@ class UpdateSuggesterIndex extends Maintenance {
 			return false;
 		}
 
-		list( $mMaj ) = explode( '.',
-			\CirrusSearch\Maintenance\SuggesterMappingConfigBuilder::VERSION );
-		list( $aMaj ) = explode( '.',
-			\CirrusSearch\Maintenance\SuggesterAnalysisConfigBuilder::VERSION );
+		$mMaj = explode( '.', SuggesterMappingConfigBuilder::VERSION, 2 )[0];
+		$aMaj = explode( '.', SuggesterAnalysisConfigBuilder::VERSION, 2 )[0];
 
 		try {
 			$store = new MetaVersionStore( $this->getConnection() );
@@ -549,11 +516,6 @@ class UpdateSuggesterIndex extends Maintenance {
 		// This does not support extra indices like FILES on commons.
 		$sourceIndexTypes = [ Connection::CONTENT_INDEX_TYPE, Connection::GENERAL_INDEX_TYPE ];
 
-		// Indices to use for counting max_docs used by scoring functions
-		// Since we work mostly on the content namespace it seems OK to count
-		// only docs in the CONTENT index.
-		$countIndices = [ Connection::CONTENT_INDEX_TYPE ];
-
 		$query = new Query();
 		$query->setSource( [
 			'includes' => $this->builder->getRequiredFields()
@@ -568,27 +530,6 @@ class UpdateSuggesterIndex extends Maintenance {
 
 		$query->setQuery( $bool );
 		$query->setSort( [ '_doc' ] );
-
-		// Run a first query to count the number of docs.
-		// This is needed for the scoring methods that need
-		// to normalize values against wiki size.
-		$mSearch = new MultiSearch( $this->getClient() );
-		foreach ( $countIndices as $sourceIndexType ) {
-			$search = new \Elastica\Search( $this->getClient() );
-			$search->addIndex(
-				$this->getConnection()->getIndex( $this->indexBaseName, $sourceIndexType )
-			);
-			$search->getQuery()->setSize( 0 );
-			$mSearch->addSearch( $search );
-		}
-
-		$mSearchRes = $mSearch->search();
-		$total = 0;
-		foreach ( $mSearchRes as $res ) {
-			$total += $res->getTotalHits();
-		}
-		$this->log( "Setting max_docs to $total\n" );
-		$this->scoreMethod->setMaxDocs( $total );
 
 		foreach ( $sourceIndexTypes as $sourceIndexType ) {
 			$sourceIndex = $this->getConnection()->getIndex( $this->indexBaseName, $sourceIndexType );
@@ -610,8 +551,7 @@ class UpdateSuggesterIndex extends Maintenance {
 						break;
 					}
 					$this->log( "Indexing $totalDocsToDump documents from $sourceIndexType with " .
-						"batchId: {$this->builder->getBatchId()} and scoring method: " .
-						"{$this->scoreMethodName}\n" );
+						"batchId: {$this->builder->getBatchId()}\n" );
 				}
 				$inputDocs = [];
 				foreach ( $results as $result ) {
@@ -689,9 +629,7 @@ class UpdateSuggesterIndex extends Maintenance {
 	 * @return AnalysisConfigBuilder
 	 */
 	private function pickAnalyzer( $langCode, array $availablePlugins = [] ) {
-		$analysisConfigBuilder = new \CirrusSearch\Maintenance\SuggesterAnalysisConfigBuilder(
-			$langCode, $availablePlugins
-		);
+		$analysisConfigBuilder = new SuggesterAnalysisConfigBuilder( $langCode, $availablePlugins );
 		$this->outputIndented( 'Picking analyzer...' .
 								$analysisConfigBuilder->getDefaultTextAnalyzerType( $langCode ) .
 								"\n" );
@@ -699,7 +637,6 @@ class UpdateSuggesterIndex extends Maintenance {
 	}
 
 	private function createIndex() {
-		$maxShardsPerNode = $this->maxShardsPerNode === 'unlimited' ? -1 : $this->maxShardsPerNode;
 		// This is "create only" for now.
 		if ( $this->getIndex()->exists() ) {
 			throw new \Exception( "Index already exists." );
@@ -717,7 +654,7 @@ class UpdateSuggesterIndex extends Maintenance {
 			'auto_expand_replicas' => "0-0",
 			'refresh_interval' => -1,
 			'analysis' => $this->analysisConfig,
-			'routing.allocation.total_shards_per_node' => $maxShardsPerNode,
+			'routing.allocation.total_shards_per_node' => $this->getMaxShardsPerNode(),
 		];
 
 		if ( $this->hasOption( 'allocationIncludeTag' ) ) {
@@ -794,6 +731,14 @@ class UpdateSuggesterIndex extends Maintenance {
 
 	private function getShardCount() {
 		return $this->getConnection()->getSettings()->getShardCount( $this->indexTypeName );
+	}
+
+	/**
+	 * @return int Maximum number of shards that can be allocated on a single elasticsearch
+	 *  node. -1 for unlimited.
+	 */
+	private function getMaxShardsPerNode() {
+		return $this->getConnection()->getSettings()->getMaxShardsPerNode( $this->indexTypeName );
 	}
 
 	private function updateVersions() {

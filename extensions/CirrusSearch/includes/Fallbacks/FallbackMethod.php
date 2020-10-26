@@ -2,7 +2,8 @@
 
 namespace CirrusSearch\Fallbacks;
 
-use CirrusSearch\Search\ResultSet;
+use CirrusSearch\InterwikiResolver;
+use CirrusSearch\Search\CirrusSearchResultSet;
 use CirrusSearch\Search\SearchQuery;
 
 /**
@@ -20,11 +21,12 @@ use CirrusSearch\Search\SearchQuery;
 interface FallbackMethod {
 
 	/**
-	 * @param SearcherFactory $searcherFactory
 	 * @param SearchQuery $query
-	 * @return FallbackMethod
+	 * @param array $params
+	 * @param InterwikiResolver $interwikiResolver
+	 * @return FallbackMethod|null the method instance or null if unavailable
 	 */
-	public static function build( SearcherFactory $searcherFactory, SearchQuery $query );
+	public static function build( SearchQuery $query, array $params, InterwikiResolver $interwikiResolver );
 
 	/**
 	 * Approximation of the success of this fallback method
@@ -39,19 +41,18 @@ interface FallbackMethod {
 	 * The order of application (call to the rewrite method) is the order of these scores.
 	 * If the score of multiple methods is equals the initialization order is kept.
 	 *
-	 * @param ResultSet $firstPassResults
+	 * @param FallbackRunnerContext $context
 	 * @return float
 	 */
-	public function successApproximation( ResultSet $firstPassResults );
+	public function successApproximation( FallbackRunnerContext $context );
 
 	/**
 	 * Rewrite the results,
 	 * A costly call is allowed here, if nothing is to be done $previousSet
 	 * must be returned.
 	 *
-	 * @param ResultSet $firstPassResults results of the initial query
-	 * @param ResultSet $previousSet results returned by previous fallback method
-	 * @return ResultSet
+	 * @param FallbackRunnerContext $context
+	 * @return CirrusSearchResultSet
 	 */
-	public function rewrite( ResultSet $firstPassResults, ResultSet $previousSet );
+	public function rewrite( FallbackRunnerContext $context ): CirrusSearchResultSet;
 }

@@ -24,6 +24,11 @@ use Wikimedia\Assert\Assert;
  */
 class QueryFixer implements Visitor {
 	/**
+	 * @var \SplObjectStorage
+	 */
+	private static $cache;
+
+	/**
 	 * @var ParsedQuery
 	 */
 	private $parsedQuery;
@@ -66,6 +71,25 @@ class QueryFixer implements Visitor {
 	}
 
 	/**
+	 * @param ParsedQuery $query
+	 * @return QueryFixer|object|null
+	 */
+	public static function build( ParsedQuery $query ) {
+		if ( self::$cache === null || count( self::$cache ) > 100 ) {
+			// Build the cache for the first time or drop it for a new empty one just in case this class
+			// is used from a maint script that treats/parses millions of queries
+			self::$cache = new \SplObjectStorage();
+		}
+
+		$fixer = self::$cache[$query] ?? null;
+		if ( $fixer === null ) {
+			$fixer = new self( $query );
+			self::$cache[$query] = $fixer;
+		}
+		return $fixer;
+	}
+
+	/**
 	 * Get the longest phrase that is subject to typo correction.
 	 * It's generally a set of consecutive words.
 	 *
@@ -95,10 +119,8 @@ class QueryFixer implements Visitor {
 		}
 
 		if ( $this->node instanceof KeywordFeatureNode ) {
-			/** @phan-suppress-next-line PhanUndeclaredMethod */
 			return $this->node->getValue();
 		} elseif ( $this->node instanceof WordsQueryNode ) {
-			/** @phan-suppress-next-line PhanUndeclaredMethod */
 			return $this->node->getWords();
 		} else {
 			Assert::invariant( false, "Unsupported node type " . get_class( $this->node ) );
@@ -125,19 +147,26 @@ class QueryFixer implements Visitor {
 		}
 		$res .= substr( $this->parsedQuery->getQuery(), 0, $this->node->getStartOffset() );
 		if ( $this->node instanceof KeywordFeatureNode ) {
-			/** @phan-suppress-next-line PhanUndeclaredMethod */
 			$res .= $this->node->getKey() . ':';
 		}
+
 		if ( $escapeBoundaries ) {
-			$res = htmlspecialchars( $res );
+			$safeRes = htmlspecialchars( $res );
+		} else {
+			$safeRes = $res;
 		}
-		$res .= $fixedQuery;
-		$suffix = substr( $this->parsedQuery->getQuery(), $this->node->getEndOffset() );
+		$safeRes .= $fixedQuery;
+
 		if ( $escapeBoundaries ) {
-			$suffix = htmlspecialchars( $suffix );
+			$suffix = htmlspecialchars(
+				substr( $this->parsedQuery->getQuery(), $this->node->getEndOffset() )
+			);
+		} else {
+			$suffix = substr( $this->parsedQuery->getQuery(), $this->node->getEndOffset() );
 		}
-		$res .= $suffix;
-		return $res;
+
+		$safeRes .= $suffix;
+		return $safeRes;
 	}
 
 	/**

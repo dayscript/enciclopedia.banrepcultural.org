@@ -5,6 +5,7 @@ namespace CirrusSearch\Query;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\Search\SearchContext;
 use CirrusSearch\Extra\Query\TokenCountRouter;
+use Elastica\Query\MatchAll;
 use MediaWiki\Logger\LoggerFactory;
 
 /**
@@ -156,6 +157,7 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 
 		if ( $this->queryStringQueryString === '' ) {
 			$searchContext->addSyntaxUsed( 'filter_only' );
+			$searchContext->setHighlightQuery( new MatchAll() );
 			return;
 		}
 
@@ -190,8 +192,6 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 			')';
 		if ( preg_match( "/$queryStringRegex/", $this->queryStringQueryString ) ) {
 			$searchContext->addSyntaxUsed( 'query_string' );
-			// We're unlikely to make good suggestions for query string with special syntax in them....
-			$showSuggestion = false;
 		}
 		$fields = array_merge(
 			self::buildFullTextSearchFields( $searchContext, 1, '.plain', true ),
@@ -199,6 +199,8 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 				$this->config->get( 'CirrusSearchStemmedWeight' ), '', true ) );
 		$nearMatchFields = self::buildFullTextSearchFields( $searchContext,
 			$this->config->get( 'CirrusSearchNearMatchWeight' ), '.near_match', true );
+		$nearMatchFields = array_merge( $nearMatchFields, self::buildFullTextSearchFields( $searchContext,
+			$this->config->get( 'CirrusSearchNearMatchWeight' ) * 0.75, '.near_match_asciifolding', true ) );
 		$searchContext->setMainQuery( $this->buildSearchTextQuery( $searchContext, $fields, $nearMatchFields,
 			$this->queryStringQueryString, $nearMatchQuery ) );
 
@@ -314,9 +316,6 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 	private function buildQueryString( array $fields, $queryString, $phraseSlop ) {
 		$query = new \Elastica\Query\QueryString( $queryString );
 		$query->setFields( $fields );
-		// TODO: This doesn't do anything in elastic 6.x. Leaving here to generate
-		// deprecation notices until we have a replacement plan.
-		$query->setAutoGeneratePhraseQueries( true );
 		$query->setPhraseSlop( $phraseSlop );
 		$query->setDefaultOperator( 'AND' );
 		$query->setAllowLeadingWildcard( (bool)$this->config->get( 'CirrusSearchAllowLeadingWildcard' ) );
@@ -404,6 +403,11 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 				// thus no suffix all.
 				return [ "all_near_match^${weight}" ];
 			}
+			if ( $fieldSuffix === '.near_match_asciifolding' ) {
+				// The near match fields can't shard a root field because field fields need it -
+				// thus no suffix all.
+				return [ "all_near_match.asciifolding^${weight}" ];
+			}
 			return [ "all${fieldSuffix}^${weight}" ];
 		}
 
@@ -411,7 +415,7 @@ class FullTextQueryStringQueryBuilder implements FullTextQueryBuilder {
 		// Only title and redirect support near_match so skip it for everything else
 		$titleWeight = $weight * $searchWeights[ 'title' ];
 		$redirectWeight = $weight * $searchWeights[ 'redirect' ];
-		if ( $fieldSuffix === '.near_match' ) {
+		if ( $fieldSuffix === '.near_match' || $fieldSuffix === '.near_match_asciifolding' ) {
 			$fields[] = "title${fieldSuffix}^${titleWeight}";
 			$fields[] = "redirect.title${fieldSuffix}^${redirectWeight}";
 			return $fields;

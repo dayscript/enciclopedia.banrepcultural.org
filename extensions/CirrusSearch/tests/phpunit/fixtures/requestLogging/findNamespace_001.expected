@@ -1,38 +1,31 @@
 [
     {
-        "channel": "CirrusSearchRequestSet",
+        "channel": "cirrussearch-request",
         "context": {
-            "backendUserTests": [],
-            "hits": [],
-            "ip": "127.0.0.1",
-            "payload": {
-                "acceptLang": "",
-                "hascookies": "0",
-                "queryString": "",
-                "referer": ""
+            "$schema": "/mediawiki/cirrussearch/request/0.0.1",
+            "all_elasticsearch_requests_cached": false,
+            "http": {
+                "client_ip": "127.0.0.1",
+                "has_cookies": false,
+                "method": "GET"
             },
-            "requests": [
+            "elasticsearch_requests": [
                 {
-                    "elasticTookMs": 2,
-                    "hits": [],
-                    "hitsOffset": 0,
-                    "hitsReturned": 1,
-                    "hitsTotal": 1,
+                    "cached": false,
+                    "hits_offset": 0,
+                    "hits_returned": 1,
+                    "hits_total": 1,
                     "indices": [
                         "mw_cirrus_metastore"
                     ],
-                    "limit": -1,
-                    "maxScore": 1.6931472,
-                    "namespaces": [],
-                    "payload": [],
+                    "max_score": 1.6931472000000001,
                     "query": "file",
-                    "queryType": "namespace",
-                    "suggestion": "",
-                    "suggestionRequested": false
+                    "query_type": "namespace",
+                    "search_time_ms": 2,
+                    "suggestion_requested": false
                 }
             ],
-            "source": "cli",
-            "userAgent": ""
+            "source": "cli"
         },
         "level": "debug",
         "message": ""

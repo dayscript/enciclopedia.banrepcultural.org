@@ -3,13 +3,16 @@
 namespace CirrusSearch\Job;
 
 use CirrusSearch\Connection;
+use CirrusSearch\Updater;
 
 /**
  * Job wrapper for deleting pages from archive.
  */
-class DeleteArchive extends Job {
+class DeleteArchive extends CirrusTitleJob {
 	public function __construct( $title, $params ) {
-		parent::__construct( $title, $params );
+		// While the delete is not itself private, it can only fail on clusters
+		// without private data as the index does not exist.
+		parent::__construct( $title, [ 'private_data' => true ] + $params );
 
 		// Don't remove dupes since we do checks that may return different results
 		// Also, deletes are idempotent so it's no problem if we delete twice.
@@ -33,7 +36,7 @@ class DeleteArchive extends Job {
 			return true;
 		}
 
-		$updater = $this->createUpdater();
+		$updater = Updater::build( $this->searchConfig, $this->params['cluster'] ?? null );
 		$updater->deletePages(
 			[ $this->title ],
 			array_keys( $docs ),

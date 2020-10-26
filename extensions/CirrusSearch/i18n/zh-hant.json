@@ -68,6 +68,7 @@
 	"cirrussearch-feature-deepcat-endpoint": "$wgCirrusSearchCategoryEndpoint 應被設定成有效的 SPARQL 端點以使用深層分類搜尋。",
 	"cirrussearch-feature-deepcat-exception": "深層分類搜尋 SPARQL 查詢失敗",
 	"cirrussearch-feature-deepcat-toomany": "深層分類查詢回傳太多的分類",
+	"cirrussearch-feature-deepcat-invalid-title": "提供的分類無效。",
 	"cirrussearch-incategory-feature-no-valid-categories": "沒有提供給「$1」可用分類。",
 	"cirrussearch-mlt-feature-no-valid-titles": "沒有提供給「$1」可用標題。",
 	"cirrussearch-mlt-not-configured": "「$1」功能未被設置，請向管理員請求修正 $wgCirrusSearchMoreLikeThisFields",
@@ -80,5 +81,6 @@
 	"cirrussearch-article-words": "所有內容頁面的字數",
 	"cirrussearch-keyword-prefix-ns-mismatch": "在搜尋項目 <code>prefix:</code> 找出的名稱空間與所請求的名稱空間不相容。您必須透過在您的查詢添加字首 <code>all:</code> 來修正。",
 	"cirrussearch-autoselect-profile": "讓搜尋引擎決定來使用最好的個人設置。",
-	"cirrussearch-offset-too-large": "結果無法取得。可支援截止至 $1 的結果，但請求為起始自 $2 的結果。"
+	"cirrussearch-offset-too-large": "結果無法取得。可支援截止至 $1 的結果，但請求為起始自 $2 的結果。",
+	"cirrussearch-offset-not-allowed-with-random-sort": "忽略對隨機排序結果分頁的請求"
 }

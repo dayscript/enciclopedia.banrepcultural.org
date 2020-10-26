@@ -6,6 +6,7 @@ use ApiBase;
 use ApiMain;
 use ApiOpenSearch;
 use CirrusSearch;
+use CirrusSearch\Job\JobTraits;
 use CirrusSearch\Profile\SearchProfileServiceFactory;
 use CirrusSearch\Search\FancyTitleResultsType;
 use Content;
@@ -15,11 +16,9 @@ use LinksUpdate;
 use OutputPage;
 use MediaWiki\MediaWikiServices;
 use Revision;
-use SearchResultSet;
+use ISearchResultSet;
 use SpecialSearch;
 use Title;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use RequestContext;
 use ApiUsageException;
 use User;
@@ -430,39 +429,17 @@ class Hooks {
 			'removedLinks' => self::prepareTitlesForLinksUpdate(
 				$linksUpdate->getRemovedLinks(), $wgCirrusSearchUnlinkedArticlesToUpdate ),
 		];
-		// Prioritize jobs that are triggered from a web process.  This should prioritize
-		// single page update jobs over those triggered by template changes or the saneitizer.
-		if ( PHP_SAPI != 'cli' ) {
+		// non recursive LinksUpdate can go to the non prioritized queue
+		if ( $linksUpdate->isRecursive() ) {
 			$params[ 'prioritize' ] = true;
+			$delay = $wgCirrusSearchUpdateDelay['prioritized'];
+		} else {
+			$delay = $wgCirrusSearchUpdateDelay['default'];
 		}
+		$params += JobTraits::buildJobDelayOptions( Job\LinksUpdate::class, $delay );
 		$job = new Job\LinksUpdate( $linksUpdate->getTitle(), $params );
-		$delay = $wgCirrusSearchUpdateDelay[ $job->isPrioritized() ? 'prioritized' : 'default' ];
-		$job->setDelay( $delay );
 
 		JobQueueGroup::singleton()->push( $job );
-	}
-
-	/**
-	 * Register Cirrus's unit tests.
-	 * @param array &$files containing tests
-	 */
-	public static function onUnitTestsList( &$files ) {
-		// This is pretty much exactly how the Translate extension declares its
-		// multiple test directories.  There really isn't any excuse for doing
-		// it any other way.
-		$dir = __DIR__ . '/../tests/phpunit';
-		$directoryIterator = new RecursiveDirectoryIterator( $dir );
-		$fileIterator = new RecursiveIteratorIterator( $directoryIterator );
-
-		/** @var \SplFileInfo $fileInfo */
-		foreach ( $fileIterator as $fileInfo ) {
-			if ( substr( $fileInfo->getFilename(), -8 ) === 'Test.php' ) {
-				$files[] = $fileInfo->getPathname();
-			}
-		}
-
-		// a bit of a hack...but pull in abstract classes that arn't in the autoloader
-		require_once $dir . '/Query/BaseSimpleKeywordFeatureTest.php';
 	}
 
 	/**
@@ -516,8 +493,6 @@ class Hooks {
 	 * @throws ApiUsageException
 	 */
 	public static function onSearchGetNearMatch( $term, &$titleResult ) {
-		global $wgContLang;
-
 		$title = Title::newFromText( $term );
 		if ( $title === null ) {
 			return false;
@@ -548,7 +523,8 @@ class Hooks {
 			return true;
 		}
 
-		$picker = new NearMatchPicker( $wgContLang, $term, $status->getValue() );
+		$contLang = MediaWikiServices::getInstance()->getContentLanguage();
+		$picker = new NearMatchPicker( $contLang, $term, $status->getValue() );
 		$best = $picker->pickBest();
 		if ( $best ) {
 			$titleResult = $best;
@@ -648,11 +624,9 @@ class Hooks {
 	 * @param array &$vars
 	 */
 	public static function onResourceLoaderGetConfigVars( &$vars ) {
-		global $wgCirrusSearchEnableSearchLogging,
-			$wgCirrusSearchFeedbackLink;
+		global $wgCirrusSearchFeedbackLink;
 
 		$vars += [
-			'wgCirrusSearchEnableSearchLogging' => $wgCirrusSearchEnableSearchLogging,
 			'wgCirrusSearchFeedbackLink' => $wgCirrusSearchFeedbackLink,
 		];
 	}
@@ -708,8 +682,8 @@ class Hooks {
 
 	/**
 	 * @param string $term
-	 * @param SearchResultSet|null $titleMatches
-	 * @param SearchResultSet|null $textMatches
+	 * @param ISearchResultSet|null $titleMatches
+	 * @param ISearchResultSet|null $textMatches
 	 */
 	public static function onSpecialSearchResults( $term, $titleMatches, $textMatches ) {
 		global $wgOut,
@@ -809,8 +783,12 @@ class Hooks {
 			function ( MediaWikiServices $serviceContainer ) {
 				$config = $serviceContainer->getConfigFactory()
 					->makeConfig( 'CirrusSearch' );
-				/** @phan-suppress-next-line PhanTypeMismatchArgument $config is actually a SearchConfig */
-				return new SearchProfileServiceFactory( $serviceContainer->getService( InterwikiResolver::SERVICE ), $config );
+				return new SearchProfileServiceFactory(
+					$serviceContainer->getService( InterwikiResolver::SERVICE ),
+					/** @phan-suppress-next-line PhanTypeMismatchArgument $config is actually a SearchConfig */
+					$config,
+					$serviceContainer->getLocalServerObjectCache()
+				);
 			}
 		);
 	}
@@ -889,7 +867,7 @@ class Hooks {
 		// Update newly created page. This may not have all the correct link data, etc.
 		// but that will be picked up later by the LinkUpdate job.
 		DeferredUpdates::addCallableUpdate( function () use ( $wikiPage ) {
-			$updater = new Updater( self::getConnection(), self::getConfig() );
+			$updater = Updater::build( self::getConfig(), null );
 			$updater->updatePages( [ $wikiPage ],
 				Updater::SKIP_LINKS | Updater::INDEX_ON_SKIP | Updater::INSTANT_INDEX );
 		} );

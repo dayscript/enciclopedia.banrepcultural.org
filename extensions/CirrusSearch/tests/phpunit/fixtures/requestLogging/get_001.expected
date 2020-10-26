@@ -1,46 +1,38 @@
 [
     {
-        "channel": "CirrusSearchRequestSet",
+        "channel": "cirrussearch-request",
         "context": {
-            "backendUserTests": [],
-            "hits": [],
-            "ip": "127.0.0.1",
-            "payload": {
-                "acceptLang": "",
-                "hascookies": "0",
-                "queryString": "",
-                "referer": ""
+            "$schema": "/mediawiki/cirrussearch/request/0.0.1",
+            "all_elasticsearch_requests_cached": false,
+            "http": {
+                "client_ip": "127.0.0.1",
+                "has_cookies": false,
+                "method": "GET"
             },
-            "requests": [
+            "elasticsearch_requests": [
                 {
-                    "elasticTookMs": 2,
+                    "cached": false,
                     "hits": [
                         {
                             "index": "wiki_content_first",
-                            "pageId": 26,
-                            "profileName": "",
-                            "score": 1,
-                            "title": "10.1093\/acprof:oso\/9780195314250.003.0001"
+                            "page_id": 26,
+                            "page_title": "10.1093\/acprof:oso\/9780195314250.003.0001",
+                            "score": 1
                         }
                     ],
-                    "hitsOffset": 0,
-                    "hitsReturned": 1,
-                    "hitsTotal": 1,
+                    "hits_offset": 0,
+                    "hits_returned": 1,
+                    "hits_total": 1,
                     "indices": [
                         "wiki"
                     ],
-                    "limit": -1,
-                    "maxScore": 1,
-                    "namespaces": [],
-                    "payload": [],
-                    "query": "",
-                    "queryType": "get",
-                    "suggestion": "",
-                    "suggestionRequested": false
+                    "max_score": 1,
+                    "query_type": "get",
+                    "search_time_ms": 2,
+                    "suggestion_requested": false
                 }
             ],
-            "source": "cli",
-            "userAgent": ""
+            "source": "cli"
         },
         "level": "debug",
         "message": ""

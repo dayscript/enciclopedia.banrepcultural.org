@@ -44,6 +44,7 @@ class LoadMonitorMySQL extends LoadMonitor {
 
 	protected function getWeightScale( $index, IDatabase $conn = null ) {
 		if ( !$conn ) {
+			// @phan-suppress-next-line PhanTypeMismatchArgumentReal
 			return parent::getWeightScale( $index, $conn );
 		}
 
@@ -52,7 +53,7 @@ class LoadMonitorMySQL extends LoadMonitor {
 			$res = $conn->query( 'SHOW STATUS', __METHOD__ );
 			$s = $res ? $conn->fetchObject( $res ) : false;
 			if ( $s === false ) {
-				$host = $this->parent->getServerName( $index );
+				$host = $this->lb->getServerName( $index );
 				$this->replLogger->error( __METHOD__ . ": could not get status for $host" );
 			} else {
 				// https://dev.mysql.com/doc/refman/5.7/en/server-status-variables.html

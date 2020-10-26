@@ -36,6 +36,12 @@ use MediaWiki\MediaWikiServices;
  * @ingroup Maintenance
  */
 class RecountCategories extends Maintenance {
+	/** @var string */
+	private $mode;
+
+	/** @var int */
+	private $minimumId;
+
 	public function __construct() {
 		parent::__construct();
 		$this->addDescription( <<<'TEXT'
@@ -98,7 +104,7 @@ TEXT
 
 	protected function doWork() {
 		$this->output( "Finding up to {$this->getBatchSize()} drifted rows " .
-			"starting at cat_id {$this->getBatchSize()}...\n" );
+			"greater than cat_id {$this->minimumId}...\n" );
 
 		$countingConds = [ 'cl_to = cat_title' ];
 		if ( $this->mode === 'subcats' ) {

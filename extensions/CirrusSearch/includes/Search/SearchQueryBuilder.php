@@ -6,6 +6,7 @@ use CirrusSearch\CirrusDebugOptions;
 use CirrusSearch\CrossSearchStrategy;
 use CirrusSearch\HashSearchConfig;
 use CirrusSearch\Parser\AST\ParsedQuery;
+use CirrusSearch\Parser\NamespacePrefixParser;
 use CirrusSearch\Parser\QueryParserFactory;
 use CirrusSearch\Query\Builder\ContextualFilter;
 use CirrusSearch\SearchConfig;
@@ -92,6 +93,12 @@ final class SearchQueryBuilder {
 	private $allowRewrite = false;
 
 	/**
+	 * @var string[] parameters for the SearchProfileService
+	 * @see \CirrusSearch\Profile\ContextualProfileOverride
+	 */
+	private $profileContextParameters = [];
+
+	/**
 	 * Construct a new FT (FullText) SearchQueryBuilder using the config
 	 * and query string provided.
 	 *
@@ -100,11 +107,16 @@ final class SearchQueryBuilder {
 	 *
 	 * @param SearchConfig $config
 	 * @param string $queryString
+	 * @param NamespacePrefixParser|null $namespacePrefixParser
 	 * @return SearchQueryBuilder
 	 */
-	public static function newFTSearchQueryBuilder( SearchConfig $config, $queryString ): SearchQueryBuilder {
+	public static function newFTSearchQueryBuilder(
+		SearchConfig $config,
+		$queryString,
+		NamespacePrefixParser $namespacePrefixParser
+	): SearchQueryBuilder {
 		$builder = new self();
-		$builder->parsedQuery = QueryParserFactory::newFullTextQueryParser( $config )->parse( $queryString );
+		$builder->parsedQuery = QueryParserFactory::newFullTextQueryParser( $config, $namespacePrefixParser )->parse( $queryString );
 		$builder->initialNamespaces = [ NS_MAIN ];
 		$builder->sort = \SearchEngine::DEFAULT_SORT;
 		$builder->debugOptions = CirrusDebugOptions::defaultOptions();
@@ -165,6 +177,7 @@ final class SearchQueryBuilder {
 		$builder->sort = $original->getSort();
 		$builder->debugOptions = $original->getDebugOptions();
 		$builder->searchConfig = $config;
+		$builder->profileContextParameters = $original->getProfileContextParameters();
 
 		$forcedProfiles = [];
 
@@ -206,15 +219,20 @@ final class SearchQueryBuilder {
 	/**
 	 * @param SearchQuery $original
 	 * @param string $term
+	 * @param NamespacePrefixParser $namespacePrefixParser
 	 * @return SearchQueryBuilder
 	 */
-	public static function forRewrittenQuery( SearchQuery $original, $term ): SearchQueryBuilder {
+	public static function forRewrittenQuery(
+		SearchQuery $original,
+		$term,
+		NamespacePrefixParser $namespacePrefixParser
+	): SearchQueryBuilder {
 		Assert::precondition( $original->isAllowRewrite(), 'The original query must allow rewrites' );
 		// Hack to prevent a second pass on this cleaning algo because its destructive
 		$config = new HashSearchConfig( [ 'CirrusSearchStripQuestionMarks' => 'no' ],
-			[ 'inherit' ], $original->getSearchConfig() );
+			[ HashSearchConfig::FLAG_INHERIT ], $original->getSearchConfig() );
 
-		$builder = self::newFTSearchQueryBuilder( $config, $term );
+		$builder = self::newFTSearchQueryBuilder( $config, $term, $namespacePrefixParser );
 		$builder->contextualFilters = $original->getContextualFilters();
 		$builder->forcedProfiles = $original->getForcedProfiles();
 		$builder->initialNamespaces = $original->getInitialNamespaces();
@@ -251,7 +269,8 @@ final class SearchQueryBuilder {
 			$this->debugOptions ?? CirrusDebugOptions::defaultOptions(),
 			$this->searchConfig,
 			$this->withDYMSuggestion,
-			$this->allowRewrite
+			$this->allowRewrite,
+			$this->profileContextParameters
 		);
 	}
 
@@ -384,6 +403,17 @@ final class SearchQueryBuilder {
 	public function setAllowRewrite( $allowRewrite ): SearchQueryBuilder {
 		$this->allowRewrite = $allowRewrite;
 
+		return $this;
+	}
+
+	/**
+	 * @param string $key
+	 * @param string $value
+	 * @return SearchQueryBuilder
+	 * @see \CirrusSearch\Profile\ContextualProfileOverride
+	 */
+	public function addProfileContextParameter( $key, $value ): SearchQueryBuilder {
+		$this->profileContextParameters[$key] = $value;
 		return $this;
 	}
 }

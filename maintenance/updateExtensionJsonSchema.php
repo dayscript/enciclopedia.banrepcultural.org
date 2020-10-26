@@ -18,7 +18,7 @@ class UpdateExtensionJsonSchema extends Maintenance {
 		}
 
 		$json = FormatJson::decode( file_get_contents( $filename ), true );
-		if ( $json === null ) {
+		if ( !is_array( $json ) ) {
 			$this->fatalError( "Error: Invalid JSON" );
 		}
 
@@ -34,6 +34,7 @@ class UpdateExtensionJsonSchema extends Maintenance {
 		while ( $json['manifest_version'] !== ExtensionRegistry::MANIFEST_VERSION ) {
 			$json['manifest_version'] += 1;
 			$func = "updateTo{$json['manifest_version']}";
+			// @phan-suppress-next-line PhanUndeclaredMethod
 			$this->$func( $json );
 		}
 
@@ -57,7 +58,7 @@ class UpdateExtensionJsonSchema extends Maintenance {
 					$json['config'][$name] = [ 'value' => $value ];
 					if ( isset( $value[ExtensionRegistry::MERGE_STRATEGY] ) ) {
 						$json['config'][$name]['merge_strategy'] = $value[ExtensionRegistry::MERGE_STRATEGY];
-						unset( $value[ExtensionRegistry::MERGE_STRATEGY] );
+						unset( $json['config'][$name]['value'][ExtensionRegistry::MERGE_STRATEGY] );
 					}
 					if ( isset( $config["@$name"] ) ) {
 						// Put 'description' first for better human-legibility.

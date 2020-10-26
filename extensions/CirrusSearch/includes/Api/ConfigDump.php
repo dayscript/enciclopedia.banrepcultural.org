@@ -69,8 +69,6 @@ class ConfigDump extends \ApiBase {
 		'CirrusSearchInterwikiSources',
 		'CirrusSearchRefreshInterval',
 		'CirrusSearchFragmentSize',
-		'CirrusSearchMainPageCacheWarmer',
-		'CirrusSearchCacheWarmers',
 		'CirrusSearchIndexAllocation',
 		'CirrusSearchFullTextQueryBuilderProfile',
 		'CirrusSearchRescoreProfile',
@@ -124,7 +122,6 @@ class ConfigDump extends \ApiBase {
 		'CirrusSearchNewCrossProjectPage',
 		'CirrusSearchQueryStringMaxDeterminizedStates',
 		'CirrusSearchElasticQuirks',
-		'CirrusSearchPhraseSuggestSettings',
 		'CirrusSearchPhraseSuggestMaxErrors',
 		'CirrusSearchPhraseSuggestReverseField',
 		'CirrusSearchBoostTemplates',
@@ -139,6 +136,8 @@ class ConfigDump extends \ApiBase {
 		'CirrusSearchCategoryDepth',
 		'CirrusSearchCategoryMax',
 		'CirrusSearchCategoryEndpoint',
+		'CirrusSearchFallbackProfile',
+		'CirrusSearchFallbackProfiles',
 	];
 
 	public function execute() {

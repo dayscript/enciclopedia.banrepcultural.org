@@ -2249,7 +2249,12 @@
                                     "value": "[a-z]",
                                     "quotedValue": "\/[a-z]\/",
                                     "delimiter": "\/",
-                                    "suffix": ""
+                                    "suffix": "",
+                                    "parsedValue": {
+                                        "type": "regex",
+                                        "pattern": "[a-z]",
+                                        "insensitive": false
+                                    }
                                 }
                             },
                             "explicit": false
@@ -2264,7 +2269,12 @@
                                     "value": "<\/a>[^ ]",
                                     "quotedValue": "\/<\\\/a>[^ ]\/",
                                     "delimiter": "\/",
-                                    "suffix": "i"
+                                    "suffix": "i",
+                                    "parsedValue": {
+                                        "type": "regex",
+                                        "pattern": "<\\\/a>[^ ]",
+                                        "insensitive": true
+                                    }
                                 }
                             },
                             "explicit": false
@@ -2652,7 +2662,12 @@
                                     "value": "201[0-9]",
                                     "quotedValue": "\/201[0-9]\/",
                                     "delimiter": "\/",
-                                    "suffix": "i"
+                                    "suffix": "i",
+                                    "parsedValue": {
+                                        "type": "regex",
+                                        "pattern": "201[0-9]",
+                                        "insensitive": true
+                                    }
                                 }
                             },
                             "explicit": false
@@ -2860,7 +2875,9 @@
                                     "delimiter": "",
                                     "suffix": "",
                                     "parsedValue": {
-                                        "value": "Template:Hello"
+                                        "templates": [
+                                            "Template:Hello"
+                                        ]
                                     }
                                 }
                             },
@@ -2872,10 +2889,10 @@
         }
     },
     "keyword: hastemplate": {
-        "query": "hastemplate::foo hastemplate:test hastemplate:Help:Test",
+        "query": "hastemplate::foo hastemplate:test hastemplate:Help:Test hastemplate:\":test|test|Help:Test\"",
         "expected": {
-            "query": "hastemplate::foo hastemplate:test hastemplate:Help:Test",
-            "rawQuery": "hastemplate::foo hastemplate:test hastemplate:Help:Test",
+            "query": "hastemplate::foo hastemplate:test hastemplate:Help:Test hastemplate:\":test|test|Help:Test\"",
+            "rawQuery": "hastemplate::foo hastemplate:test hastemplate:Help:Test hastemplate:\":test|test|Help:Test\"",
             "queryClassCache": [
                 "complex_query"
             ],
@@ -2885,7 +2902,7 @@
             "root": {
                 "bool": {
                     "startOffset": 0,
-                    "endOffset": 55,
+                    "endOffset": 90,
                     "clauses": [
                         {
                             "MUST": {
@@ -2899,7 +2916,9 @@
                                     "delimiter": "",
                                     "suffix": "",
                                     "parsedValue": {
-                                        "value": "foo"
+                                        "templates": [
+                                            "foo"
+                                        ]
                                     }
                                 }
                             },
@@ -2917,7 +2936,9 @@
                                     "delimiter": "",
                                     "suffix": "",
                                     "parsedValue": {
-                                        "value": "Template:Test"
+                                        "templates": [
+                                            "Template:Test"
+                                        ]
                                     }
                                 }
                             },
@@ -2935,7 +2956,31 @@
                                     "delimiter": "",
                                     "suffix": "",
                                     "parsedValue": {
-                                        "value": "Help:Test"
+                                        "templates": [
+                                            "Help:Test"
+                                        ]
+                                    }
+                                }
+                            },
+                            "explicit": false
+                        },
+                        {
+                            "MUST": {
+                                "keyword": {
+                                    "startOffset": 56,
+                                    "endOffset": 90,
+                                    "keyword": "CirrusSearch\\Query\\HasTemplateFeature",
+                                    "key": "hastemplate",
+                                    "value": ":test|test|Help:Test",
+                                    "quotedValue": "\":test|test|Help:Test\"",
+                                    "delimiter": "\"",
+                                    "suffix": "",
+                                    "parsedValue": {
+                                        "templates": [
+                                            "test",
+                                            "Template:Test",
+                                            "Help:Test"
+                                        ]
                                     }
                                 }
                             },
@@ -3003,7 +3048,12 @@
                                     "value": "201[0-0]",
                                     "quotedValue": "\/201[0-0]\/",
                                     "delimiter": "\/",
-                                    "suffix": "i"
+                                    "suffix": "i",
+                                    "parsedValue": {
+                                        "type": "regex",
+                                        "pattern": "201[0-0]",
+                                        "insensitive": true
+                                    }
                                 }
                             },
                             "explicit": false

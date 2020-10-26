@@ -1,0 +1,104 @@
+{
+	"name": "Banrepcultural",
+	"author": [
+		"[https://mediawiki.org/wiki/User:Sophivorus Sophivorus]"
+	],
+	"descriptionmsg": "banrepcultural-desc",
+	"namemsg": "skinname-banrepcultural",
+	"license-name": "GPL-3.0",
+	"type": "skin",
+	"requires": {
+		"MediaWiki": ">= 1.29.0"
+	},
+	"ConfigRegistry": {
+		"banrepcultural": "GlobalVarConfig::newInstance"
+	},
+	"ValidSkinNames": {
+		"banrepcultural": "Banrepcultural"
+	},
+	"MessagesDirs": {
+		"Banrepcultural": [
+			"i18n"
+		]
+	},
+	"AutoloadClasses": {
+		"Banrepcultural\\Hooks": "includes/Hooks.php",
+		"SkinBanrepcultural": "includes/SkinBanrepcultural.php",
+		"BanrepculturalTemplate": "includes/BanrepculturalTemplate.php",
+		"Banrepcultural\\ResourceLoaderLessModule": "includes/ResourceLoaderLessModule.php"
+	},
+	"Hooks": {
+		"BeforePageDisplayMobile": [
+			"Banrepcultural\\Hooks::onBeforePageDisplayMobile"
+		]
+	},
+	"@note": "When modifying skins.banrepcultural.styles definition, make sure the installer still works",
+	"ResourceModules": {
+		"skins.banrepcultural.styles": {
+			"class": "Banrepcultural\\ResourceLoaderLessModule",
+			"targets": [ "desktop", "mobile" ],
+			"styles": {
+				"screen.less": {
+					"media": "screen"
+				},
+				"screen-hd.less": {
+					"media": "screen and ( min-width: 982px )"
+				},
+				"print.less": {}
+			}
+		},
+
+		"skins.banrepcultural.styles.responsive": {
+			"targets": [ "desktop", "mobile" ],
+			"styles": [
+				"responsive.less"
+			]
+		},
+		"skins.banrepcultural.js": {
+			"scripts": [
+				"collapsibleTabs.js",
+				"banrepcultural.js"
+			],
+			"dependencies": [
+				"jquery.throttle-debounce",
+				"jquery.tabIndex"
+			]
+		}
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteSkinPath": "Banrepcultural"
+	},
+	"ResourceModuleSkinStyles": {
+		"banrepcultural": {
+			"jquery.tipsy": "skinStyles/jquery.tipsy.less",
+			"jquery.ui.core": [
+				"skinStyles/jquery.ui/jquery.ui.core.css",
+				"skinStyles/jquery.ui/jquery.ui.theme.css"
+			],
+			"jquery.ui.accordion": "skinStyles/jquery.ui/jquery.ui.accordion.css",
+			"jquery.ui.autocomplete": "skinStyles/jquery.ui/jquery.ui.autocomplete.css",
+			"jquery.ui.button": "skinStyles/jquery.ui/jquery.ui.button.css",
+			"jquery.ui.datepicker": "skinStyles/jquery.ui/jquery.ui.datepicker.css",
+			"jquery.ui.dialog": "skinStyles/jquery.ui/jquery.ui.dialog.css",
+			"jquery.ui.menu": "skinStyles/jquery.ui/jquery.ui.menu.css",
+			"jquery.ui.progressbar": "skinStyles/jquery.ui/jquery.ui.progressbar.css",
+			"jquery.ui.resizable": "skinStyles/jquery.ui/jquery.ui.resizable.css",
+			"jquery.ui.selectable": "skinStyles/jquery.ui/jquery.ui.selectable.css",
+			"jquery.ui.slider": "skinStyles/jquery.ui/jquery.ui.slider.css",
+			"jquery.ui.tabs": "skinStyles/jquery.ui/jquery.ui.tabs.css",
+			"jquery.ui.tooltips": "skinStyles/jquery.ui/jquery.ui.tooltips.css",
+			"+mediawiki.action.view.redirectPage": "skinStyles/mediawiki.action.view.redirectPage.less",
+			"+mediawiki.notification": "skinStyles/mediawiki.notification.less",
+			"+oojs-ui-core.styles": "skinStyles/ooui.less",
+			"mediawiki.special": "skinStyles/mediawiki.special.less"
+		}
+	},
+	"config": {
+		"BanrepculturalUseSimpleSearch": true,
+		"BanrepculturalUseIconWatch": true,
+		"BanrepculturalResponsive": false,
+		"BanrepculturalPrintLogo": false
+	},
+	"manifest_version": 1
+}

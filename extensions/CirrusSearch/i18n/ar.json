@@ -67,6 +67,7 @@
 	"cirrussearch-feature-deepcat-endpoint": "$wgCirrusSearchCategoryEndpoint ينبغي أن تكون مضبوطة لنقطة نهايةSPARQ صحيحة لاستخدام بحث التصنيفات العميق.",
 	"cirrussearch-feature-deepcat-exception": "استعلام بحث التصنيفات العميق لSPARQL فشل",
 	"cirrussearch-feature-deepcat-toomany": "استعلام التصنيف العميق أرجع تصنيفات كثيرة جدا",
+	"cirrussearch-feature-deepcat-invalid-title": "التصنيف المقدم غير صالح.",
 	"cirrussearch-incategory-feature-no-valid-categories": "لا تصنيفات صحيحة تم توفيرها ل'$1'.",
 	"cirrussearch-mlt-feature-no-valid-titles": "لا عناوين صحيحة تم توفيرها ل'$1'.",
 	"cirrussearch-mlt-not-configured": "الخاصية '$1' مضبوطة بشكل غير صحيح. سل إداريا أن يصلح $wgCirrusSearchMoreLikeThisFields",
@@ -79,5 +80,6 @@
 	"cirrussearch-article-words": "الكلمات في كل صفحات المحتوى",
 	"cirrussearch-keyword-prefix-ns-mismatch": "النطاق الموجود في مصطلح البحث <code>prefix:</code> غير متوافق مع النطاقات المطلوبيمكنك إصلاحه عن طريق بدء استعلامك بـ<code>all:</code>.",
 	"cirrussearch-autoselect-profile": "دع محرك البحث يقرر أفضل ملف شخصي لاستخدامه.",
-	"cirrussearch-offset-too-large": "لا يمكن استرجاع النتائج، يتم دعم ما يصل إلى $1 نتائج بحث، ولكن تم طلب النتائج بدءا من $2."
+	"cirrussearch-offset-too-large": "لا يمكن استرجاع النتائج، يتم دعم ما يصل إلى $1 نتائج بحث، ولكن تم طلب النتائج بدءا من $2.",
+	"cirrussearch-offset-not-allowed-with-random-sort": "تجاهل طلب نتائج ترقيم الصفحات بالفرز العشوائي."
 }

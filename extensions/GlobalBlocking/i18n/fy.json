@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Snakesteuben",
+			"Robin0van0der0vliet",
+			"Robin van der Vliet"
+		]
+	},
+	"globalblocking-block-reason": "Reden:",
+	"globalblocking-block-expiry-selector-other": "In oare tiid:",
+	"globalblocking-unblock-reason": "Reden:",
+	"globalblocking-whitelist-reason": "Reden:"
+}

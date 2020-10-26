@@ -1,0 +1,131 @@
+{
+	"name": "GlobalBlocking",
+	"author": "Andrew Garrett",
+	"url": "https://www.mediawiki.org/wiki/Extension:GlobalBlocking",
+	"descriptionmsg": "globalblocking-desc",
+	"license-name": "GPL-2.0-or-later",
+	"type": "other",
+	"callback": "GlobalBlockingHooks::onRegistration",
+	"requires": {
+		"MediaWiki": ">= 1.34.0"
+	},
+	"GroupPermissions": {
+		"steward": {
+			"globalblock": true
+		},
+		"sysop": {
+			"globalblock-whitelist": true
+		}
+	},
+	"GrantPermissions": {
+		"basic": {
+			"globalblock-exempt": true
+		},
+		"globalblock": {
+			"globalblock": true
+		}
+	},
+	"GrantPermissionGroups": {
+		"globalblock": "administration"
+	},
+	"AvailableRights": [
+		"globalblock",
+		"globalblock-whitelist",
+		"globalblock-exempt"
+	],
+	"SpecialPages": {
+		"GlobalBlock": "SpecialGlobalBlock",
+		"GlobalBlockList": "SpecialGlobalBlockList",
+		"GlobalBlockStatus": "SpecialGlobalBlockStatus",
+		"RemoveGlobalBlock": "SpecialRemoveGlobalBlock"
+	},
+	"LogTypes": [
+		"gblblock"
+	],
+	"ActionFilteredLogs": {
+		"gblblock": {
+			"gblock": [
+				"gblock",
+				"gblock2"
+			],
+			"gunblock": [
+				"gunblock"
+			],
+			"modify": [
+				"modify"
+			],
+			"whitelist": [
+				"whitelist"
+			],
+			"dwhitelist": [
+				"dwhitelist"
+			]
+		}
+	},
+	"LogNames": {
+		"gblblock": "globalblocking-logpage"
+	},
+	"LogHeaders": {
+		"gblblock": "globalblocking-logpagetext"
+	},
+	"LogActionsHandlers": {
+		"gblblock/whitelist": "GlobalBlockWhitelistLogFormatter",
+		"gblblock/dwhitelist": "GlobalBlockWhitelistLogFormatter"
+	},
+	"LogActions": {
+		"gblblock/gblock": "globalblocking-block-logentry",
+		"gblblock/gblock2": "globalblocking-block2-logentry",
+		"gblblock/gunblock": "globalblocking-unblock-logentry",
+		"gblblock/modify": "globalblocking-modify-logentry"
+	},
+	"APIModules": {
+		"globalblock": "ApiGlobalBlock"
+	},
+	"APIListModules": {
+		"globalblocks": "ApiQueryGlobalBlocks"
+	},
+	"MessagesDirs": {
+		"GlobalBlocking": [
+			"i18n",
+			"i18n/api"
+		]
+	},
+	"ExtensionMessagesFiles": {
+		"GlobalBlockingAlias": "GlobalBlocking.alias.php"
+	},
+	"AutoloadClasses": {
+		"SpecialGlobalBlock": "includes/specials/SpecialGlobalBlock.php",
+		"SpecialGlobalBlockList": "includes/specials/SpecialGlobalBlockList.php",
+		"GlobalBlockListPager": "includes/specials/GlobalBlockListPager.php",
+		"SpecialGlobalBlockStatus": "includes/specials/SpecialGlobalBlockStatus.php",
+		"SpecialRemoveGlobalBlock": "includes/specials/SpecialRemoveGlobalBlock.php",
+		"ApiQueryGlobalBlocks": "includes/api/ApiQueryGlobalBlocks.php",
+		"ApiGlobalBlock": "includes/api/ApiGlobalBlock.php",
+		"GlobalBlock": "includes/GlobalBlock.php",
+		"GlobalBlocking": "includes/GlobalBlocking.php",
+		"GlobalBlockingHooks": "includes/GlobalBlockingHooks.php",
+		"GlobalBlockWhitelistLogFormatter": "includes/GlobalBlockWhitelistLogFormatter.php"
+	},
+	"Hooks": {
+		"getUserPermissionsErrorsExpensive": "GlobalBlockingHooks::onGetUserPermissionsErrorsExpensive",
+		"UserIsBlockedGlobally": "GlobalBlockingHooks::onUserIsBlockedGlobally",
+		"SpecialPasswordResetOnSubmit": "GlobalBlockingHooks::onSpecialPasswordResetOnSubmit",
+		"OtherBlockLogLink": "GlobalBlockingHooks::onOtherBlockLogLink",
+		"SpecialContributionsBeforeMainOutput": "GlobalBlockingHooks::onSpecialContributionsBeforeMainOutput",
+		"UserMergeAccountFields": "GlobalBlockingHooks::onUserMergeAccountFields",
+		"LoadExtensionSchemaUpdates": "GlobalBlockingHooks::onLoadExtensionSchemaUpdates",
+		"GetLogTypesOnUser": "GlobalBlockingHooks::onGetLogTypesOnUser"
+	},
+	"config": {
+		"GlobalBlockingDatabase": {
+			"value": "globalblocking"
+		},
+		"ApplyGlobalBlocks": {
+			"value": true
+		},
+		"GlobalBlockingBlockXFF": {
+			"value": true
+		}
+	},
+	"manifest_version": 2
+}

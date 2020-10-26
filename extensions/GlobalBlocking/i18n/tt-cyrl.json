@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ильнар"
+		]
+	},
+	"globalblocking-list": "Гомум чикләнгән IP-юлламалар исемлеге",
+	"globalblocking-search-legend": "Гомум чикләүне эзләү",
+	"globalblocking-search-ip": "IP юлламасы:",
+	"globalblocking-search-submit": "Чикләүләрне эзләү",
+	"globalblocking-whitelist": "Гомум чикләүләрнең җирле халәте",
+	"globalblocking-whitelist-notapplied": "Әлеге викида гомум чикләүләр кулланылмый,\nшуңа күрә гомум чикләүләрнең җирле халәтләрен үзгәртү мөмкин түгел.",
+	"globalblocking-whitelist-legend": "Җирле халәтне үзгәртү",
+	"globalblocking-whitelist-reason": "Сәбәп:",
+	"globalblocking-whitelist-status": "Җирле халәт:",
+	"globalblocking-whitelist-statuslabel": "Әлеге гомум чикләүне {{grammar:genitive|{{SITENAME}}}} проектында сүндерү",
+	"globalblocking-whitelist-submit": "Җирле халәтне үзгәртү",
+	"globalblocking-whitelist-whitelisted": "Сез {{SITENAME}} проектында '''$1''' IP адресының №$2 гомуми тыелудан азат иттегез.",
+	"globalblocking-whitelist-dewhitelisted": "Сез {{SITENAME}} проектында '''$1''' IP адресының №$2 гомуми тыелуын кабат кайтардыгыз."
+}

@@ -13,6 +13,10 @@ class ConstantAssignment implements ClusterAssignment {
 		$this->servers = $servers;
 	}
 
+	public function uniqueId( $cluster ) {
+		return 'default';
+	}
+
 	/**
 	 * @param string|null $cluster
 	 * @return string[]|array[]
@@ -27,6 +31,10 @@ class ConstantAssignment implements ClusterAssignment {
 
 	public function getWritableClusters(): array {
 		return [ 'default' ];
+	}
+
+	public function canWriteToCluster( $clusterName ) {
+		return true;
 	}
 
 	public function getCrossClusterName() {

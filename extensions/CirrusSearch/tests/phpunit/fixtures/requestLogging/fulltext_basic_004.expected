@@ -1,40 +1,35 @@
 [
     {
-        "channel": "CirrusSearchRequestSet",
+        "channel": "cirrussearch-request",
         "context": {
-            "backendUserTests": [],
-            "hits": [],
-            "ip": "127.0.0.1",
-            "payload": {
-                "acceptLang": "",
-                "hascookies": "0",
-                "queryString": "",
-                "referer": ""
+            "$schema": "/mediawiki/cirrussearch/request/0.0.1",
+            "all_elasticsearch_requests_cached": false,
+            "http": {
+                "client_ip": "127.0.0.1",
+                "has_cookies": false,
+                "method": "GET"
             },
-            "requests": [
+            "elasticsearch_requests": [
                 {
-                    "elasticTookMs": 34,
-                    "hits": [],
-                    "hitsOffset": 0,
-                    "hitsReturned": 0,
-                    "hitsTotal": 0,
+                    "cached": false,
+                    "hits_offset": 0,
+                    "hits_returned": 0,
+                    "hits_total": 0,
                     "indices": [
                         "wiki"
                     ],
                     "limit": 21,
-                    "maxScore": -1,
-                    "namespaces": [],
-                    "payload": {
-                        "syntax": "full_text,full_text_querystring"
-                    },
                     "query": "does not exist or at least i hope not",
-                    "queryType": "full_text",
-                    "suggestion": "",
-                    "suggestionRequested": true
+                    "query_type": "full_text",
+                    "search_time_ms": 34,
+                    "suggestion_requested": true,
+                    "syntax": [
+                        "full_text",
+                        "full_text_querystring"
+                    ]
                 }
             ],
-            "source": "cli",
-            "userAgent": ""
+            "source": "cli"
         },
         "level": "debug",
         "message": ""

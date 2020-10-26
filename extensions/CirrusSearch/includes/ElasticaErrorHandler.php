@@ -4,6 +4,7 @@ namespace CirrusSearch;
 
 use Elastica\Exception\PartialShardFailureException;
 use Elastica\Exception\ResponseException;
+use MediaWiki\Logger\LoggerFactory;
 use Status;
 
 /**
@@ -11,6 +12,15 @@ use Status;
  * from Elastica.
  */
 class ElasticaErrorHandler {
+
+	public static function logRequestResponse( Connection $conn, $message, array $context = [] ) {
+		$client = $conn->getClient();
+		LoggerFactory::getInstance( 'CirrusSearch' )->info( $message, $context + [
+			'cluster' => $conn->getClusterName(),
+			'elasticsearch_request' => (string)$client->getLastRequest(),
+			'elasticsearch_response' => $client->getLastResponse() !== null ? json_encode( $client->getLastResponse()->getData() ) : "NULL",
+		] );
+	}
 
 	/**
 	 * @param \Elastica\Exception\ExceptionInterface $exception
@@ -29,7 +39,7 @@ class ElasticaErrorHandler {
 	 * @suppress PhanUndeclaredMethod ExceptionInterface doesn't declare any methods
 	 *  so we have to suppress those warnings.
 	 */
-	public static function extractFullError( \Elastica\Exception\ExceptionInterface $exception ) {
+	public static function extractFullError( \Elastica\Exception\ExceptionInterface $exception ): array {
 		if ( !( $exception instanceof ResponseException ) ) {
 			// simulate the basic full error structure
 			return [
@@ -57,11 +67,29 @@ class ElasticaErrorHandler {
 			];
 		}
 
-		$error = $exception->getResponse()->getFullError();
+		$response = $exception->getResponse();
+		$error = $response->getFullError();
 		if ( is_string( $error ) ) {
 			$error = [
 				'type' => 'unknown',
 				'reason' => $error,
+			];
+		} elseif ( $error === null ) {
+			// response wasnt json or didn't contain 'error' key
+			// in this case elastica reports nothing.
+			$data = $response->getData();
+			$reason = 'Status code ' . $response->getStatus();
+			if ( isset( $data['message'] ) ) {
+				// Client puts non-json responses here
+				$reason .= "; " . substr( $data['message'], 0, 200 );
+			} elseif ( is_string( $data ) && $data !== "" ) {
+				// pre-6.0.3 versions of Elastica
+				$reason .= "; " . substr( $data, 0, 200 );
+			}
+
+			$error = [
+				'type' => 'unknown',
+				'reason' => $reason,
 			];
 		}
 
@@ -182,6 +210,7 @@ class ElasticaErrorHandler {
 				if ( !empty( $shardFailure['reason']['caused_by'] ) ) {
 					$message = $shardFailure['reason']['caused_by']['reason'];
 				} else {
+					/** @phan-suppress-next-line PhanTypeInvalidDimOffset */
 					$message = $shardFailure['reason']['reason'];
 				}
 			} else {

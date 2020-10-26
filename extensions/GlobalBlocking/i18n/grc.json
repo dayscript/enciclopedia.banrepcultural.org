@@ -1,0 +1,12 @@
+{
+	"@metadata": {
+		"authors": [
+			"Crazymadlover",
+			"Omnipaedista"
+		]
+	},
+	"globalblocking-search-ip": "IP-διεύθυνσις:",
+	"globalblocking-list-unblock": "ἀφαιρεῖν",
+	"globalblocking-list-modify": "τροποποιεῖν",
+	"globalblocking-unblock-reason": "Αἰτία:"
+}

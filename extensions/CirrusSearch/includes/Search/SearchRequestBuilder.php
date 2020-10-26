@@ -4,13 +4,10 @@ namespace CirrusSearch\Search;
 
 use CirrusSearch\Connection;
 use Elastica\Query;
-use Elastica\Search;
 use Elastica\Type;
 use MediaWiki\Logger\LoggerFactory;
 
 /**
- * Class SearchRequestBuilder
- *
  * Build the search request body
  */
 class SearchRequestBuilder {
@@ -32,7 +29,7 @@ class SearchRequestBuilder {
 	/** @var string search timeout, string with time and unit, e.g. 20s for 20 seconds*/
 	private $timeout;
 
-	/** @var Type force the type when set, use {@link Connection::pickIndexTypeForNamespaces}
+	/** @var Type|null Force the type when set, use {@link Connection::pickIndexTypeForNamespaces}
 	 * otherwise */
 	private $pageType;
 
@@ -47,7 +44,7 @@ class SearchRequestBuilder {
 
 	/**
 	 * Build the search request
-	 * @return Search
+	 * @return \Elastica\Search
 	 */
 	public function build() {
 		$resultsType = $this->searchContext->getResultsType();
@@ -64,13 +61,14 @@ class SearchRequestBuilder {
 			) );
 		}
 
-		$query->setQuery( $this->searchContext->getQuery() );
+		$mainQuery = $this->searchContext->getQuery();
+		$query->setQuery( $mainQuery );
 
 		foreach ( $this->searchContext->getAggregations() as $agg ) {
 			$query->addAggregation( $agg );
 		}
 
-		$highlight = $this->searchContext->getHighlight( $resultsType );
+		$highlight = $this->searchContext->getHighlight( $resultsType, $mainQuery );
 		if ( $highlight ) {
 			$query->setHighlight( $highlight );
 		}
@@ -83,12 +81,6 @@ class SearchRequestBuilder {
 				'suggest' => count( $suggestQueries ) === 1 ? reset( $suggestQueries ) : $suggestQueries
 			] );
 			$query->addParam( 'stats', 'suggest' );
-		}
-		if ( $this->offset ) {
-			$query->setFrom( $this->offset );
-		}
-		if ( $this->limit ) {
-			$query->setSize( $this->limit );
 		}
 
 		foreach ( $this->searchContext->getSyntaxUsed() as $syntax ) {
@@ -135,12 +127,38 @@ class SearchRequestBuilder {
 				// Return documents in index order
 				$query->setSort( [ '_doc' ] );
 				break;
+			case 'random':
+				if ( $this->offset !== 0 ) {
+					$this->searchContext->addWarning( 'cirrussearch-offset-not-allowed-with-random-sort' );
+					$this->offset = 0;
+				}
+				// Instead of setting a sort field wrap the whole query in a
+				// bool filter and add a must clause for the random score. This
+				// could alternatively be a rescore over a limited document
+				// set, but in basic testing the filter was more performant
+				// than an 8k rescore window even with 50M total hits.
+				$query->setQuery( ( new Query\BoolQuery() )
+					->addFilter( $mainQuery )
+					->addMust( ( new Query\FunctionScore() )
+						->setQuery( new Query\MatchAll() )
+						/** @phan-suppress-next-line PhanTypeMismatchArgument empty array isn't jsonified to {} properly */
+						->addFunction( 'random_score', (object)[] ) ) );
+				break;
 			default:
-				// Same as just_match.
+				// Same as just_match. No user warning since an invalid sort
+				// getting this far as a bug in the calling code which should
+				// be validating it's input.
 				LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 					"Invalid sort type: {sort}",
 					[ 'sort' => $this->sort ]
 				);
+		}
+
+		if ( $this->offset ) {
+			$query->setFrom( $this->offset );
+		}
+		if ( $this->limit ) {
+			$query->setSize( $this->limit );
 		}
 
 		// Setup the search

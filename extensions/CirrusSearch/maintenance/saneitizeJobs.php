@@ -8,7 +8,6 @@ use CirrusSearch\MetaStore\MetaStoreIndex;
 use CirrusSearch\MetaStore\MetaSaneitizeJobStore;
 use CirrusSearch\Profile\SearchProfileService;
 use JobQueueGroup;
-use Wikimedia\Assert\Assert;
 
 /**
  * Push some sanitize jobs to the JobQueue
@@ -64,12 +63,13 @@ class SaneitizeJobs extends Maintenance {
 
 	public function __construct() {
 		parent::__construct();
-		$this->mDescription = 'Manage sanitize jobs (CheckerJob). This ' .
+		$this->addDescription( 'Manage sanitize jobs (CheckerJob). This ' .
 			'script operates on all writable clusters by default. ' .
 			'Add --cluster to work on a single cluster. Note that ' .
 			'once a job has been pushed to a particular cluster the ' .
 			'script will fail if you try to run the same job with ' .
-			'different cluster options.';
+			'different cluster options.'
+		);
 		$this->addOption( 'push', 'Push some jobs to the job queue.' );
 		$this->addOption( 'show', 'Display job info.' );
 		$this->addOption( 'delete-job', 'Delete the job.' );
@@ -256,23 +256,15 @@ EOD
 		if ( !$sanityCheckSetup ) {
 			$this->fatalError( "Sanity check disabled, abandonning...\n" );
 		}
+		$assignment = $this->getSearchConfig()->getClusterAssignment();
 		if ( $this->hasOption( 'cluster' ) ) {
 			$cluster = $this->getOption( 'cluster' );
-			if ( $this->getSearchConfig()->canWriteToCluster( $cluster ) ) {
+			if ( $assignment->canWriteToCluster( $cluster ) ) {
 				$this->fatalError( "$cluster is not in the set of writable clusters\n" );
 			}
 			$this->clusters = [ $this->getOption( 'cluster' ) ];
 		}
-		if ( $sanityCheckSetup === true ) {
-			$this->clusters =
-				$this->getSearchConfig()->getClusterAssignment()->getWritableClusters();
-		} else {
-			Assert::precondition( is_array( $sanityCheckSetup ),
-				"wgCirrusSearchSanityCheck must be " . "a bolean or an array of strings" );
-			$this->clusters =
-				array_intersect( $sanityCheckSetup,
-					$this->getSearchConfig()->getClusterAssignment()->getWritableClusters() );
-		}
+		$this->clusters = $assignment->getWritableClusters();
 		if ( count( $this->clusters ) === 0 ) {
 			$this->fatalError( 'No clusters are writable...' );
 		}

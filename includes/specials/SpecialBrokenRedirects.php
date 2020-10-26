@@ -21,6 +21,7 @@
  * @ingroup SpecialPage
  */
 
+use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 
@@ -30,7 +31,7 @@ use Wikimedia\Rdbms\IDatabase;
  *
  * @ingroup SpecialPage
  */
-class BrokenRedirectsPage extends QueryPage {
+class SpecialBrokenRedirects extends QueryPage {
 	function __construct( $name = 'BrokenRedirects' ) {
 		parent::__construct( $name );
 	}
@@ -63,7 +64,6 @@ class BrokenRedirectsPage extends QueryPage {
 			'fields' => [
 				'namespace' => 'p1.page_namespace',
 				'title' => 'p1.page_title',
-				'value' => 'p1.page_title',
 				'rd_namespace',
 				'rd_title',
 				'rd_fragment',
@@ -114,6 +114,8 @@ class BrokenRedirectsPage extends QueryPage {
 		}
 
 		$linkRenderer = $this->getLinkRenderer();
+		$permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
+
 		// $toObj may very easily be false if the $result list is cached
 		if ( !is_object( $toObj ) ) {
 			return '<del>' . $linkRenderer->makeLink( $fromObj ) . '</del>';
@@ -129,7 +131,7 @@ class BrokenRedirectsPage extends QueryPage {
 		// if the page is editable, add an edit link
 		if (
 			// check user permissions
-			$this->getUser()->isAllowed( 'edit' ) &&
+			$permissionManager->userHasRight( $this->getUser(), 'edit' ) &&
 			// check, if the content model is editable through action=edit
 			ContentHandler::getForTitle( $fromObj )->supportsDirectEditing()
 		) {
@@ -145,7 +147,7 @@ class BrokenRedirectsPage extends QueryPage {
 
 		$out = $from . $this->msg( 'word-separator' )->escaped();
 
-		if ( $this->getUser()->isAllowed( 'delete' ) ) {
+		if ( $permissionManager->userHasRight( $this->getUser(), 'delete' ) ) {
 			$links[] = $linkRenderer->makeKnownLink(
 				$fromObj,
 				$this->msg( 'brokenredirects-delete' )->text(),
@@ -161,6 +163,11 @@ class BrokenRedirectsPage extends QueryPage {
 		$out .= " {$arr} {$to}";
 
 		return $out;
+	}
+
+	public function execute( $par ) {
+		$this->addHelpLink( 'Help:Redirects' );
+		parent::execute( $par );
 	}
 
 	/**

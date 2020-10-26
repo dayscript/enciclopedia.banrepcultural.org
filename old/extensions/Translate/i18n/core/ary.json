@@ -1,0 +1,14 @@
+{
+	"@metadata": {
+		"authors": [
+			"Enzoreg",
+			"Reda Benkhadra",
+			"SADIQUI"
+		]
+	},
+	"translate-manage-import-new": "Méṣaj jdid $1",
+	"translate-manage-import-deleted": "Méṣaj memḫi $1",
+	"translate-documentation-language": "توثيق الرسالة",
+	"translate-msggroupselector-search-all": "كلشي",
+	"tux-tab-all": "كلشي"
+}

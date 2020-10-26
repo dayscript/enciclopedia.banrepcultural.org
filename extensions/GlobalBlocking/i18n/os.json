@@ -1,0 +1,13 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amikeco"
+		]
+	},
+	"globalblocking-block-expiry-selector-other": "Æндæр рæстæг:",
+	"globalblocking-block-alreadyblocked": "IP-адрис $1 раздæр хъодыгонд æрцыд глобалонæй. Фен [[Special:GlobalBlockList|глобалон хъодыты номхыгъд]].",
+	"globalblocking-unblock": "Аиуварс кæн глобалон хъоды",
+	"globalblocking-unblock-submit": "Аиуварс кæн глобалон хъоды",
+	"globalblocking-unblock-reason": "Аххос:",
+	"removeglobalblock": "Аиуварс кæн глобалон хъоды"
+}

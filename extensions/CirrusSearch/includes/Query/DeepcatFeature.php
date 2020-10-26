@@ -1,4 +1,5 @@
 <?php
+
 namespace CirrusSearch\Query;
 
 use CirrusSearch\CrossSearchStrategy;
@@ -35,7 +36,7 @@ class DeepcatFeature extends SimpleKeywordFeature implements FilterQueryFeature 
 	private $limit;
 	/**
 	 * Category URL prefix for this wiki
-	 * @var string
+	 * @var string|null (lazy loaded)
 	 */
 	private $prefix;
 	/**
@@ -63,15 +64,14 @@ class DeepcatFeature extends SimpleKeywordFeature implements FilterQueryFeature 
 
 	/**
 	 * @param Config $config
-	 * @param SparqlClient $client
+	 * @param SparqlClient|null $client
 	 */
-	public function __construct( Config $config, SparqlClient $client ) {
+	public function __construct( Config $config, SparqlClient $client = null ) {
 		$this->depth = (int)$config->get( 'CirrusSearchCategoryDepth' );
 		$this->limit = (int)$config->get( 'CirrusSearchCategoryMax' );
-		$this->prefix = $this->getCategoryPrefix();
 		$endpoint = $config->get( 'CirrusSearchCategoryEndpoint' );
 		if ( !empty( $endpoint ) ) {
-			$this->client = $client;
+			$this->client = $client ?: MediaWikiServices::getInstance()->getService( 'CirrusCategoriesClient' );
 		}
 	}
 
@@ -164,9 +164,12 @@ class DeepcatFeature extends SimpleKeywordFeature implements FilterQueryFeature 
 	 * @return bool|string
 	 */
 	private function getCategoryPrefix() {
-		$title = Title::makeTitle( NS_CATEGORY, 'ZZ' );
-		$fullName = $title->getFullURL( '', false, PROTO_CANONICAL );
-		return substr( $fullName, 0, - 2 );
+		if ( $this->prefix === null ) {
+			$title = Title::makeTitle( NS_CATEGORY, 'ZZ' );
+			$fullName = $title->getFullURL( '', false, PROTO_CANONICAL );
+			$this->prefix = substr( $fullName, 0, - 2 );
+		}
+		return $this->prefix;
 	}
 
 	/**
@@ -189,7 +192,11 @@ class DeepcatFeature extends SimpleKeywordFeature implements FilterQueryFeature 
 	 */
 	private function fetchCategories( $rootCategory, WarningCollector $warningCollector ) {
 		/** @var SparqlClient $client */
-		$title = Title::makeTitle( NS_CATEGORY, $rootCategory );
+		$title = Title::makeTitleSafe( NS_CATEGORY, $rootCategory );
+		if ( $title === null ) {
+			$warningCollector->addWarning( 'cirrussearch-feature-deepcat-invalid-title' );
+			return [];
+		}
 		$fullName = $title->getFullURL( '', false, PROTO_CANONICAL );
 		$limit1 = $this->limit + 1;
 		$query = <<<SPARQL
@@ -214,7 +221,7 @@ SPARQL;
 			return [];
 		}
 
-		$prefixLen = strlen( $this->prefix );
+		$prefixLen = strlen( $this->getCategoryPrefix() );
 		return array_map( function ( $row ) use ( $prefixLen ) {
 			// TODO: maybe we want to check the prefix is indeed the same?
 			// It should be but who knows...

@@ -4,11 +4,10 @@ namespace CirrusSearch;
 
 use CirrusSearch\Search\SearchMetricsProvider;
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
 use RequestContext;
-use SearchResultSet;
+use ISearchResultSet;
 use Status;
-use User;
 use Wikimedia\Assert\Assert;
 
 /**
@@ -36,7 +35,7 @@ abstract class ElasticsearchIntermediary {
 	protected $connection;
 
 	/**
-	 * @var User|null user for which we're performing this search or null in
+	 * @var UserIdentity|null user for which we're performing this search or null in
 	 * the case of requests kicked off by jobs
 	 */
 	protected $user;
@@ -69,7 +68,7 @@ abstract class ElasticsearchIntermediary {
 
 	/**
 	 * @param Connection $connection
-	 * @param User|null $user user for which this search is being performed.
+	 * @param UserIdentity|null $user user for which this search is being performed.
 	 *  Attached to slow request logs.  Note that null isn't for anonymous users
 	 *  - those are still User objects and should be provided if possible.  Null
 	 *  is for when the action is being performed in some context where the user
@@ -80,7 +79,7 @@ abstract class ElasticsearchIntermediary {
 	 *  as slow. Defaults to CirrusSearchSlowSearch config option.
 	 * @param int $extraBackendLatency artificial backend latency.
 	 */
-	protected function __construct( Connection $connection, User $user = null, $slowSeconds = null, $extraBackendLatency = 0 ) {
+	protected function __construct( Connection $connection, UserIdentity $user = null, $slowSeconds = null, $extraBackendLatency = 0 ) {
 		$this->connection = $connection;
 		if ( is_null( $user ) ) {
 			$user = RequestContext::getMain()->getUser();
@@ -107,7 +106,7 @@ abstract class ElasticsearchIntermediary {
 	 * API's that is correct, for Special:Search a hook catches the final results and
 	 * sets them here.
 	 *
-	 * @param SearchResultSet[] $matches
+	 * @param ISearchResultSet[] $matches
 	 */
 	public static function setResultPages( array $matches ) {
 		if ( self::$requestLogger === null ) {
@@ -168,10 +167,13 @@ abstract class ElasticsearchIntermediary {
 	 *
 	 * @param mixed|null $result result of the request.  defaults to null in case
 	 *  the request doesn't have a result
+	 * @param Connection|null $connection The connection the succesful
+	 *  request was performed against. Will use $this->connection when not
+	 *  provided.
 	 * @return Status wrapping $result
 	 */
-	public function success( $result = null ) {
-		$this->finishRequest();
+	public function success( $result = null, Connection $connection = null ) {
+		$this->finishRequest( $connection ?? $this->connection );
 		return Status::newGood( $result );
 	}
 
@@ -188,26 +190,37 @@ abstract class ElasticsearchIntermediary {
 		self::$requestLogger->addRequest( $log );
 	}
 
-	public function multiFailure( \Elastica\Multi\ResultSet $multiResultSet ) {
+	/**
+	 * Returns a failure if the top-level response has failed or if any of the responses present in
+	 * the resultsets has have failed (in which case the status is initialized with the error
+	 * message of first failed response)
+	 * @param \Elastica\Multi\ResultSet $multiResultSet
+	 * @param Connection|null $connection
+	 * @return Status
+	 */
+	public function multiFailure( \Elastica\Multi\ResultSet $multiResultSet, Connection $connection = null ) {
+		if ( $connection === null ) {
+			$connection = $this->connection;
+		}
 		$status = $multiResultSet->getResponse()->getStatus();
 		if ( $status < 200 || $status >= 300 ) {
 			// bad response from server. Should elastica be throwing an exception for this?
 			return $this->failure( new \Elastica\Exception\ResponseException(
-				$this->connection->getClient()->getLastRequest(),
+				$connection->getClient()->getLastRequest(),
 				$multiResultSet->getResponse()
-			) );
+			), $connection );
 		}
 		foreach ( $multiResultSet->getResultSets() as $resultSet ) {
 			if ( $resultSet->getResponse()->hasError() ) {
 				return $this->failure( new \Elastica\Exception\ResponseException(
-					$this->connection->getClient()->getLastRequest(),
+					$connection->getClient()->getLastRequest(),
 					$resultSet->getResponse()
-				) );
+				), $connection );
 			}
 		}
 
 		// Should never get here
-		return $this->success( $multiResultSet );
+		return $this->success( $multiResultSet, $connection );
 	}
 
 	/**
@@ -215,21 +228,35 @@ abstract class ElasticsearchIntermediary {
 	 * called from pool counter methods.
 	 *
 	 * @param \Elastica\Exception\ExceptionInterface|null $exception if the request failed
+	 * @param Connection|null $connection The connection that the failed
+	 *  request was performed against. Will use $this->connection when not
+	 *  provided.
 	 * @return Status representing a backend failure
 	 */
-	public function failure( \Elastica\Exception\ExceptionInterface $exception = null ) {
-		$log = $this->finishRequest();
-		$context = $log->getLogVariables();
+	public function failure( \Elastica\Exception\ExceptionInterface $exception = null, Connection $connection = null ) {
+		if ( $connection === null ) {
+			$connection = $this->connection;
+		}
+		$log = $this->finishRequest( $connection );
+		if ( $log === null ) {
+			// Request was never started, likely trying to close a request
+			// a second time. If so that was already logged by finishRequest.
+			$context = [];
+			$logType = 'not_started';
+		} else {
+			$context = $log->getLogVariables();
+			$logType = $log->getDescription();
+		}
 		list( $status, $message ) = ElasticaErrorHandler::extractMessageAndStatus( $exception );
 		$context['error_message'] = $message;
 
-		$stats = MediaWikiServices::getInstance()->getStatsdDataFactory();
+		$stats = Util::getStatsDataFactory();
 		$type = ElasticaErrorHandler::classifyError( $exception );
-		$clusterName = $this->connection->getClusterName();
+		$clusterName = $connection->getClusterName();
 		$stats->increment( "CirrusSearch.$clusterName.backend_failure.$type" );
 
 		LoggerFactory::getInstance( 'CirrusSearch' )->warning(
-			"Search backend error during {$log->getDescription()} after {tookMs}: {error_message}",
+			"Search backend error during {$logType} after {tookMs}: {error_message}",
 			$context
 		);
 		return $status;
@@ -249,7 +276,7 @@ abstract class ElasticsearchIntermediary {
 	 * @return RequestLog|null The log for the finished request, or null if no
 	 * request was started.
 	 */
-	private function finishRequest() {
+	private function finishRequest( Connection $connection ) {
 		if ( !$this->currentRequestLog ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				'finishRequest called without staring a request'
@@ -261,8 +288,8 @@ abstract class ElasticsearchIntermediary {
 
 		$log->finish();
 		$tookMs = $log->getTookMs();
-		$clusterName = $this->connection->getClusterName();
-		$stats = MediaWikiServices::getInstance()->getStatsdDataFactory();
+		$clusterName = $connection->getClusterName();
+		$stats = Util::getStatsDataFactory();
 		$stats->timing( "CirrusSearch.$clusterName.requestTime", $tookMs );
 		$this->searchMetrics['wgCirrusTookMs'] = $tookMs;
 		self::$requestLogger->addRequest( $log, $this->user, $this->slowMillis );

@@ -6,6 +6,9 @@ use CirrusSearch\CrossSearchStrategy;
 use CirrusSearch\Extra\Query\SourceRegex;
 use CirrusSearch\Parser\AST\KeywordFeatureNode;
 use CirrusSearch\Query\Builder\QueryBuildingContext;
+use CirrusSearch\Search\Fetch\HighlightedField;
+use CirrusSearch\Search\Fetch\FetchPhaseConfigBuilder;
+use CirrusSearch\Search\Fetch\HighlightFieldGenerator;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\Search\Filters;
 use CirrusSearch\Search\SearchContext;
@@ -24,7 +27,7 @@ use Wikimedia\Assert\Assert;
  *
  * @see SourceRegex
  */
-abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQueryFeature {
+abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQueryFeature, HighlightingFeature {
 	/**
 	 * @var string[] Elasticsearch field(s) to search against
 	 */
@@ -102,8 +105,15 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 	 * @return array|false|null
 	 */
 	public function parseValue( $key, $value, $quotedValue, $valueDelimiter, $suffix, WarningCollector $warningCollector ) {
-		if ( $valueDelimiter === '/' && !$this->enabled ) {
-			$warningCollector->addWarning( 'cirrussearch-feature-not-available', "$key regex" );
+		if ( $valueDelimiter === '/' ) {
+			if ( !$this->enabled ) {
+				$warningCollector->addWarning( 'cirrussearch-feature-not-available', "$key regex" );
+			}
+			return [
+				'type' => 'regex',
+				'pattern' => trim( $quotedValue, '/' ),
+				'insensitive' => $suffix === 'i',
+			];
 		}
 		return parent::parseValue( $key, $value, $quotedValue, $valueDelimiter, $suffix, $warningCollector );
 	}
@@ -143,20 +153,17 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 	 * @return array
 	 */
 	public function doApplyExtended( SearchContext $context, $key, $value, $quotedValue, $negated, $delimiter, $suffix ) {
-		if ( $delimiter === '/' ) {
+		$parsedValue = $this->parseValue( $key, $value, $quotedValue, $delimiter, $suffix, $context );
+		if ( $this->isRegexQuery( $parsedValue ) ) {
 			if ( !$this->enabled ) {
-				$context->addWarning(
-					'cirrussearch-feature-not-available',
-					"$key regex"
-				);
 				return [ null, false ];
 			}
+			$pattern = $parsedValue['pattern'];
+			$insensitive = $parsedValue['insensitive'];
 
-			$pattern = trim( $quotedValue, '/' );
-			$insensitive = $suffix === 'i';
 			$filter = $this->buildRegexQuery( $pattern, $insensitive );
 			if ( !$negated ) {
-				$this->configureHighlighting( $pattern, $insensitive, $context );
+				$this->configureHighlighting( $pattern, $insensitive, $context->getFetchPhaseBuilder() );
 			}
 			return [ $filter, false ];
 		} else {
@@ -164,18 +171,37 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 		}
 	}
 
+	/**
+	 * @inheritDoc
+	 */
 	public function getFilterQuery( KeywordFeatureNode $node, QueryBuildingContext $context ) {
-		if ( $node->getDelimiter() === '/' ) {
+		$parsedValue = $node->getParsedValue();
+		if ( $this->isRegexQuery( $parsedValue ) ) {
 			if ( !$this->enabled ) {
 				return null;
 			}
-
-			$pattern = trim( $node->getQuotedValue(), '/' );
-			$insensitive = $node->getSuffix() === 'i';
+			$pattern = $parsedValue['pattern'];
+			$insensitive = $parsedValue['insensitive'];
 			return $this->buildRegexQuery( $pattern, $insensitive );
 		} else {
 			return $this->getNonRegexFilterQuery( $node, $context );
 		}
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function buildHighlightFields( KeywordFeatureNode $node, QueryBuildingContext $context ) {
+		$parsedValue = $node->getParsedValue();
+		if ( $this->isRegexQuery( $parsedValue ) ) {
+			if ( !$this->enabled ) {
+				return null;
+			}
+			$pattern = $parsedValue['pattern'];
+			$insensitive = $parsedValue['insensitive'];
+			return $this->doGetRegexHLFields( $context->getHighlightFieldGenerator(), $pattern, $insensitive );
+		}
+		return $this->buildNonRegexHLFields( $node, $context );
 	}
 
 	/**
@@ -198,15 +224,35 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 			: $this->buildRegexWithGroovy( $pattern, $insensitive );
 	}
 
-	private function configureHighlighting( $pattern, $insensitive, SearchContext $context ) {
-		foreach ( $this->fields as $field ) {
-			$context->addHighlightField( $field, [
-				'pattern' => $pattern,
-				'locale' => $this->languageCode,
-				'insensitive' => $insensitive,
-			] );
+	/**
+	 * @param string $pattern
+	 * @param bool $insensitive
+	 * @param FetchPhaseConfigBuilder $fetchPhaseConfigBuilder
+	 */
+	private function configureHighlighting( $pattern, $insensitive, FetchPhaseConfigBuilder $fetchPhaseConfigBuilder ) {
+		foreach ( $this->doGetRegexHLFields( $fetchPhaseConfigBuilder, $pattern, $insensitive ) as $f ) {
+			$fetchPhaseConfigBuilder->addHLField( $f );
 		}
 	}
+
+	/**
+	 * @param HighlightFieldGenerator $generator
+	 * @param string $pattern
+	 * @param bool $insensitive
+	 * @return HighlightedField[]
+	 */
+	private function doGetRegexHLFields( HighlightFieldGenerator $generator, $pattern, $insensitive ) {
+		$fields = [];
+		if ( !$generator->supportsRegexFields() ) {
+			return $fields;
+		}
+		foreach ( $this->fields as $field => $hlTarget ) {
+			$fields[] = $generator->newRegexField( "$field.plain", $hlTarget,
+				$pattern, $insensitive, HighlightedField::COSTLY_EXPERT_SYNTAX_PRIORITY );
+		}
+		return $fields;
+	}
+
 	/**
 	 * Builds a regular expression query using the wikimedia-extra plugin.
 	 *
@@ -219,7 +265,7 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 		// TODO: Update plugin to accept multiple values for the field property
 		// so that at index time we can create a single trigram index with
 		// copy_to instead of creating multiple queries.
-		foreach ( $this->fields as $field ) {
+		foreach ( $this->fields as $field => $hlTarget ) {
 			$filter = new SourceRegex( $pattern, $field, $field . '.trigram' );
 			// set some defaults
 			$filter->setMaxDeterminizedStates( $this->maxDeterminizedStates );
@@ -287,5 +333,16 @@ GROOVY;
 		}
 
 		return Filters::booleanOr( $filters );
+	}
+
+	abstract public function buildNonRegexHLFields( KeywordFeatureNode $node, QueryBuildingContext $context );
+
+	/**
+	 * @param array|null $parsedValue
+	 * @return bool
+	 */
+	private function isRegexQuery( array $parsedValue = null ) {
+		return is_array( $parsedValue ) && isset( $parsedValue['type'] ) &&
+			   $parsedValue['type'] === 'regex';
 	}
 }

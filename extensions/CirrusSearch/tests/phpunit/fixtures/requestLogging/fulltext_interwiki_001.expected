@@ -1,140 +1,130 @@
 [
     {
-        "channel": "CirrusSearchRequestSet",
+        "channel": "cirrussearch-request",
         "context": {
-            "backendUserTests": [],
+            "$schema": "/mediawiki/cirrussearch/request/0.0.1",
+            "all_elasticsearch_requests_cached": false,
             "hits": [
                 {
                     "index": "wiki_general_first",
-                    "pageId": 2,
-                    "profileName": "",
-                    "score": 0.010442197,
-                    "title": "Template:Main Page"
+                    "page_id": 2,
+                    "page_title": "Template:Main Page",
+                    "score": 0.010442197
                 }
             ],
-            "ip": "127.0.0.1",
-            "payload": {
-                "acceptLang": "",
-                "hascookies": "0",
-                "queryString": "",
-                "referer": ""
+            "http": {
+                "client_ip": "127.0.0.1",
+                "has_cookies": false,
+                "method": "GET"
             },
-            "requests": [
+            "elasticsearch_requests": [
                 {
-                    "elasticTookMs": 18,
+                    "cached": false,
                     "hits": [
                         {
                             "index": "wiki_general_first",
-                            "pageId": 2,
-                            "profileName": "",
-                            "score": 0.010442197,
-                            "title": "Template:Main Page"
+                            "page_id": 2,
+                            "page_title": "Template:Main Page",
+                            "score": 0.010442197
                         }
                     ],
-                    "hitsOffset": 0,
-                    "hitsReturned": 1,
-                    "hitsTotal": 1,
+                    "hits_offset": 0,
+                    "hits_returned": 1,
+                    "hits_total": 1,
                     "indices": [
                         "wiki"
                     ],
                     "limit": 21,
-                    "maxScore": 6.937646,
-                    "namespaces": [],
-                    "payload": {
-                        "syntax": "full_text,full_text_querystring"
-                    },
+                    "max_score": 6.937646,
                     "query": "main",
-                    "queryType": "full_text",
-                    "suggestion": "",
-                    "suggestionRequested": false
+                    "query_type": "full_text",
+                    "search_time_ms": 18,
+                    "suggestion_requested": false,
+                    "syntax": [
+                        "full_text",
+                        "full_text_querystring"
+                    ]
                 },
                 {
-                    "elasticTookMs": 13,
+                    "cached": false,
                     "hits": [
                         {
                             "index": "commonswiki_content_first",
-                            "pageId": 1,
-                            "profileName": "",
-                            "score": 0.9446909,
-                            "title": "Main Page"
+                            "page_id": 1,
+                            "page_title": "Main Page",
+                            "score": 0.9446909
                         }
                     ],
-                    "hitsOffset": 0,
-                    "hitsReturned": 1,
-                    "hitsTotal": 1,
+                    "hits_offset": 0,
+                    "hits_returned": 1,
+                    "hits_total": 1,
                     "indices": [
                         "commonswiki"
                     ],
                     "limit": 5,
-                    "maxScore": 3.138195,
-                    "namespaces": [],
-                    "payload": {
-                        "syntax": "full_text,full_text_querystring"
-                    },
+                    "max_score": 3.1381950000000001,
                     "query": "main",
-                    "queryType": "full_text",
-                    "suggestion": "",
-                    "suggestionRequested": false
+                    "query_type": "full_text",
+                    "search_time_ms": 13,
+                    "suggestion_requested": false,
+                    "syntax": [
+                        "full_text",
+                        "full_text_querystring"
+                    ]
                 },
                 {
-                    "elasticTookMs": 36,
+                    "cached": false,
                     "hits": [
                         {
                             "index": "cirrustestwiki_content_first",
-                            "pageId": 1,
-                            "profileName": "",
-                            "score": 8.712509,
-                            "title": "Main Page"
+                            "page_id": 1,
+                            "page_title": "Main Page",
+                            "score": 8.7125090000000007
                         },
                         {
                             "index": "cirrustestwiki_content_first",
-                            "pageId": 5,
-                            "profileName": "",
-                            "score": 0.37107575,
-                            "title": "Misspelled"
+                            "page_id": 5,
+                            "page_title": "Misspelled",
+                            "score": 0.37107574999999998
                         },
                         {
                             "index": "cirrustestwiki_content_first",
-                            "pageId": 2,
-                            "profileName": "",
-                            "score": 0.36529952,
-                            "title": "Something else"
+                            "page_id": 2,
+                            "page_title": "Something else",
+                            "score": 0.36529951999999999
                         },
                         {
                             "index": "cirrustestwiki_content_first",
-                            "pageId": 172,
-                            "profileName": "",
-                            "score": 0.34895784,
-                            "title": "HasHeadingsWithReference"
+                            "page_id": 172,
+                            "page_title": "HasHeadingsWithReference",
+                            "score": 0.34895784000000002
                         },
                         {
                             "index": "cirrustestwiki_content_first",
-                            "pageId": 252,
-                            "profileName": "",
-                            "score": 0.25168607,
-                            "title": "MainNamespaceTemplate"
+                            "page_id": 252,
+                            "page_title": "MainNamespaceTemplate",
+                            "score": 0.25168606999999998
                         }
                     ],
-                    "hitsOffset": 0,
-                    "hitsReturned": 5,
-                    "hitsTotal": 7,
+                    "hits_offset": 0,
+                    "hits_returned": 5,
+                    "hits_total": 7,
                     "indices": [
                         "cirrustestwiki"
                     ],
                     "limit": 5,
-                    "maxScore": 9.647443,
-                    "namespaces": [],
-                    "payload": {
-                        "syntax": "full_text,full_text_querystring"
-                    },
+                    "max_score": 9.6474430000000009,
                     "query": "main",
-                    "queryType": "full_text",
-                    "suggestion": "",
-                    "suggestionRequested": false
+                    "query_type": "full_text",
+                    "search_time_ms": 36,
+                    "suggestion_requested": false,
+                    "syntax": [
+                        "full_text",
+                        "full_text_querystring"
+                    ]
                 }
             ],
-            "source": "cli",
-            "userAgent": ""
+            "source": "cli"
         },
         "level": "debug",
         "message": ""

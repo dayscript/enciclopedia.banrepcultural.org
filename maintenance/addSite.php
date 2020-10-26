@@ -21,13 +21,13 @@ class AddSite extends Maintenance {
 
 		$this->addArg( 'globalid', 'The global id of the site to add, e.g. "wikipedia".', true );
 		$this->addArg( 'group', 'In which group this site should be sorted in.', true );
-		$this->addOption( 'language', 'The language code of the site, e.g. "de".' );
-		$this->addOption( 'interwiki-id', 'The interwiki ID of the site.' );
-		$this->addOption( 'navigation-id', 'The navigation ID of the site.' );
+		$this->addOption( 'language', 'The language code of the site, e.g. "de".', false, true );
+		$this->addOption( 'interwiki-id', 'The interwiki ID of the site.', false, true );
+		$this->addOption( 'navigation-id', 'The navigation ID of the site.', false, true );
 		$this->addOption( 'pagepath', 'The URL to pages of this site, e.g.' .
-			' https://example.com/wiki/\$1.' );
-		$this->addOption( 'filepath', 'The URL to files of this site, e.g. https://example
-		.com/w/\$1.' );
+			' https://example.com/wiki/\$1.', false, true );
+		$this->addOption( 'filepath', 'The URL to files of this site, e.g. https://example' .
+			'.com/w/\$1.', false, true );
 
 		parent::__construct();
 	}
@@ -39,7 +39,10 @@ class AddSite extends Maintenance {
 	 */
 	public function execute() {
 		$siteStore = MediaWikiServices::getInstance()->getSiteStore();
-		$siteStore->reset();
+		if ( method_exists( $siteStore, 'reset' ) ) {
+			// @phan-suppress-next-line PhanUndeclaredMethod
+			$siteStore->reset();
+		}
 
 		$globalId = $this->getArg( 0 );
 		$group = $this->getArg( 1 );
@@ -81,6 +84,7 @@ class AddSite extends Maintenance {
 		$siteStore->saveSites( [ $site ] );
 
 		if ( method_exists( $siteStore, 'reset' ) ) {
+			// @phan-suppress-next-line PhanUndeclaredMethod
 			$siteStore->reset();
 		}
 

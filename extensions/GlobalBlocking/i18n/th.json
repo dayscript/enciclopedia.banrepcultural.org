@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ans",
+			"Horus",
+			"Octahedron80",
+			"Passawuth",
+			"Geonuch"
+		]
+	},
+	"globalblocking-desc": "[[Special:GlobalBlock|อนุญาต]]ให้คุณสามารถบล็อกผู้ใช้ที่เป็น ไอพี [[Special:GlobalBlockList|ในหลาย ๆ วิกิ]]ในครั้งเดียวได้",
+	"globalblocking-block-reason": "เหตุผล:",
+	"globalblocking-block-edit-dropdown": "แก้ไขเหตุผลการบล็อก",
+	"globalblocking-block-expiry": "หมดอายุ:",
+	"globalblocking-block-expiry-selector-other": "เวลาอื่น:",
+	"globalblocking-ipaddress": "ที่อยู่ไอพี:",
+	"globalblocking-block-submit": "บล็อกที่อยู่ไอพีนี้ทั่วโลก",
+	"globalblocking-search-ip": "หมายเลขไอพี:",
+	"globalblocking-unblock-reason": "เหตุผล:",
+	"globalblocking-logpage": "ปูมการบล็อกทั่วโลก"
+}

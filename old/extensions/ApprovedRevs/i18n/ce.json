@@ -1,0 +1,15 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sasan700",
+			"Умар",
+			"Исмаил Садуев"
+		]
+	},
+	"approvedrevs-approve": "бакъдар",
+	"approvedrevs-unapprove": "бакъяр дIадаккхар",
+	"approvedrevs-notlatest": "ХӀара агӀонан чӀагӀйина верси ю. Кхин йолуш ю мелла а керла версеш.",
+	"approvedrevs-view": "Хьажа:",
+	"approvedrevs-revisionnumber": "верси $1",
+	"approvedrevs-approvedrevision": "Бакъйина верси"
+}

@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"MokaAkashiyaPT",
+			"Athena in Wonderland"
+		]
+	},
+	"globalblocking-whitelist": "Stado lhocal de bloqueios globales",
+	"globalblocklist": "Andereços IP bloquiados globalmente",
+	"globalblockstatus": "Stado lhocal de bloqueios globales"
+}

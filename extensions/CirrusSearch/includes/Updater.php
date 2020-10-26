@@ -11,6 +11,7 @@ use ParserOutput;
 use Sanitizer;
 use TextContent;
 use Title;
+use Wikimedia\Assert\Assert;
 use WikiPage;
 
 /**
@@ -50,26 +51,54 @@ class Updater extends ElasticsearchIntermediary {
 	private $updated = [];
 
 	/**
-	 * @var string|null Name of cluster to write to, or null if none
+	 * @var string|null Name of cluster to write to, or null if none (write to all)
 	 */
 	protected $writeToClusterName;
 
 	/**
-	 * @var SearchConfig
+	 * @param Connection $readConnection connection used to pull data out of elasticsearch
+	 * @param string|null $writeToClusterName
 	 */
-	protected $searchConfig;
+	public function __construct( Connection $readConnection, $writeToClusterName = null ) {
+		parent::__construct( $readConnection, null, 0 );
+		$this->writeToClusterName = $writeToClusterName;
+	}
 
 	/**
-	 * @param Connection $conn
 	 * @param SearchConfig $config
-	 * @param string[] $flags
+	 * @param string|null $cluster cluster to read from and write to,
+	 * null to read from the default cluster and write to all
+	 * @return Updater
 	 */
-	public function __construct( Connection $conn, SearchConfig $config, array $flags = [] ) {
-		parent::__construct( $conn, null, 0 );
-		$this->searchConfig = $config;
-		if ( in_array( 'same-cluster', $flags ) ) {
-			$this->writeToClusterName = $this->connection->getClusterName();
+	public static function build( SearchConfig $config, $cluster ): Updater {
+		Assert::invariant( self::class === static::class, 'Must be invoked as Updater::build( ... )' );
+		$connection = Connection::getPool( $config, $cluster );
+		return new self( $connection, $cluster );
+	}
+
+	/**
+	 * Find invalid UTF-8 sequence in the source text.
+	 * Fix them and flag the doc with the CirrusSearchInvalidUTF8 template.
+	 *
+	 * Temporary solution to help investigate/fix T225200
+	 *
+	 * Visible for testing only
+	 * @param array $fieldDefinitions
+	 * @param int $pageId
+	 * @return array
+	 */
+	public static function fixAndFlagInvalidUTF8InSource( array $fieldDefinitions, $pageId ) {
+		if ( isset( $fieldDefinitions['source_text'] ) ) {
+			$fixedVersion = mb_convert_encoding( $fieldDefinitions['source_text'], 'UTF-8', 'UTF-8' );
+			if ( $fixedVersion !== $fieldDefinitions['source_text'] ) {
+				LoggerFactory::getInstance( 'CirrusSearch' )
+					->warning( 'Fixing invalid UTF-8 sequences in source text for page id {page_id}',
+						[ 'page_id' => $pageId ] );
+				$fieldDefinitions['source_text'] = $fixedVersion;
+				$fieldDefinitions['template'][] = Title::makeTitle( NS_TEMPLATE, 'CirrusSearchInvalidUTF8' )->getPrefixedText();
+			}
 		}
+		return $fieldDefinitions;
 	}
 
 	/**
@@ -94,7 +123,7 @@ class Updater extends ElasticsearchIntermediary {
 		}
 		$redirectDocIds = [];
 		foreach ( $redirects as $redirect ) {
-			$redirectDocIds[] = $this->searchConfig->makeId( $redirect->getId() );
+			$redirectDocIds[] = $this->connection->getConfig()->makeId( $redirect->getId() );
 		}
 		return $this->deletePages( [], $redirectDocIds );
 	}
@@ -200,7 +229,7 @@ class Updater extends ElasticsearchIntermediary {
 
 		$titles = $this->pagesToTitles( $pages );
 		if ( !$isInstantIndex ) {
-			Job\OtherIndex::queueIfRequired( $this->searchConfig, $titles, $this->writeToClusterName );
+			Job\OtherIndex::queueIfRequired( $this->connection->getConfig(), $titles, $this->writeToClusterName );
 		}
 
 		$allDocuments = array_fill_keys( $this->connection->getAllIndexTypes(), [] );
@@ -215,7 +244,6 @@ class Updater extends ElasticsearchIntermediary {
 			// against the max.  So we chunk it and do them sequentially.
 			foreach ( array_chunk( $documents, 10 ) as $chunked ) {
 				$job = Job\ElasticaWrite::build(
-					reset( $titles ),
 					'sendData',
 					[ $indexType, $chunked ],
 					[
@@ -245,9 +273,8 @@ class Updater extends ElasticsearchIntermediary {
 	 * @return bool Always returns true.
 	 */
 	public function deletePages( $titles, $docIds, $indexType = null, $elasticType = null ) {
-		Job\OtherIndex::queueIfRequired( $this->searchConfig, $titles, $this->writeToClusterName );
+		Job\OtherIndex::queueIfRequired( $this->connection->getConfig(), $titles, $this->writeToClusterName );
 		$job = Job\ElasticaWrite::build(
-			$titles ? reset( $titles ) : Title::makeTitle( NS_SPECIAL, "Badtitle/" . Job\ElasticaWrite::class ),
 			'sendDeletes',
 			[ $docIds, $indexType, $elasticType ],
 			[ 'cluster' => $this->writeToClusterName ]
@@ -262,22 +289,19 @@ class Updater extends ElasticsearchIntermediary {
 	/**
 	 * Add documents to archive index.
 	 * @param array $archived
-	 * @param bool $forceIndex If true, index to archive regardless of config.
 	 * @return bool
 	 */
-	public function archivePages( $archived, $forceIndex = false ) {
-		if ( !$this->searchConfig->getElement( 'CirrusSearchIndexDeletes' ) && !$forceIndex ) {
+	public function archivePages( $archived ) {
+		if ( !$this->connection->getConfig()->getElement( 'CirrusSearchIndexDeletes' ) ) {
 			// Disabled by config - don't do anything
 			return true;
 		}
 		$docs = $this->buildArchiveDocuments( $archived );
-		$head = reset( $archived );
 		foreach ( array_chunk( $docs, 10 ) as $chunked ) {
 			$job = Job\ElasticaWrite::build(
-				$head['title'],
 				'sendData',
 				[ Connection::ARCHIVE_INDEX_TYPE, $chunked, Connection::ARCHIVE_TYPE_NAME ],
-				[ 'cluster' => $this->writeToClusterName ]
+				[ 'cluster' => $this->writeToClusterName, 'private_data' => true ]
 			);
 			$job->run();
 		}
@@ -306,7 +330,7 @@ class Updater extends ElasticsearchIntermediary {
 				'wiki' => wfWikiID(),
 			] );
 			$doc->setDocAsUpsert( true );
-			$doc->setRetryOnConflict( $this->searchConfig->getElement( 'CirrusSearchUpdateConflictRetryCount' ) );
+			$doc->setRetryOnConflict( $this->connection->getConfig()->getElement( 'CirrusSearchUpdateConflictRetryCount' ) );
 
 			$docs[] = $doc;
 		}
@@ -353,8 +377,9 @@ class Updater extends ElasticsearchIntermediary {
 			$output = $contentHandler->getParserOutputForIndexing( $page, $parserCache );
 
 			$fieldDefinitions = $contentHandler->getFieldsForSearchIndex( $engine );
-			foreach ( $contentHandler->getDataForSearchIndex( $page, $output, $engine ) as
-				$field => $fieldData ) {
+			$fieldContent = $contentHandler->getDataForSearchIndex( $page, $output, $engine );
+			$fieldContent = self::fixAndFlagInvalidUTF8InSource( $fieldContent, $page->getId() );
+			foreach ( $fieldContent as $field => $fieldData ) {
 				$doc->set( $field, $fieldData );
 				if ( isset( $fieldDefinitions[$field] ) ) {
 					$hints = $fieldDefinitions[$field]->getEngineHints( $engine );
@@ -431,7 +456,7 @@ class Updater extends ElasticsearchIntermediary {
 
 			$doc = self::buildDocument(
 				$engine, $page, $this->connection, $forceParse, $skipParse, $skipLinks );
-			$doc->setId( $this->searchConfig->makeId( $page->getId() ) );
+			$doc->setId( $this->connection->getConfig()->makeId( $page->getId() ) );
 
 			// Everything as sent as an update to prevent overwriting fields maintained in other processes
 			// like OtherIndex::updateOtherIndex.
@@ -442,7 +467,7 @@ class Updater extends ElasticsearchIntermediary {
 			// unless they are objects in both doc and the indexed source.  We're ok with this because all of
 			// our fields are either regular types or lists of objects and lists are overwritten.
 			$doc->setDocAsUpsert( $fullDocument || $indexOnSkip );
-			$doc->setRetryOnConflict( $this->searchConfig->get( 'CirrusSearchUpdateConflictRetryCount' ) );
+			$doc->setRetryOnConflict( $this->connection->getConfig()->get( 'CirrusSearchUpdateConflictRetryCount' ) );
 
 			$documents[] = $doc;
 		}
@@ -473,6 +498,10 @@ class Updater extends ElasticsearchIntermediary {
 			// Resolve one level of redirects because only one level of redirects is scored.
 			if ( $page->isRedirect() ) {
 				$target = $page->getRedirectTarget();
+				if ( $target === null ) {
+					// Redirect to itself or broken redirect? ignore.
+					continue;
+				}
 				$page = new WikiPage( $target );
 				if ( !$page->exists() ) {
 					// Skip redirects to nonexistent pages

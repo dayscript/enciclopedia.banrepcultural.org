@@ -67,6 +67,14 @@ class MultiClusterAssignment implements ClusterAssignment {
 	}
 
 	/**
+	 * @param string $cluster Name of requested cluster
+	 * @return string Uniquely identifies the connection properties.
+	 */
+	public function uniqueId( $cluster ) {
+		return "{$this->group}:$cluster";
+	}
+
+	/**
 	 * @return string[] List of CirrusSearch cluster names to write to.
 	 */
 	public function getWritableClusters(): array {
@@ -79,6 +87,21 @@ class MultiClusterAssignment implements ClusterAssignment {
 			$this->clusters = $this->initClusters();
 		}
 		return array_keys( $this->clusters );
+	}
+
+	/**
+	 * Check if a cluster is declared "writable".
+	 * NOTE: a cluster is considered writable even if one of its index is
+	 * frozen.
+	 * Before sending any writes in this cluster, the forzen index status
+	 * must be checked fr the  target index.
+	 * @see DataSender::isAvailableForWrites()
+	 *
+	 * @param string $cluster
+	 * @return bool
+	 */
+	public function canWriteToCluster( $cluster ) {
+		return in_array( $cluster, $this->getWritableClusters() );
 	}
 
 	/**

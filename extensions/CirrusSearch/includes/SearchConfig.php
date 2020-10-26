@@ -4,6 +4,7 @@ namespace CirrusSearch;
 
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\Profile\SearchProfileServiceFactory;
+use CirrusSearch\Profile\SearchProfileServiceFactoryFactory;
 use Config;
 use MediaWiki\MediaWikiServices;
 use RequestContext;
@@ -57,14 +58,21 @@ class SearchConfig implements \Config {
 	private $profileService;
 
 	/**
-	 * Create new search config for the current wiki.
+	 * @var SearchProfileServiceFactoryFactory|null (lazy loaded)
 	 */
-	public function __construct() {
+	private $searchProfileServiceFactoryFactory;
+
+	/**
+	 * Create new search config for the current wiki.
+	 * @param SearchProfileServiceFactoryFactory|null $searchProfileServiceFactoryFactory
+	 */
+	public function __construct( SearchProfileServiceFactoryFactory $searchProfileServiceFactoryFactory = null ) {
 		$this->source = new \GlobalVarConfig();
 		$this->wikiId = wfWikiID();
 		// The only ability to mutate SearchConfig is via a protected method, setSource.
 		// As long as we have an instance of SearchConfig it must then be the hostConfig.
 		$this->hostConfig = static::class === self::class ? $this : new SearchConfig();
+		$this->searchProfileServiceFactoryFactory = $searchProfileServiceFactoryFactory;
 	}
 
 	/**
@@ -250,21 +258,6 @@ class SearchConfig implements \Config {
 	}
 
 	/**
-	 * Check if a cluster is declared "writable".
-	 * NOTE: a cluster is considered writable even if one of its index is
-	 * frozen.
-	 * Before sending any writes in this cluster, the forzen index status
-	 * must be checked fr the  target index.
-	 * @see DataSender::isAvailableForWrites()
-	 *
-	 * @param string $cluster
-	 * @return bool
-	 */
-	public function canWriteToCluster( $cluster ) {
-		return in_array( $cluster, $this->getClusterAssignment()->getWritableClusters() );
-	}
-
-	/**
 	 * for unit tests purpose only
 	 * @return string[] list of "non-cirrus" var names
 	 */
@@ -306,11 +299,27 @@ class SearchConfig implements \Config {
 	 */
 	public function getProfileService() {
 		if ( $this->profileService === null ) {
-			/** @var SearchProfileServiceFactory $factory */
-			$factory = MediaWikiServices::getInstance()
-				->getService( SearchProfileServiceFactory::SERVICE_NAME );
+			if ( $this->searchProfileServiceFactoryFactory === null ) {
+
+				/** @var SearchProfileServiceFactory $factory */
+				$factory = MediaWikiServices::getInstance()
+					->getService( SearchProfileServiceFactory::SERVICE_NAME );
+			} else {
+				$factory = $this->searchProfileServiceFactoryFactory->getFactory( $this );
+			}
 			$this->profileService = $factory->loadService( $this );
 		}
 		return $this->profileService;
+	}
+
+	/**
+	 * @return bool true if the completion suggester is enabled
+	 */
+	public function isCompletionSuggesterEnabled() {
+		$useCompletion = $this->getElement( 'CirrusSearchUseCompletionSuggester' );
+		if ( is_string( $useCompletion ) ) {
+			return wfStringToBool( $useCompletion );
+		}
+		return $useCompletion === true;
 	}
 }

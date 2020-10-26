@@ -1,6 +1,7 @@
 <?php
 
 use Elastica\Client;
+use MediaWiki\Logger\LoggerFactory;
 
 /**
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +24,8 @@ use Elastica\Client;
  * Utility class
  */
 class MWElasticUtils {
+
+	const ONE_SEC_IN_MICROSEC = 1000000;
 
 	/**
 	 * A function that retries callback $func if it throws an exception.
@@ -49,7 +52,7 @@ class MWElasticUtils {
 						$beforeRetry( $e, $errors );
 					} else {
 						$seconds = static::backoffDelay( $errors );
-						sleep( $seconds );
+						usleep( $seconds * self::ONE_SEC_IN_MICROSEC );
 					}
 				}
 			} else {
@@ -116,39 +119,159 @@ class MWElasticUtils {
 	}
 
 	/**
-	 * Delete docs by query and wait for it to complete
-	 * via tasks api.
+	 * Delete docs by query and wait for it to complete via tasks api.
 	 *
 	 * @param \Elastica\Index $index the source index
 	 * @param \Elastica\Query $query the query
-	 * @return \Generator|array[]|\Elastica\Task Returns a generator. Generator yields
-	 *  arrays containing task status responses. Generator returns the Task instance
-	 *  on completion.
+	 * @param bool $allowConflicts When true documents updated since starting
+	 *  the query will not be deleted, and will not fail the delete-by-query. When
+	 *  false (default) the updated document will not be deleted and the delete-by-query
+	 *  will abort. Deletes are not transactional, some subset of matching documents
+	 *  will have been deleted.
+	 * @param int $reportEveryNumSec Log task status on this interval of seconds
+	 * @return \Elastica\Task Generator returns the Task instance on completion.
 	 * @throws Exception when task reports failures
 	 */
-	public static function deleteByQuery( \Elastica\Index $index, \Elastica\Query $query ) {
-		$response = $index->deleteByQuery( $query, [
+	public static function deleteByQuery(
+		\Elastica\Index $index,
+		\Elastica\Query $query,
+		$allowConflicts = false,
+		$reportEveryNumSec = 300
+	) {
+		$gen = self::deleteByQueryWithStatus( $index, $query, $allowConflicts, $reportEveryNumSec );
+		// @phan-suppress-next-line PhanTypeNoAccessiblePropertiesForeach always a generator object
+		foreach ( $gen as $status ) {
+			// We don't need these status updates. But we need to iterate
+			// the generator until it is done.
+		}
+		return $gen->getReturn();
+	}
+
+	/**
+	 * @param float $minDelay Starting value of generator
+	 * @param float $maxDelay Maximum value to return
+	 * @param float $increaseByRatio Increase by this ratio on each iteration, up to $maxDelay
+	 * @return Generator|float[] Returns a generator. Generator yields floats between
+	 *  $minDelay and $maxDelay
+	 */
+	private static function increasingDelay( $minDelay, $maxDelay, $increaseByRatio = 1.5 ) {
+		$delay = $minDelay;
+		while ( true ) {
+			yield $delay;
+			$delay = min( $delay * $increaseByRatio, $maxDelay );
+		}
+	}
+
+	/**
+	 * Delete docs by query and wait for it to complete via tasks api. This
+	 * method returns a generator which must be iterated on at least once
+	 * or the deletion will not occur.
+	 *
+	 * Client code that doesn't care about the result or when the deleteByQuery
+	 * completes are safe to call next( $gen ) a single time to start the deletion,
+	 * and then throw away the generator. Note that logging about how long the task
+	 * has been running will not be logged if the generator is not iterated.
+	 *
+	 * @param \Elastica\Index $index the source index
+	 * @param \Elastica\Query $query the query
+	 * @param bool $allowConflicts When true documents updated since starting
+	 *  the query will not be deleted, and will not fail the delete-by-query. When
+	 *  false (default) the updated document will not be deleted and the delete-by-query
+	 *  will abort. Deletes are not transactional, some subset of matching documents
+	 *  will have been deleted.
+	 * @param int $reportEveryNumSec Log task status on this interval of seconds
+	 * @return \Generator|array[]|\Elastica\Task Returns a generator. Generator yields
+	 *  arrays containing task status responses. Generator returns the Task instance
+	 *  on completion via Generator::getReturn.
+	 * @throws Exception when task reports failures
+	 */
+	public static function deleteByQueryWithStatus(
+		\Elastica\Index $index,
+		\Elastica\Query $query,
+		$allowConflicts = false,
+		$reportEveryNumSec = 300
+	) {
+		$params = [
 			'wait_for_completion' => 'false',
 			'scroll' => '15m',
-		] )->getData();
+		];
+		if ( $allowConflicts ) {
+			$params['conflicts'] = 'proceed';
+		}
+		$response = $index->deleteByQuery( $query, $params )->getData();
 		if ( !isset( $response['task'] ) ) {
 			throw new \Exception( 'No task returned: ' . var_export( $response, true ) );
 		}
+		$log = LoggerFactory::getInstance( 'Elastica' );
+		$clusterName = self::fetchClusterName( $index->getClient() );
+		$logContext = [
+			'index' => $index->getName(),
+			'cluster' => $clusterName,
+			'taskId' => $response['task'],
+		];
+		$logPrefix = 'deleteByQuery against [{index}] on cluster [{cluster}] with task id [{taskId}]';
+		$log->info( "$logPrefix starting", $logContext + [
+			'elastic_query' => FormatJson::encode( $query->toArray() )
+		] );
+
+		// Log tasks running longer than 10 minutes to help track down job runner
+		// timeouts that occur after 20 minutes. T219234
+		$start = MWTimestamp::time();
+		$reportAfter = $start + $reportEveryNumSec;
 		$task = new \Elastica\Task(
 			$index->getClient(),
 			$response['task'] );
+		$delay = self::increasingDelay( 0.05, 5 );
 		while ( !$task->isCompleted() ) {
+			$now = MWTimestamp::time();
+			if ( $now >= $reportAfter ) {
+				$reportAfter = $now + $reportEveryNumSec;
+				$log->warning( "$logPrefix still running after [{runtime}] seconds", $logContext + [
+					'runtime' => $now - $start,
+					// json encode to ensure we don't add a bunch of properties in
+					// logstash, we only really need the content and this will still be
+					// searchable.
+					'status' => FormatJson::encode( $task->getData() ),
+				] );
+			}
 			yield $task->getData();
-			sleep( 5 );
+			$delay->next();
+			usleep( $delay->current() * self::ONE_SEC_IN_MICROSEC );
 			$task->refresh();
 		}
 
-		$response = $task->getData()['response'];
-		if ( $response['failures'] ) {
-			throw new \Exception( implode( ', ', $response['failures'] ) );
+		$now = MWTimestamp::time();
+		$taskCompleteResponse = $task->getData()['response'];
+		if ( $taskCompleteResponse['failures'] ) {
+			$log->error( "$logPrefix failed", $logContext + [
+				'runtime' => $now - $start,
+				'status' => FormatJson::encode( $task->getData() ),
+			] );
+			throw new \Exception( 'Failed deleteByQuery: '
+				. implode( ', ', $taskCompleteResponse['failures'] ) );
 		}
 
+		$log->info( "$logPrefix completed", $logContext + [
+			'runtime' => $now - $start,
+			'status' => FormatJson::encode( $task->getData() ),
+		] );
+
 		return $task;
+	}
+
+	/**
+	 * Fetch the name of the cluster client is communicating with.
+	 *
+	 * @param Client $client Elasticsearch client to fetch name for
+	 * @return string Name of cluster $client is communicating with
+	 */
+	public static function fetchClusterName( Client $client ) {
+		$response = $client->requestEndpoint( new \Elasticsearch\Endpoints\Info );
+		if ( $response->getStatus() !== 200 ) {
+			throw new \Exception(
+				"Failed requesting cluster name, got status code [{$response->getStatus()}]" );
+		}
+		return $response->getData()['cluster_name'];
 	}
 
 	const METASTORE_INDEX_NAME = 'mw_cirrus_metastore';

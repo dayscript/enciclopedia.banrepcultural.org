@@ -66,12 +66,13 @@ class ForceSearchIndex extends Maintenance {
 
 	public function __construct() {
 		parent::__construct();
-		$this->mDescription = "Force indexing some pages.  Setting --from or --to will switch "
+		$this->addDescription( "Force indexing some pages.  Setting --from or --to will switch "
 			. "from page id based indexing to "
 			. "date based indexing which uses less efficient queries and follows redirects.\n\n"
 			. "Note: All froms are _exclusive_ and all tos are _inclusive_.\n"
 			. "Note 2: Setting fromId and toId use the efficient query so those are ok.\n"
-			. "Note 3: Operates on all clusters unless --cluster is provided.\n";
+			. "Note 3: Operates on all clusters unless --cluster is provided.\n"
+		);
 		$this->setBatchSize( 10 );
 		$this->addOption( 'from', 'Start date of reindex in YYYY-mm-ddTHH:mm:ssZ (exc.  Defaults ' .
 			'to 0 epoch.', false, true );
@@ -220,7 +221,7 @@ class ForceSearchIndex extends Maintenance {
 			} else {
 				$size = count( $batch['titlesToDelete'] );
 				$updater = $this->createUpdater();
-				$updater->archivePages( $batch['archive'], $this->archive );
+				$updater->archivePages( $batch['archive'] );
 				if ( !$this->archive ) {
 					$updater->deletePages( $batch['titlesToDelete'], $batch['docIdsToDelete'] );
 				}
@@ -397,6 +398,9 @@ class ForceSearchIndex extends Maintenance {
 			'log_type' => 'delete',
 			'log_action' => 'delete',
 			'EXISTS(select * from archive where ar_title = log_title and ar_namespace = log_namespace)',
+			// Prior to 2010 the logging table contains nulls. As the docs in elasticsearch use the page id
+			// as the document id we cannot handle these old rows.
+			'log_page IS NOT NULL',
 		] );
 
 		$it->setFetchColumns( [ 'log_timestamp', 'log_namespace', 'log_title', 'log_page' ] );
@@ -677,11 +681,7 @@ class ForceSearchIndex extends Maintenance {
 	 * @return Updater
 	 */
 	private function createUpdater() {
-		$flags = [];
-		if ( $this->hasOption( 'cluster' ) ) {
-			$flags[] = 'same-cluster';
-		}
-		return new Updater( $this->getConnection(), $this->getSearchConfig(), $flags );
+		return Updater::build( $this->getSearchConfig(), $this->getOption( 'cluster', null ) );
 	}
 }
 

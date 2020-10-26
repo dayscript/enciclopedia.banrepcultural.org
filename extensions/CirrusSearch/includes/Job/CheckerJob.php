@@ -4,12 +4,12 @@ namespace CirrusSearch\Job;
 
 use ArrayObject;
 use CirrusSearch\Profile\SearchProfileService;
+use CirrusSearch\Sanity\CheckerException;
 use CirrusSearch\Searcher;
 use CirrusSearch\Sanity\Checker;
 use CirrusSearch\Sanity\QueueingRemediator;
 use MediaWiki\Logger\LoggerFactory;
 use JobQueueGroup;
-use Title;
 
 /**
  * Job wrapper around Sanity\Checker
@@ -29,7 +29,7 @@ use Title;
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  * http://www.gnu.org/copyleft/gpl.html
  */
-class CheckerJob extends Job {
+class CheckerJob extends CirrusGenericJob {
 	/**
 	 * @const int max number of retries, 3 means that the job can be run at
 	 * most 4 times.
@@ -48,7 +48,7 @@ class CheckerJob extends Job {
 	 * @return CheckerJob
 	 */
 	public static function build( $fromPageId, $toPageId, $delay, $profile, $cluster, $loopId ) {
-		$job = new self( Title::makeTitle( NS_SPECIAL, "Badtitle/" . __CLASS__ ), [
+		$job = new self( [
 			'fromPageId' => $fromPageId,
 			'toPageId' => $toPageId,
 			'createdAt' => time(),
@@ -56,16 +56,14 @@ class CheckerJob extends Job {
 			'profile' => $profile,
 			'cluster' => $cluster,
 			'loopId' => $loopId,
-		] );
-		$job->setDelay( $delay );
+		] + self::buildJobDelayOptions( self::class, $delay ) );
 		return $job;
 	}
 
 	/**
-	 * @param Title $title
 	 * @param array $params
 	 */
-	public function __construct( $title, $params ) {
+	public function __construct( array $params ) {
 		// BC for jobs created before id fields were clarified to be explicitly page id's
 		if ( isset( $params['fromId'] ) ) {
 			$params['fromPageId'] = $params['fromId'];
@@ -79,7 +77,7 @@ class CheckerJob extends Job {
 		if ( !isset( $params['loopId'] ) ) {
 			$params['loopId'] = 0;
 		}
-		parent::__construct( $title, $params );
+		parent::__construct( $params );
 	}
 
 	/**
@@ -90,6 +88,9 @@ class CheckerJob extends Job {
 		$profile = $this->searchConfig
 			->getProfileService()
 			->loadProfileByName( SearchProfileService::SANEITIZER, $this->params['profile'], false );
+
+		// First perform a set of sanity checks and return true to fake a success (to prevent retries)
+		// in case the job params are incorrect. These errors are generally unrecoverable.
 		if ( !$profile ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				"Cannot run CheckerJob invalid profile {profile} provided, check CirrusSearchSanityCheck config.",
@@ -97,21 +98,21 @@ class CheckerJob extends Job {
 					'profile' => $this->params['profile']
 				]
 			);
-			return false;
+			return true;
 		}
 		$maxPressure = $profile['update_jobs_max_pressure'] ?? null;
 		if ( !$maxPressure || $maxPressure < 0 ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				"Cannot run CheckerJob invalid update_jobs_max_pressure, check CirrusSearchSanityCheck config."
 			);
-			return false;
+			return true;
 		}
 		$batchSize = $profile['checker_batch_size'] ?? null;
 		if ( !$batchSize || $batchSize < 0 ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				"Cannot run CheckerJob invalid checker_batch_size, check CirrusSearchSanityCheck config."
 			);
-			return false;
+			return true;
 		}
 
 		$chunkSize = $profile['jobs_chunk_size'] ?? null;
@@ -119,7 +120,7 @@ class CheckerJob extends Job {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				"Cannot run CheckerJob invalid jobs_chunk_size, check CirrusSearchSanityCheck config."
 			);
-			return false;
+			return true;
 		}
 
 		$maxTime = $profile['checker_job_max_time'] ?? null;
@@ -127,7 +128,7 @@ class CheckerJob extends Job {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				"Cannot run CheckerJob invalid checker_job_max_time, check CirrusSearchSanityCheck config."
 			);
-			return false;
+			return true;
 		}
 
 		$connections = $this->decideClusters();
@@ -146,7 +147,7 @@ class CheckerJob extends Job {
 					'to' => $to,
 				]
 			);
-			return false;
+			return true;
 		}
 
 		if ( ( $to - $from ) > $chunkSize ) {
@@ -158,7 +159,7 @@ class CheckerJob extends Job {
 					'chunkSize' => $chunkSize,
 				]
 			);
-			return false;
+			return true;
 		}
 
 		$clusterNames = implode( ', ', array_keys( $connections ) );
@@ -183,6 +184,9 @@ class CheckerJob extends Job {
 		$startTime = time();
 
 		$pageCache = new ArrayObject();
+		/**
+		 * @var Checker[] $checkers
+		 */
 		$checkers = [];
 		foreach ( $connections as $cluster => $connection ) {
 			$searcher = new Searcher( $connection, 0, 0, $this->searchConfig, [], null );
@@ -196,7 +200,7 @@ class CheckerJob extends Job {
 				$pageCache,
 				$isOld
 			);
-			$checkers[] = $checker;
+			$checkers[$cluster] = $checker;
 		}
 
 		$ranges = array_chunk( range( $from, $to ), $batchSize );
@@ -210,8 +214,13 @@ class CheckerJob extends Job {
 				return true;
 			}
 			$pageCache->exchangeArray( [] );
-			foreach ( $checkers as $checker ) {
-				$checker->check( $pageIds );
+			foreach ( $checkers as $cluster => $checker ) {
+				try {
+					$checker->check( $pageIds );
+				} catch ( CheckerException $checkerException ) {
+					$this->retry( "Failed to verify ids: " . $checkerException->getMessage(), reset( $pageIds ), $cluster );
+					unset( $checkers[$cluster] );
+				}
 			}
 		}
 		return true;
@@ -266,38 +275,48 @@ class CheckerJob extends Job {
 	 * @return bool
 	 */
 	public function allowRetries() {
-		return false;
+		return true;
 	}
 
 	/**
 	 * Retry the job later with a new from offset
 	 * @param string $cause why we retry
 	 * @param int $newFrom the new from offset
+	 * @param string|null $cluster Cluster job is for
 	 */
-	private function retry( $cause, $newFrom ) {
+	private function retry( $cause, $newFrom, $cluster = null ) {
 		if ( $this->params['retryCount'] >= self::JOB_MAX_RETRIES ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->info(
-				"Sanitize CheckerJob: $cause ({fromPageId}:{toPageId}), Abandonning CheckerJob after {retries} retries, (jobs_chunk_size too high?).",
+				"Sanitize CheckerJob: $cause ({fromPageId}:{toPageId}), Abandonning CheckerJob after {retries} retries " .
+				"for {cluster}, (jobs_chunk_size too high?).",
 				[
 					'retries' => $this->params['retryCount'],
 					'fromPageId' => $this->params['fromPageId'],
 					'toPageId' => $this->params['toPageId'],
+					'cluster' => $cluster ?: 'all clusters'
 				]
 			);
 			return;
 		}
 
-		$delay = self::backoffDelay( $this->params['retryCount'] );
-		$job = clone $this;
-		$job->params['retryCount']++;
-		$job->params['fromPageId'] = $newFrom;
-		$job->setDelay( $delay );
+		$delay = $this->backoffDelay( $this->params['retryCount'] );
+		$params = $this->params;
+		if ( $cluster !== null ) {
+			$params['cluster'] = $cluster;
+		}
+		$params['retryCount']++;
+		$params['fromPageId'] = $newFrom;
+		unset( $params['jobReleaseTimestamp'] );
+		$params += self::buildJobDelayOptions( self::class, $delay );
+		$job = new self( $params );
 		LoggerFactory::getInstance( 'CirrusSearch' )->info(
-			"Sanitize CheckerJob: $cause ({fromPageId}:{toPageId}), Requeueing CheckerJob with a delay of {delay}s.",
+			"Sanitize CheckerJob: $cause ({fromPageId}:{toPageId}), Requeueing CheckerJob " .
+			"for {cluster} with a delay of {delay}s.",
 			[
 				'delay' => $delay,
 				'fromPageId' => $job->params['fromPageId'],
 				'toPageId' => $job->params['toPageId'],
+				'cluster' => $cluster ?: 'all clusters'
 			]
 		);
 		JobQueueGroup::singleton()->push( $job );

@@ -31,7 +31,6 @@ class BooleanClause implements Visitable {
 	private $explicit = false;
 
 	/**
-	 * BooleanClause constructor.
 	 * @param ParsedNode $node
 	 * @param string $occur Specifies how this clause is to occur in matching documents.
 	 * @param bool $explicit whether or not this node is explicitly connected
@@ -59,6 +58,7 @@ class BooleanClause implements Visitable {
 		Assert::parameter( $occur === self::MUST || $occur === self::SHOULD || $occur === self::MUST_NOT,
 			'$occur', 'must be either: MUST, SHOULD or MUST_NOT' );
 	}
+
 	/**
 	 * Specifies how this clause is to occur in matching documents
 	 * @return string

@@ -2,6 +2,7 @@
 
 namespace CirrusSearch\Profile;
 
+use BagOStuff;
 use CirrusSearch\InterwikiResolver;
 use CirrusSearch\SearchConfig;
 use User;
@@ -34,8 +35,7 @@ use WebRequest;
  * </li>
  * <li>PHRASE_SUGGESTER in CONTEXT_DEFAULT
  *  <ul>
- *   <li>default: <i>default</i></li>
- *   <li>config override: <var>CirrusSearchPhraseSuggestSettings</var></li>
+ *   <li>default: <i>no defaults (selected by fallback methods profiles)</i></li>
  *  </ul>
  * </li>
  * <li>RESCORE in CONTEXT_DEFAULT and CONTEXT_PREFIXSEARCH
@@ -55,6 +55,12 @@ use WebRequest;
  *  <ul>
  *   <li>default: <i>default</i></li>
  *   <li>config override: <var>wgCirrusSearchSimilarityProfile</var></li>
+ *  </ul>
+ * </li>
+ * <li>FALLBACK in CONTEXT_DEFAULT
+ *  <ul>
+ * 	 <li>default: <i>none</i></li>
+ *   <li>config override: <var>wgCirrusSearchFallbackProfile</var></li>
  *  </ul>
  * </li>
  * </ul>
@@ -90,9 +96,15 @@ class SearchProfileServiceFactory {
 	 */
 	private $hostWikiConfig;
 
-	public function __construct( InterwikiResolver $resolver, SearchConfig $hostWikiConfig ) {
+	/**
+	 * @var BagOStuff
+	 */
+	private $localServerCache;
+
+	public function __construct( InterwikiResolver $resolver, SearchConfig $hostWikiConfig, BagOStuff $localServerCache ) {
 		$this->interwikiResolver = $resolver;
 		$this->hostWikiConfig = $hostWikiConfig;
+		$this->localServerCache = $localServerCache;
 	}
 
 	/**
@@ -112,9 +124,11 @@ class SearchProfileServiceFactory {
 		$this->loadRescoreProfiles( $service, $config );
 		$this->loadCompletionProfiles( $service, $config );
 		$this->loadPhraseSuggesterProfiles( $service, $config );
+		$this->loadIndexLookupFallbackProfiles( $service, $config );
 		$this->loadSaneitizerProfiles( $service );
 		$this->loadFullTextQueryProfiles( $service, $config );
 		$this->loadInterwikiOverrides( $service, $config );
+		$this->loadFallbackProfiles( $service, $config );
 		// Register extension profiles only if running on the host wiki.
 		// Only cirrus search is aware that we are running a crosswiki search
 		// Extensions have no way to know that the profiles they want to declare
@@ -155,7 +169,7 @@ class SearchProfileServiceFactory {
 			self::CIRRUS_CONFIG, 'CirrusSearchSimilarityProfiles', $config ) );
 
 		$service->registerDefaultProfile( SearchProfileService::SIMILARITY,
-			SearchProfileService::CONTEXT_DEFAULT, 'default' );
+			SearchProfileService::CONTEXT_DEFAULT, 'bm25_with_defaults' );
 		$service->registerConfigOverride( SearchProfileService::SIMILARITY,
 			SearchProfileService::CONTEXT_DEFAULT, $config, 'CirrusSearchSimilarityProfile' );
 	}
@@ -218,15 +232,18 @@ class SearchProfileServiceFactory {
 	 */
 	private function loadPhraseSuggesterProfiles( SearchProfileService $service, SearchConfig $config ) {
 		$service->registerRepository( PhraseSuggesterProfileRepoWrapper::fromFile( SearchProfileService::PHRASE_SUGGESTER,
-			self::CIRRUS_BASE, __DIR__ . '/../../profiles/PhraseSuggesterProfiles.config.php' ) );
+			self::CIRRUS_BASE, __DIR__ . '/../../profiles/PhraseSuggesterProfiles.config.php', $this->localServerCache ) );
 
 		$service->registerRepository( PhraseSuggesterProfileRepoWrapper::fromConfig( SearchProfileService::PHRASE_SUGGESTER,
-			self::CIRRUS_CONFIG, 'CirrusSearchPhraseSuggestProfiles', $config ) );
+			self::CIRRUS_CONFIG, 'CirrusSearchPhraseSuggestProfiles', $config, $this->localServerCache ) );
+	}
 
-		$service->registerDefaultProfile( SearchProfileService::PHRASE_SUGGESTER,
-			SearchProfileService::CONTEXT_DEFAULT, 'default' );
-		$service->registerConfigOverride( SearchProfileService::PHRASE_SUGGESTER,
-			SearchProfileService::CONTEXT_DEFAULT, $config, 'CirrusSearchPhraseSuggestSettings' );
+	private function loadIndexLookupFallbackProfiles( SearchProfileService $service, SearchConfig $config ) {
+		$service->registerFileRepository( SearchProfileService::INDEX_LOOKUP_FALLBACK,
+			self::CIRRUS_BASE, __DIR__ . '/../../profiles/IndexLookupFallbackProfiles.config.php' );
+
+		$service->registerRepository( new ConfigProfileRepository( SearchProfileService::INDEX_LOOKUP_FALLBACK,
+			self::CIRRUS_CONFIG, 'CirrusSearchIndexLookupFallbackProfiles', $config ) );
 	}
 
 	/**
@@ -290,5 +307,19 @@ class SearchProfileServiceFactory {
 				SearchProfileService::CONTEXT_DEFAULT,
 				new StaticProfileOverride( $profiles['ftbuilder'], SearchProfileOverride::CONFIG_PRIO - 1 ) );
 		}
+	}
+
+	private function loadFallbackProfiles( SearchProfileService $service, SearchConfig $config ) {
+		$service->registerFileRepository( SearchProfileService::FALLBACKS, self::CIRRUS_BASE,
+			__DIR__ . '/../../profiles/FallbackProfiles.config.php' );
+		$service->registerRepository( new ConfigProfileRepository( SearchProfileService::FALLBACKS, self::CIRRUS_CONFIG,
+			'CirrusSearchFallbackProfiles', $config ) );
+
+		$service->registerDefaultProfile( SearchProfileService::FALLBACKS,
+			SearchProfileService::CONTEXT_DEFAULT, 'none' );
+		$service->registerConfigOverride( SearchProfileService::FALLBACKS,
+			SearchProfileService::CONTEXT_DEFAULT, $config, 'CirrusSearchFallbackProfile' );
+		$service->registerUriParamOverride( SearchProfileService::FALLBACKS,
+			SearchProfileService::CONTEXT_DEFAULT, 'cirrusFallbackProfile' );
 	}
 }

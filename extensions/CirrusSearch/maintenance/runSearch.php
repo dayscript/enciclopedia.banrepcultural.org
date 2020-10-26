@@ -3,13 +3,14 @@
 namespace CirrusSearch\Maintenance;
 
 use CirrusSearch;
+use CirrusSearch\HashSearchConfig;
+use CirrusSearch\Search\CirrusSearchResultSet;
 use CirrusSearch\SearchConfig;
-use CirrusSearch\Search\ResultSet;
 use OrderedStreamingForkController;
 use PageArchive;
 use SearchSuggestionSet;
 use Status;
-use Wikimedia\Rdbms\ResultWrapper;
+use Wikimedia\Rdbms\IResultWrapper;
 
 /**
  * Run search queries provided on stdin
@@ -127,10 +128,10 @@ class RunSearch extends Maintenance {
 		$status = $this->searchFor( $query );
 		if ( $status->isOK() ) {
 			$value = $status->getValue();
-			if ( $value instanceof ResultWrapper ) {
+			if ( $value instanceof IResultWrapper ) {
 				// Archive search results
 				$data += $this->processArchiveResult( $value );
-			} elseif ( $value instanceof ResultSet ) {
+			} elseif ( $value instanceof CirrusSearchResultSet ) {
 				$data += $this->processResultSet( $value, $query );
 			} elseif ( $value instanceof SearchSuggestionSet ) {
 				// these are suggestion results
@@ -149,14 +150,15 @@ class RunSearch extends Maintenance {
 
 	/**
 	 * Extract data from a search result set.
-	 * @param ResultSet $value
+	 * @param CirrusSearchResultSet $value
 	 * @param string $query
 	 * @return array
 	 */
-	protected function processResultSet( ResultSet $value, $query ) {
+	protected function processResultSet( CirrusSearchResultSet $value, $query ) {
 		// these are prefix or full text results
 		$rows = [];
 		foreach ( $value as $result ) {
+			/** @var CirrusSearch\Search\CirrusSearchResult $result */
 			$row = [
 				// use getDocId() rather than asking the title to allow this script
 				// to work when a production index has been imported to a test es instance
@@ -164,7 +166,7 @@ class RunSearch extends Maintenance {
 				'title' => $result->getTitle()->getPrefixedText(),
 				'score' => $result->getScore(),
 				'snippets' => [
-					'text' => $result->getTextSnippet( [ $query ] ),
+					'text' => $result->getTextSnippet(),
 					'title' => $result->getTitleSnippet(),
 					'redirect' => $result->getRedirectSnippet(),
 					'section' => $result->getSectionSnippet(),
@@ -210,10 +212,10 @@ class RunSearch extends Maintenance {
 
 	/**
 	 * Extract data from archive search results.
-	 * @param ResultWrapper $value
+	 * @param IResultWrapper $value
 	 * @return array
 	 */
-	protected function processArchiveResult( ResultWrapper $value ) {
+	protected function processArchiveResult( IResultWrapper $value ) {
 		$rows = [];
 		foreach ( $value as $row ) {
 			$rows[] = [
@@ -231,7 +233,7 @@ class RunSearch extends Maintenance {
 	/**
 	 * Search for term in the archive.
 	 * @param string $query
-	 * @return Status<ResultWrapper>
+	 * @return Status<IResultWrapper>
 	 */
 	protected function searchArchive( $query ) {
 		$result = PageArchive::listPagesBySearch( $query );
@@ -243,7 +245,7 @@ class RunSearch extends Maintenance {
 	 * search result. Varies based on CLI input argument `type`.
 	 *
 	 * @param string $query
-	 * @return Status<ResultSet|ResultWrapper>
+	 * @return Status<CirrusSearch\Search\CirrusSearchResultSet|SearchSuggestionSet|IResultWrapper>
 	 */
 	protected function searchFor( $query ) {
 		$searchType = $this->getOption( 'type', 'full_text' );
@@ -258,8 +260,8 @@ class RunSearch extends Maintenance {
 			$this->getOption( 'explain', false ) ? 'raw' : null
 		);
 
-		$config = new CirrusSearch\HashSearchConfig( [ SearchConfig::INDEX_BASE_NAME => $this->indexBaseName ],
-			[ 'inherit' ] );
+		$config = new HashSearchConfig( [ SearchConfig::INDEX_BASE_NAME => $this->indexBaseName ],
+			[ HashSearchConfig::FLAG_INHERIT ] );
 		$engine = new CirrusSearch( $config, $options );
 		$namespaces = array_keys( $engine->getConfig()->get( 'NamespacesToBeSearchedDefault' ), true );
 		$engine->setNamespaces( $namespaces );

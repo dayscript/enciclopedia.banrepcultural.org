@@ -21,6 +21,8 @@
  * @ingroup Maintenance
  */
 
+use MediaWiki\Revision\RevisionRecord;
+
 require_once __DIR__ . '/Maintenance.php';
 
 /**
@@ -39,11 +41,15 @@ class ViewCLI extends Maintenance {
 		$title = Title::newFromText( $this->getArg( 0 ) );
 		if ( !$title ) {
 			$this->fatalError( "Invalid title" );
+		} elseif ( $title->isSpecialPage() ) {
+			$this->fatalError( "Special Pages not supported" );
+		} elseif ( !$title->exists() ) {
+			$this->fatalError( "Page does not exist" );
 		}
 
 		$page = WikiPage::factory( $title );
 
-		$content = $page->getContent( Revision::RAW );
+		$content = $page->getContent( RevisionRecord::RAW );
 		if ( !$content ) {
 			$this->fatalError( "Page has no content" );
 		}

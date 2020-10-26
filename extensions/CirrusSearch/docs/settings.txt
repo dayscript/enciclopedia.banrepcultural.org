@@ -51,10 +51,19 @@ This list of addresses can additionally contain 'replica' and
 to 'default'. For more information see docs/multi_cluster.txt.
 
 Example:
-    $wgCirrusSearchClusters = array(
-        'dc-foo' => array( 'es01.foo.local', 'es02.foo.local' )
-        'dc-bar' => array( 'es01.bar.local', 'es02.bar.local' )
-    );
+    $wgCirrusSearchClusters = [
+        'dc-foo' => [ 'es01.foo.local', 'es02.foo.local' ]
+        'dc-bar' => [ 'es01.bar.local', 'es02.bar.local' ]
+    ];
+
+A non-standard elasticsearch port can also be defined.
+
+Example:
+    $wgCirrusSearchClusters = [
+        'default' => [
+            [ 'host' => '127.0.0.1', 'port' => 1234 ],
+        ]
+    ];
 
 ; $wgCirrusSearchWriteClusters
 
@@ -64,6 +73,17 @@ Default:
 List of clusters that can be used for writing. Must be a subset of
 cluster groups from $wgCirrusSearchClusters.  By default or when set
 to null, all configured cluster groups are available for writing.
+
+; $wgCirrusSearchPrivateClusters
+
+Default:
+    $wgCirrusSearchPrivateClusters = null
+
+List of cluster names that are allowed to contain private indices. This
+provides an additional whitelist on top of $wgCirrusSearchWriteClusters
+for the archive index which should not be written to clusters that will
+be publicly readable. When set to the default value of null all clusters
+are allowed to contain private data.
 
 ; $wgCirrusSearchReplicaGroup
 
@@ -138,6 +158,12 @@ Default:
 Number of shards allowed on the same elasticsearch node, per index type.
 Set this to 1 to prevent two shards from the same high traffic index from being allocated
 onto the same node.
+
+You can also set this setting for each cluster:
+	$wgCirrusSearchMaxShardsPerNode = [
+		'cluster1' => [ 'content' => 1 ],
+		'cluster2' => [ 'content' => 'unlimited' ],
+	];
 
 Example:
     $wgCirrusSearchMaxShardsPerNode[ 'content' ] = 1;
@@ -476,19 +502,29 @@ If true CirrusSearch asks Elasticsearch to perform searches using a mode that sh
 produce more accurate results at the cost of performance. See this for more info:
 http://www.elasticsearch.org/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch/
 
+; $wgCirrusSearchFallbackProfile
+
+Default:
+    $wgCirrusSearchFallbackProfile = 'phrase_suggest_and_language_detection';
+
+Configure fallback methods.
+Responsible from displaying the "Did you mean" suggestion and/or
+rewriting the query to increase the chances to display some results.
+
+; $wgCirrusSearchFallbackProfiles
+
+Default:
+    $wgCirrusSearchFallbackProfiles = []
+
+Additional fallback profiles
+(see profiles/FallbackProfiles.config.php)
+
 ; $wgCirrusSearchEnablePhraseSuggest
 
 Default:
     $wgCirrusSearchEnablePhraseSuggest = true;
 
 Should the phrase suggester (did you mean) be enabled?
-
-; $wgCirrusSearchPhraseSuggestSettings
-
-Default:
-    $wgCirrusSearchPhraseSuggestSettings = 'default';
-
-Set the Phrase suggester settings using the default profile.
 
 ; $wgCirrusSearchPhraseSuggestProfiles
 
@@ -981,13 +1017,6 @@ Merge configuration for the indices.  See
 http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-merge.html
 for the meanings.
 
-; $wgCirrusSearchEnableSearchLogging
-
-Default:
-    $wgCirrusSearchEnableSearchLogging = false;
-
-Whether search events should be logged in the client side.
-
 ; $wgCirrusSearchLogElasticRequests
 
 Default:
@@ -1087,8 +1116,9 @@ updateSuggesterIndex.php. The suggester only supports queries to the main
 namespace. PrefixSearch will be used in all other cases.
 
 Valid values, all unknown values map to 'no':
-*  yes  - Use completion suggester as the default
-*  no   - Don't use completion suggester
+* yes   - Use completion suggester as the default
+* no    - Don't use completion suggester
+* build - Allow building the index from updateSuggesterIndex.php
 
 ; $wgCirrusSearchCompletionSuggesterSubphrases
 
@@ -1282,8 +1312,7 @@ CirrusSearch\LanguageDetector\Detector interface.
 
 Detectors will be called in the order given until one
 returns a non-null result. The array key will, currently, only be logged to the
-UserTesting logs. This is intended to be added to CirrusSearchRequestSet payload
-as well once schema migration is complete.
+UserTesting logs.
 
 The options that are built in:
 * CirrusSearch\LanguageDetector\HttpAccept - uses the first language in the Accept-Language header that is not the current content language.
@@ -1344,8 +1373,7 @@ for a bi-hourly schedule (--refresh-freq=7200).
 Setting $wgCirrusSearchSanityCheck to false will prevent the script from
 pushing new jobs even if it's still scheduled by cron.
 
-By default all writable clusters are checked, set its value to a list of
-clusters to exclude some of them.
+All writable clusters are checked.
 
 ; $wgCirrusSearchIndexBaseName
 
@@ -1462,33 +1490,6 @@ Default:
 
 Workarounds:
 - None currently
-
-; $wgCirrusSearchFieldTypes
-
-Default:
-    $wgCirrusSearchFieldTypes = [
-        SearchIndexField::INDEX_TYPE_TEXT => \CirrusSearch\Search\TextIndexField::class,
-        SearchIndexField::INDEX_TYPE_KEYWORD => \CirrusSearch\Search\KeywordIndexField::class,
-        SearchIndexField::INDEX_TYPE_INTEGER => \CirrusSearch\Search\IntegerIndexField::class,
-        SearchIndexField::INDEX_TYPE_NUMBER => \CirrusSearch\Search\NumberIndexField::class,
-        SearchIndexField::INDEX_TYPE_DATETIME => \CirrusSearch\Search\DatetimeIndexField::class,
-        SearchIndexField::INDEX_TYPE_BOOL => \CirrusSearch\Search\BooleanIndexField::class,
-        SearchIndexField::INDEX_TYPE_NESTED => \CirrusSearch\Search\NestedIndexField::class,
-        SearchIndexField::INDEX_TYPE_SHORT_TEXT => \CirrusSearch\Search\ShortTextIndexField::class,
-    ];
-
-Mapping of result types to CirrusSearch classes.
-
-; $wgCirrusSearchFieldTypeOverrides
-
-Default:
-    $wgCirrusSearchFieldTypeOverrides = [
-        'opening_text' => \CirrusSearch\Search\OpeningTextIndexField::class,
-    ];
-
-Customize certain fields with a specific implementation.
-Useful to apply CirrusSearch specific config to fields
-controlled by MediaWiki core.
 
 ; $wgCirrusSearchExtraIndexSettings
 

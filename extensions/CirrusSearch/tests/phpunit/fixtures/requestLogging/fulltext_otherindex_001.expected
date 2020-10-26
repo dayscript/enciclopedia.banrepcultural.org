@@ -1,71 +1,65 @@
 [
     {
-        "channel": "CirrusSearchRequestSet",
+        "channel": "cirrussearch-request",
         "context": {
-            "backendUserTests": [],
+            "$schema": "/mediawiki/cirrussearch/request/0.0.1",
+            "all_elasticsearch_requests_cached": false,
             "hits": [
                 {
                     "index": "commonswiki_file_first",
-                    "pageId": 26,
-                    "profileName": "",
-                    "score": 0.83292395,
-                    "title": "File:OnCommons.svg"
+                    "page_id": 26,
+                    "page_title": "File:OnCommons.svg",
+                    "score": 0.83292394999999997
                 },
                 {
                     "index": "commonswiki_file_first",
-                    "pageId": 27,
-                    "profileName": "",
-                    "score": 0.8020882,
-                    "title": "File:DuplicatedLocally.svg"
+                    "page_id": 27,
+                    "page_title": "File:DuplicatedLocally.svg",
+                    "score": 0.80208820000000003
                 }
             ],
-            "ip": "127.0.0.1",
-            "payload": {
-                "acceptLang": "",
-                "hascookies": "0",
-                "queryString": "",
-                "referer": ""
+            "http": {
+                "client_ip": "127.0.0.1",
+                "has_cookies": false,
+                "method": "GET"
             },
-            "requests": [
+            "elasticsearch_requests": [
                 {
-                    "elasticTookMs": 6,
+                    "cached": false,
                     "hits": [
                         {
                             "index": "commonswiki_file_first",
-                            "pageId": 26,
-                            "profileName": "",
-                            "score": 0.83292395,
-                            "title": "File:OnCommons.svg"
+                            "page_id": 26,
+                            "page_title": "File:OnCommons.svg",
+                            "score": 0.83292394999999997
                         },
                         {
                             "index": "commonswiki_file_first",
-                            "pageId": 27,
-                            "profileName": "",
-                            "score": 0.8020882,
-                            "title": "File:DuplicatedLocally.svg"
+                            "page_id": 27,
+                            "page_title": "File:DuplicatedLocally.svg",
+                            "score": 0.80208820000000003
                         }
                     ],
-                    "hitsOffset": 0,
-                    "hitsReturned": 2,
-                    "hitsTotal": 2,
+                    "hits_offset": 0,
+                    "hits_returned": 2,
+                    "hits_total": 2,
                     "indices": [
                         "wiki_general",
                         "commonswiki_file"
                     ],
                     "limit": 21,
-                    "maxScore": 2.7669134,
-                    "namespaces": [],
-                    "payload": {
-                        "syntax": "full_text,full_text_querystring"
-                    },
+                    "max_score": 2.7669134,
                     "query": "svg",
-                    "queryType": "full_text",
-                    "suggestion": "",
-                    "suggestionRequested": true
+                    "query_type": "full_text",
+                    "search_time_ms": 6,
+                    "suggestion_requested": true,
+                    "syntax": [
+                        "full_text",
+                        "full_text_querystring"
+                    ]
                 }
             ],
-            "source": "cli",
-            "userAgent": ""
+            "source": "cli"
         },
         "level": "debug",
         "message": ""

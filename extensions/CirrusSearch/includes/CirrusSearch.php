@@ -1,22 +1,28 @@
 <?php
 
-use CirrusSearch\CirrusDebugOptions;
-use CirrusSearch\Connection;
-use CirrusSearch\ElasticsearchIntermediary;
-use CirrusSearch\InterwikiSearcher;
+namespace CirrusSearch;
+
+use ApiUsageException;
+use CirrusSearch\Parser\NamespacePrefixParser;
+use CirrusSearch\Profile\ContextualProfileOverride;
 use CirrusSearch\Profile\SearchProfileService;
+use CirrusSearch\Search\CirrusSearchIndexFieldFactory;
+use CirrusSearch\Search\CirrusSearchResultSet;
+use CirrusSearch\Search\FancyTitleResultsType;
 use CirrusSearch\Search\SearchMetricsProvider;
 use CirrusSearch\Search\SearchQuery;
 use CirrusSearch\Search\SearchQueryBuilder;
-use CirrusSearch\Searcher;
-use CirrusSearch\CompletionSuggester;
-use CirrusSearch\Search\ResultSet;
-use CirrusSearch\SearchConfig;
-use CirrusSearch\Search\CirrusSearchIndexFieldFactory;
-use CirrusSearch\Search\FancyTitleResultsType;
 use CirrusSearch\Search\TitleResultsType;
-use CirrusSearch\UserTesting;
+use ISearchResultSet;
 use MediaWiki\MediaWikiServices;
+use RequestContext;
+use SearchEngine;
+use SearchIndexField;
+use SearchSuggestionSet;
+use Status;
+use Title;
+use User;
+use WebRequest;
 
 /**
  * SearchEngine implementation for CirrusSearch.  Delegates to
@@ -90,6 +96,11 @@ class CirrusSearch extends SearchEngine {
 	private $request;
 
 	/**
+	 * @var RequestContext $requestContext
+	 */
+	private $requestContext;
+
+	/**
 	 * @var CirrusSearchIndexFieldFactory
 	 */
 	private $searchIndexFieldFactory;
@@ -98,13 +109,29 @@ class CirrusSearch extends SearchEngine {
 	 * @var CirrusDebugOptions
 	 */
 	private $debugOptions;
+
 	/**
-	 * CirrusSearch constructor.
+	 * @var NamespacePrefixParser
+	 */
+	private $namespacePrefixParser;
+
+	/**
+	 * @var InterwikiResolver
+	 */
+	private $interwikiResolver;
+
+	/**
 	 * @param SearchConfig|null $config
 	 * @param CirrusDebugOptions|null $debugOptions
-	 * @throws ConfigException
+	 * @param NamespacePrefixParser|null $namespacePrefixParser
+	 * @param InterwikiResolver|null $interwikiResolver
 	 */
-	public function __construct( SearchConfig $config = null, CirrusDebugOptions $debugOptions = null ) {
+	public function __construct(
+		SearchConfig $config = null,
+		CirrusDebugOptions $debugOptions = null,
+		NamespacePrefixParser $namespacePrefixParser = null,
+		InterwikiResolver $interwikiResolver = null
+	) {
 		// Initialize UserTesting before we create a Connection
 		// This is useful to do tests across multiple clusters
 		UserTesting::getInstance();
@@ -112,11 +139,19 @@ class CirrusSearch extends SearchEngine {
 			->getConfigFactory()
 			->makeConfig( 'CirrusSearch' );
 		$this->connection = new Connection( $this->config );
-		$this->request = RequestContext::getMain()->getRequest();
+		$this->requestContext = RequestContext::getMain();
+		$this->request = $this->requestContext->getRequest();
 		$this->searchIndexFieldFactory = new CirrusSearchIndexFieldFactory( $this->config );
+		$this->namespacePrefixParser = $namespacePrefixParser ?: new class() implements NamespacePrefixParser {
+			public function parse( $query ) {
+				return CirrusSearch::parseNamespacePrefixes( $query, true, true );
+			}
+		};
+		$this->interwikiResolver = $interwikiResolver ?: MediaWikiServices::getInstance()->getService( InterwikiResolver::SERVICE );
 
 		// enable interwiki by default
 		$this->features['interwiki'] = true;
+		$this->features['show-multimedia-search-results'] = $this->config->get( 'CirrusSearchCrossProjectShowMultimedia' ) == true;
 		$this->debugOptions = $debugOptions ?? CirrusDebugOptions::fromRequest( $this->request );
 	}
 
@@ -162,7 +197,7 @@ class CirrusSearch extends SearchEngine {
 	 * @return Status Value is either SearchResultSet, or null on error.
 	 */
 	protected function doSearchText( $term ) {
-		$builder = SearchQueryBuilder::newFTSearchQueryBuilder( $this->config, $term )
+		$builder = SearchQueryBuilder::newFTSearchQueryBuilder( $this->config, $term, $this->namespacePrefixParser )
 			->setDebugOptions( $this->debugOptions )
 			->setInitialNamespaces( $this->namespaces )
 			->setLimit( $this->limit )
@@ -171,7 +206,8 @@ class CirrusSearch extends SearchEngine {
 			->setExtraIndicesSearch( true )
 			->setCrossProjectSearch( $this->isFeatureEnabled( 'interwiki' ) )
 			->setWithDYMSuggestion( $this->showSuggestion )
-			->setAllowRewrite( $this->isFeatureEnabled( 'rewrite' ) );
+			->setAllowRewrite( $this->isFeatureEnabled( 'rewrite' ) )
+			->addProfileContextParameter( ContextualProfileOverride::LANGUAGE, $this->requestContext->getLanguage()->getCode() );
 
 		if ( $this->prefix !== '' ) {
 			$builder->addContextualFilter( 'prefix',
@@ -187,7 +223,7 @@ class CirrusSearch extends SearchEngine {
 
 		$status = $this->searchTextReal( $query );
 		$matches = $status->getValue();
-		if ( $matches instanceof ResultSet ) {
+		if ( $matches instanceof CirrusSearchResultSet ) {
 			ElasticsearchIntermediary::setResultPages( [ $matches ] );
 		}
 		if ( $matches instanceof SearchMetricsProvider ) {
@@ -229,19 +265,16 @@ class CirrusSearch extends SearchEngine {
 			$searcher->getSearchContext()->areResultsPossible() &&
 			( $this->debugOptions->isReturnRaw() || method_exists( $result, 'addInterwikiResults' ) )
 		) {
-			$iwSearch = new InterwikiSearcher( $this->connection, $query->getSearchConfig(), $this->namespaces, null, $this->debugOptions );
+			$iwSearch = new InterwikiSearcher( $this->connection, $query->getSearchConfig(), $this->namespaces, null,
+				$this->debugOptions, $this->namespacePrefixParser, $this->interwikiResolver );
 			$interwikiResults = $iwSearch->getInterwikiResults( $query );
-			if ( $interwikiResults !== null ) {
-				// If we are dumping we need to convert into an array that can be appended to
-				if ( $this->debugOptions->isReturnRaw() ) {
-					$result = [ $result ];
-				}
-				foreach ( $interwikiResults as $interwiki => $interwikiResult ) {
+			if ( $interwikiResults->isOK() && $interwikiResults->getValue() !== [] ) {
+				foreach ( $interwikiResults->getValue() as $interwiki => $interwikiResult ) {
 					if ( $this->debugOptions->isReturnRaw() ) {
-						$result[] = $interwikiResult;
+						$result[$interwiki] = $interwikiResult;
 					} elseif ( $interwikiResult && $interwikiResult->numRows() > 0 ) {
 						$result->addInterwikiResults(
-							$interwikiResult, SearchResultSet::SECONDARY_RESULTS, $interwiki
+							$interwikiResult, ISearchResultSet::SECONDARY_RESULTS, $interwiki
 						);
 					}
 				}
@@ -296,6 +329,7 @@ class CirrusSearch extends SearchEngine {
 			'incoming_links_asc', 'incoming_links_desc',
 			'last_edit_asc', 'last_edit_desc',
 			'create_timestamp_asc', 'create_timestamp_desc',
+			'random',
 		];
 	}
 
@@ -305,17 +339,6 @@ class CirrusSearch extends SearchEngine {
 	 */
 	public function getLastSearchMetrics() {
 		return $this->lastSearchMetrics + $this->extraSearchMetrics;
-	}
-
-	/**
-	 * @return bool
-	 */
-	private function completionSuggesterEnabled() {
-		$useCompletion = $this->config->getElement( 'CirrusSearchUseCompletionSuggester' );
-		if ( is_string( $useCompletion ) ) {
-			return wfStringToBool( $useCompletion );
-		}
-		return $useCompletion === true;
 	}
 
 	/**
@@ -338,14 +361,14 @@ class CirrusSearch extends SearchEngine {
 		// Not really useful, mostly for testing purpose
 		$variants = $this->debugOptions->getCirrusCompletionVariant();
 		if ( empty( $variants ) ) {
-			global $wgContLang;
-			$variants = $wgContLang->autoConvertToAllVariants( $search );
+			$contentLang = MediaWikiServices::getInstance()->getContentLanguage();
+			$variants = $contentLang->autoConvertToAllVariants( $search );
 		} elseif ( count( $variants ) > 3 ) {
 			// We should not allow too many variants
 			$variants = array_slice( $variants, 0, 3 );
 		}
 
-		if ( !$this->completionSuggesterEnabled() ) {
+		if ( !$this->config->isCompletionSuggesterEnabled() ) {
 			// Completion suggester is not enabled, fallback to
 			// default implementation
 			return $this->prefixSearch( $search, $variants );
@@ -435,7 +458,7 @@ class CirrusSearch extends SearchEngine {
 		$serviceProfileType = null;
 		switch ( $profileType ) {
 		case SearchEngine::COMPLETION_PROFILE_TYPE:
-			if ( $this->completionSuggesterEnabled() ) {
+			if ( $this->config->isCompletionSuggesterEnabled() ) {
 				$serviceProfileType = SearchProfileService::COMPLETION;
 			}
 			break;
@@ -492,10 +515,10 @@ class CirrusSearch extends SearchEngine {
 	/**
 	 * Create a search field definition
 	 * @param string $name
-	 * @param int $type
+	 * @param string $type
 	 * @return SearchIndexField
 	 */
-	public function makeSearchFieldMapping( $name, $type ) {
+	public function makeSearchFieldMapping( $name, $type ): SearchIndexField {
 		return $this->searchIndexFieldFactory->makeSearchFieldMapping( $name, $type );
 	}
 
@@ -547,6 +570,8 @@ class CirrusSearch extends SearchEngine {
 	 */
 	private function makeSearcher( SearchConfig $config = null ) {
 		return new Searcher( $this->connection, $this->offset, $this->limit, $config ?? $this->config, $this->namespaces,
-				null, null, $this->debugOptions );
+				null, null, $this->debugOptions, $this->namespacePrefixParser, $this->interwikiResolver );
 	}
 }
+
+class_alias( CirrusSearch::class, 'CirrusSearch' );

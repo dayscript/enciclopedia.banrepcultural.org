@@ -9,7 +9,6 @@
 		<exclude name="PSR2.Methods.MethodDeclaration.Underscore" />
 		<exclude name="PSR2.Classes.PropertyDeclaration.Underscore"/>
 		<exclude name="MediaWiki.NamingConventions.LowerCamelFunctionsName.FunctionName" />
-		<exclude name="MediaWiki.Usage.DeprecatedGlobalVariables.Deprecated$wgContLang" />
 		<exclude name="MediaWiki.WhiteSpace.SpaceBeforeSingleLineComment.NewLineComment"/>
 		<exclude name="MediaWiki.Usage.SuperGlobalsUsage.SuperGlobals"/>
 	</rule>
@@ -32,5 +31,4 @@
 	<file>.</file>
 	<arg name="extensions" value="php,php5,inc"/>
 	<arg name="encoding" value="UTF-8"/>
-	<exclude-pattern>tests/phan</exclude-pattern>
 </ruleset>

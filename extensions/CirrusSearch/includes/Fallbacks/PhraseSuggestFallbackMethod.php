@@ -2,13 +2,14 @@
 
 namespace CirrusSearch\Fallbacks;
 
-use CirrusSearch\OtherIndexes;
+use CirrusSearch\InterwikiResolver;
+use CirrusSearch\OtherIndexesUpdater;
 use CirrusSearch\Parser\AST\Visitor\QueryFixer;
 use CirrusSearch\Parser\BasicQueryClassifier;
+use CirrusSearch\Profile\SearchProfileException;
 use CirrusSearch\Profile\SearchProfileService;
-use CirrusSearch\Search\ResultSet;
+use CirrusSearch\Search\CirrusSearchResultSet;
 use CirrusSearch\Search\SearchQuery;
-use CirrusSearch\Search\SearchQueryBuilder;
 use CirrusSearch\Searcher;
 use Wikimedia\Assert\Assert;
 
@@ -24,84 +25,118 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 	private $query;
 
 	/**
-	 * @var SearcherFactory
-	 */
-	private $searcherFactory;
-
-	/**
 	 * @var QueryFixer
 	 */
 	private $queryFixer;
+
 	/**
-	 * PhraseSuggestFallbackMethod constructor.
-	 * @param SearcherFactory $factory
-	 * @param SearchQuery $query
+	 * @var string
 	 */
-	public function __construct( SearcherFactory $factory, SearchQuery $query ) {
-		$this->searcherFactory = $factory;
+	private $profileName;
+
+	/**
+	 * @var array|null settings (lazy loaded)
+	 */
+	private $profile;
+
+	/**
+	 * @param SearchQuery $query
+	 * @param string $profileName name of the profile to use (null to use the defaults provided by the ProfileService)
+	 */
+	private function __construct( SearchQuery $query, $profileName ) {
+		Assert::precondition( $query->isWithDYMSuggestion() &&
+							  $query->getSearchConfig()->get( 'CirrusSearchEnablePhraseSuggest' ) &&
+							  $query->getOffset() == 0, "Unsupported query" );
 		$this->query = $query;
-		$this->queryFixer = new QueryFixer( $query->getParsedQuery() );
+		$this->queryFixer = QueryFixer::build( $query->getParsedQuery() );
+		$this->profileName = $profileName;
 	}
 
 	/**
-	 * @param SearcherFactory $factory
 	 * @param SearchQuery $query
-	 * @return FallbackMethod
+	 * @param array $params
+	 * @param InterwikiResolver|null $interwikiResolver
+	 * @return FallbackMethod|null
 	 */
-	public static function build( SearcherFactory $factory, SearchQuery $query ) {
-		return new self( $factory, $query );
+	public static function build( SearchQuery $query, array $params, InterwikiResolver $interwikiResolver = null ) {
+		if ( !$query->isWithDYMSuggestion() ) {
+			return null;
+		}
+		if ( !$query->getSearchConfig()->get( 'CirrusSearchEnablePhraseSuggest' ) ) {
+			return null;
+		}
+		// TODO: Should this be tested at an upper level?
+		if ( $query->getOffset() !== 0 ) {
+			return null;
+		}
+		if ( !isset( $params['profile'] ) ) {
+			throw new SearchProfileException( "Missing mandatory parameter 'profile'" );
+		}
+		return new self( $query, $params['profile'] );
 	}
 
 	/**
-	 * @param ResultSet $firstPassResults
+	 * @param FallbackRunnerContext $context
 	 * @return float
 	 */
-	public function successApproximation( ResultSet $firstPassResults ) {
-		if ( $this->haveSuggestion( $firstPassResults ) ) {
-			return 0.5;
+	public function successApproximation( FallbackRunnerContext $context ) {
+		$firstPassResults = $context->getInitialResultSet();
+		if ( !$this->haveSuggestion( $firstPassResults ) ) {
+			return 0.0;
 		}
-		return 0.0;
+
+		if ( $this->resultContainsFullyHighlightedMatch( $firstPassResults->getElasticaResultSet() ) ) {
+			return 0.0;
+		}
+
+		if ( $this->totalHitsThresholdMet( $firstPassResults->getTotalHits() ) ) {
+			return 0.0;
+		}
+
+		return 0.5;
 	}
 
 	/**
-	 * @param ResultSet $firstPassResults
-	 * @param ResultSet $previousSet
-	 * @return ResultSet
+	 * @param FallbackRunnerContext $context
+	 * @return CirrusSearchResultSet
 	 */
-	public function rewrite( ResultSet $firstPassResults, ResultSet $previousSet ) {
+	public function rewrite( FallbackRunnerContext $context ): CirrusSearchResultSet {
+		$firstPassResults = $context->getInitialResultSet();
+		$previousSet = $context->getPreviousResultSet();
+		if ( $previousSet->getQueryAfterRewrite() !== null ) {
+			// a method rewrote the query before us.
+			return $previousSet;
+		}
+		if ( $previousSet->getSuggestionQuery() !== null ) {
+			// a method suggested something before us
+			return $previousSet;
+		}
 		$this->showDYMSuggestion( $firstPassResults, $previousSet );
-		if ( !$this->query->isAllowRewrite()
+		if ( !$context->costlyCallAllowed()
+			|| !$this->query->isAllowRewrite()
 			|| $this->resultsThreshold( $previousSet )
 			|| !$this->query->getParsedQuery()->isQueryOfClass( BasicQueryClassifier::SIMPLE_BAG_OF_WORDS )
 		) {
 			return $previousSet;
 		}
 
-		$rewrittenQuery = SearchQueryBuilder::forRewrittenQuery( $this->query,
-			$firstPassResults->getSuggestionQuery() )->build();
-		$searcher = $this->searcherFactory->makeSearcher( $rewrittenQuery );
-		$status = $searcher->search( $rewrittenQuery );
-		if ( $status->isOK() && $status->getValue() instanceof ResultSet ) {
-			/**
-			 * @var ResultSet $newresults
-			 */
-			$newresults = $status->getValue();
-			$newresults->setRewrittenQuery( $firstPassResults->getSuggestionQuery(),
-				$firstPassResults->getSuggestionSnippet() );
-			return $newresults;
-		} else {
-			return $previousSet;
-		}
+		return $this->maybeSearchAndRewrite( $context, $this->query,
+			$previousSet->getSuggestionQuery(), $previousSet->getSuggestionSnippet() );
 	}
 
-	public function haveSuggestion( ResultSet $resultSet ) {
-		$suggestion = $this->findSuggestion( $resultSet );
-		return $suggestion && !$this->resultContainsFullyHighlightedMatch( $resultSet->getElasticaResultSet() );
+	/**
+	 * @param CirrusSearchResultSet $resultSet
+	 * @return bool
+	 */
+	public function haveSuggestion( CirrusSearchResultSet $resultSet ) {
+		return $this->findSuggestion( $resultSet ) !== null;
 	}
 
-	private function showDYMSuggestion( ResultSet $fromResultSet, ResultSet $toResultSet ) {
+	private function showDYMSuggestion( CirrusSearchResultSet $fromResultSet, CirrusSearchResultSet $toResultSet ) {
 		$suggestion = $this->findSuggestion( $fromResultSet );
 		Assert::precondition( $suggestion !== null, "showDYMSuggestion called with no suggestions available" );
+		Assert::precondition( $toResultSet->getSuggestionQuery() === null, "must not have a suggestion yet" );
+		Assert::precondition( $toResultSet->getQueryAfterRewrite() === null, "must not have been rewritten" );
 		$toResultSet->setSuggestionQuery(
 			$this->queryFixer->fix( $suggestion['text'] ),
 			$this->queryFixer->fix( $this->escapeHighlightedSuggestion( $suggestion['highlighted'] ), true )
@@ -122,10 +157,20 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 	}
 
 	/**
+	 * @param int $totalHits
+	 * @return bool
+	 */
+	private function totalHitsThresholdMet( $totalHits ) {
+		$threshold = $this->getProfile()['total_hits_threshold'] ?? -1;
+		return $threshold >= 0 && $totalHits > $threshold;
+	}
+
+	/**
+	 * @param CirrusSearchResultSet $resultSet
 	 * @return array|null Suggestion options, see "options" part in
 	 *      https://www.elastic.co/guide/en/elasticsearch/reference/6.4/search-suggesters.html
 	 */
-	private function findSuggestion( ResultSet $resultSet ) {
+	private function findSuggestion( CirrusSearchResultSet $resultSet ) {
 		// TODO some kind of weighting?
 		$response = $resultSet->getElasticResponse();
 		if ( $response === null ) {
@@ -150,19 +195,14 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 	 * @return array|null
 	 */
 	public function getSuggestQueries() {
-		if ( $this->query->isWithDYMSuggestion()
-				&& $this->query->getSearchConfig()->get( 'CirrusSearchEnablePhraseSuggest' )
-				&& $this->query->getOffset() === 0
-		) {
-			$term = $this->queryFixer->getFixablePart();
-			if ( $term !== null ) {
-				return [
-					'suggest' => [
-						'text' => $term,
-						'suggest' => $this->buildSuggestConfig(),
-					]
-				];
-			}
+		$term = $this->queryFixer->getFixablePart();
+		if ( $term !== null ) {
+			return [
+				'suggest' => [
+					'text' => $term,
+					'suggest' => $this->buildSuggestConfig(),
+				]
+			];
 		}
 		return null;
 	}
@@ -175,8 +215,7 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 	private function buildSuggestConfig() {
 		$field = 'suggest';
 		$config = $this->query->getSearchConfig();
-		$suggestSettings = $config->getProfileService()
-			->loadProfile( SearchProfileService::PHRASE_SUGGESTER );
+		$suggestSettings = $this->getProfile();
 		$settings = [
 			'phrase' => [
 				'field' => $field,
@@ -204,7 +243,7 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 		// on other wikis.
 		if ( $config->getElement( 'CirrusSearchPhraseSuggestReverseField', 'use' )
 			&& ( !$this->query->getCrossSearchStrategy()->isExtraIndicesSearchSupported()
-				|| empty( OtherIndexes::getExtraIndexesForNamespaces(
+				|| empty( OtherIndexesUpdater::getExtraIndexesForNamespaces(
 					$config,
 					$this->query->getNamespaces()
 				)
@@ -244,5 +283,17 @@ class PhraseSuggestFallbackMethod implements FallbackMethod, ElasticSearchSugges
 		}
 
 		return $settings;
+	}
+
+	/**
+	 * @return array
+	 */
+	private function getProfile() {
+		if ( $this->profile === null ) {
+			$this->profile = $this->query->getSearchConfig()->getProfileService()
+				->loadProfileByName( SearchProfileService::PHRASE_SUGGESTER,
+					$this->profileName );
+		}
+		return $this->profile;
 	}
 }

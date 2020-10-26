@@ -5,18 +5,24 @@ namespace CirrusSearch;
 use CirrusSearch\Fallbacks\FallbackRunner;
 use CirrusSearch\Fallbacks\SearcherFactory;
 use CirrusSearch\MetaStore\MetaNamespaceStore;
+use CirrusSearch\Parser\BasicQueryClassifier;
 use CirrusSearch\Parser\FullTextKeywordRegistry;
+use CirrusSearch\Parser\NamespacePrefixParser;
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\Query\CountContentWordsBuilder;
+use CirrusSearch\Query\KeywordFeature;
 use CirrusSearch\Query\NearMatchQueryBuilder;
 use CirrusSearch\Query\PrefixSearchQueryBuilder;
+use CirrusSearch\Search\BaseCirrusSearchResultSet;
 use CirrusSearch\Search\FullTextResultsType;
+use CirrusSearch\Search\MSearchRequests;
+use CirrusSearch\Search\MSearchResponses;
 use CirrusSearch\Search\ResultsType;
-use CirrusSearch\Search\ResultSet;
 use CirrusSearch\Search\SearchContext;
 use CirrusSearch\Search\SearchQuery;
 use CirrusSearch\Search\SearchRequestBuilder;
 use CirrusSearch\Search\TeamDraftInterleaver;
+use CirrusSearch\Search\TitleHelper;
 use CirrusSearch\Search\TitleResultsType;
 use CirrusSearch\Query\FullTextQueryBuilder;
 use Elastica\Exception\RuntimeException;
@@ -27,13 +33,13 @@ use Elastica\Query\MultiMatch;
 use Elastica\Search;
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
-use ObjectCache;
 use RequestContext;
 use Status;
 use Title;
 use User;
 use WebRequest;
 use Wikimedia\Assert\Assert;
+use Wikimedia\ObjectFactory;
 
 /**
  * Performs searches using Elasticsearch.  Note that each instance of this class
@@ -75,6 +81,16 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	const MAX_OFFSET_LIMIT = 10000;
 
 	/**
+	 * Identifies the main search in MSearchRequests/MSearchResponses
+	 */
+	const MAINSEARCH_MSEARCH_KEY = '__main__';
+
+	/**
+	 * Identifies the "tested" search request in MSearchRequests/MSearchResponses
+	 */
+	const INTERLEAVED_MSEARCH_KEY = '__interleaved__';
+
+	/**
 	 * @var integer search offset
 	 */
 	protected $offset;
@@ -112,6 +128,18 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	private $pageType;
 
 	/**
+	 * @var NamespacePrefixParser|null
+	 */
+	private $namespacePrefixParser;
+	/**
+	 * @var InterwikiResolver
+	 */
+	protected $interwikiResolver;
+
+	/** @var TitleHelper */
+	protected $titleHelper;
+
+	/**
 	 * @param Connection $conn
 	 * @param int $offset Offset the results by this much
 	 * @param int $limit Limit the results to this many
@@ -120,6 +148,8 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * @param User|null $user user for which this search is being performed.  Attached to slow request logs.
 	 * @param string|bool $index Base name for index to search from, defaults to $wgCirrusSearchIndexBaseName
 	 * @param CirrusDebugOptions|null $options the debugging options to use or null to use defaults
+	 * @param NamespacePrefixParser|null $namespacePrefixParser
+	 * @param InterwikiResolver|null $interwikiResolver
 	 * @see CirrusDebugOptions::defaultOptions()
 	 */
 	public function __construct(
@@ -129,7 +159,9 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		array $namespaces = null,
 		User $user = null,
 		$index = false,
-		CirrusDebugOptions $options = null
+		CirrusDebugOptions $options = null,
+		NamespacePrefixParser $namespacePrefixParser = null,
+		InterwikiResolver $interwikiResolver = null
 	) {
 		parent::__construct(
 			$conn,
@@ -141,6 +173,10 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		$this->setOffsetLimit( $offset, $limit );
 		$this->indexBaseName = $index ?: $config->get( SearchConfig::INDEX_BASE_NAME );
 		$this->searchContext = new SearchContext( $this->config, $namespaces, $options );
+		// TODO: Make these params mandatory once WBCS stops extending this class
+		$this->namespacePrefixParser = $namespacePrefixParser;
+		$this->interwikiResolver = $interwikiResolver ?: MediaWikiServices::getInstance()->getService( InterwikiResolver::SERVICE );
+		$this->titleHelper = new TitleHelper( $this->config, $this->interwikiResolver );
 	}
 
 	/**
@@ -151,22 +187,24 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * @return Status
 	 */
 	public function search( SearchQuery $query ) {
-		$fallbackRunner = FallbackRunner::create( $this, $query );
-		$this->searchContext = SearchContext::fromSearchQuery( $query, $fallbackRunner );
+		if ( $query->getDebugOptions()->isCirrusDumpQueryAST() ) {
+			return Status::newGood( [ 'ast' => $query->getParsedQuery()->toArray() ] );
+		}
+		// TODO: properly pass the profile context name and its params once we have a dispatch service.
+		$this->searchContext = SearchContext::fromSearchQuery( $query, FallbackRunner::create( $query, $this->interwikiResolver ) );
 		$this->setOffsetLimit( $query->getOffset(), $query->getLimit() );
 		$this->config = $query->getSearchConfig();
 		$this->sort = $query->getSort();
 
 		if ( $query->getSearchEngineEntryPoint() === SearchQuery::SEARCH_TEXT ) {
-			$this->searchContext->setResultsType( new FullTextResultsType() );
-			$status = $this->searchTextInternal( $query->getParsedQuery()->getQueryWithoutNsHeader() );
-			if ( $status->isOK() && $status->getValue() instanceof ResultSet ) {
-				$newStatus = Status::newGood( $fallbackRunner->run( $status->getValue() ) );
-				$newStatus->merge( $status );
-				$status = $newStatus;
-				$this->appendMetrics( $fallbackRunner );
-			}
-			return $status;
+			$this->searchContext->setResultsType(
+				new FullTextResultsType(
+					$this->searchContext->getFetchPhaseBuilder(),
+					$query->getParsedQuery()->isQueryOfClass( BasicQueryClassifier::COMPLEX_QUERY ),
+					$this->titleHelper
+				)
+			);
+			return $this->searchTextInternal( $query->getParsedQuery()->getQueryWithoutNsHeader() );
 		} else {
 			throw new \RuntimeException( 'Only ' . SearchQuery::SEARCH_TEXT . ' is supported for now' );
 		}
@@ -258,29 +296,9 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 			->loadProfileByName( SearchProfileService::FT_QUERY_BUILDER,
 				$this->searchContext->getFulltextQueryBuilderProfile() );
 		$features = ( new FullTextKeywordRegistry( $this->config ) )->getKeywords();
-		/** @var FullTextQueryBuilder $qb */
-		$qb = new $builderSettings['builder_class'](
-			$this->config,
-			$features,
-			$builderSettings['settings']
-		);
-
-		if ( !( $qb instanceof FullTextQueryBuilder ) ) {
-			throw new RuntimeException( "Bad builder class configured: {$builderSettings['builder_class']}" );
-		}
-
-		\Hooks::run( 'CirrusSearchFulltextQueryBuilder', [ &$qb, $this->searchContext ] );
-		// Query builder could be replaced here!
-		if ( !( $qb instanceof FullTextQueryBuilder ) ) {
-			throw new RuntimeException(
-				"Bad query builder object override, must implement FullTextQueryBuilder!" );
-		}
+		$qb = self::buildFullTextBuilder( $builderSettings, $this->config, $features );
 
 		$qb->build( $this->searchContext, $term );
-
-		// Give other builder opportunity to override
-		\Hooks::run( 'CirrusSearchFulltextQueryBuilderComplete',
-			[ $qb, $term, $this->searchContext ] );
 
 		return $qb;
 	}
@@ -298,9 +316,10 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		// Searcher needs to be cloned before any actual query building is done.
 		$interleaveSearcher = $this->buildInterleaveSearcher();
 
-		$searches = [];
 		$qb = $this->buildFullTextSearch( $term );
-		$searches[] = $this->buildSearch();
+		$mainSearch = $this->buildSearch();
+		$searches = MSearchRequests::build( self::MAINSEARCH_MSEARCH_KEY, $mainSearch );
+		$description = "{$this->searchContext->getSearchType()} search for '{$this->searchContext->getOriginalSearchTerm()}'";
 
 		if ( !$this->searchContext->areResultsPossible() ) {
 			return $this->emptyResultSet();
@@ -309,16 +328,26 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		if ( $interleaveSearcher !== null ) {
 			$interleaveSearcher->buildFullTextSearch( $term );
 			$interleaveSearch = $interleaveSearcher->buildSearch();
-			if ( $this->areSearchesTheSame( $searches[0], $interleaveSearch ) ) {
+			if ( $this->areSearchesTheSame( $mainSearch, $interleaveSearch ) ) {
 				$interleaveSearcher = null;
 			} else {
-				$searches[] = $interleaveSearch;
+				$searches->addRequest( self::INTERLEAVED_MSEARCH_KEY, $interleaveSearch );
 			}
 		}
 
-		$status = $this->searchMulti( $searches );
-		if ( !$status->isOK() ) {
+		$fallbackRunner = $this->searchContext->getFallbackRunner();
+		$fallbackRunner->attachSearchRequests( $searches, $this->connection->getClient() );
+
+		if ( $this->searchContext->getDebugOptions()->isCirrusDumpQuery() ) {
+			return $searches->dumpQuery( $description );
+		}
+
+		$responses = $this->searchMulti( $searches );
+		if ( $responses->hasFailure() ) {
+			$status = $responses->getFailure();
 			if ( ElasticaErrorHandler::isParseError( $status ) ) {
+				// Rebuild the search context because we need a fresh fetchPhaseBuilder
+				$this->searchContext = $this->searchContext->withConfig( $this->config );
 				if ( $qb->buildDegraded( $this->searchContext ) ) {
 					// If that doesn't work we're out of luck but it should.
 					// There no guarantee it'll work properly with the syntax
@@ -330,27 +359,28 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 			return $status;
 		}
 
-		if ( $interleaveSearcher === null ) {
-			// Convert array of responses to single value
-			$value = $status->getValue();
-			$response = reset( $value );
-		} else {
-			// Evil hax to support cirrusDumpResult. This is probably
-			// very fragile.
-			$value = $status->getValue();
-			if ( $value[0] instanceof ResultSet ) {
-				$interleaver = new TeamDraftInterleaver( $this->searchContext->getOriginalSearchTerm() );
-				$response = $interleaver->interleave( $value[0], $value[1], $this->limit );
-			} else {
-				$response = $value;
-			}
+		if ( $this->searchContext->getDebugOptions()->isCirrusDumpResult() ) {
+			return $responses->dumpResults( $description );
 		}
-		$status->setResult( true, $response );
+
+		$rType = $this->getSearchContext()->getResultsType();
+		$mainSet = $responses->transformAsResultSet( $rType, self::MAINSEARCH_MSEARCH_KEY );
+		if ( $interleaveSearcher !== null ) {
+			$interleaver = new TeamDraftInterleaver( $this->searchContext->getOriginalSearchTerm() );
+			$testedSet = $responses->transformAsResultSet( $rType, self::INTERLEAVED_MSEARCH_KEY );
+			$response = $interleaver->interleave( $mainSet, $testedSet, $this->limit );
+		} else {
+			$response = $mainSet;
+		}
+
+		if ( $this->namespacePrefixParser !== null ) {
+			$status = Status::newGood( $fallbackRunner->run( $this, $response, $responses, $this->namespacePrefixParser ) );
+			$this->appendMetrics( $fallbackRunner );
+		}
 
 		foreach ( $this->searchContext->getWarnings() as $warning ) {
 			$status->warning( ...$warning );
 		}
-
 		return $status;
 	}
 
@@ -359,10 +389,11 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * It is possible to find more then one page if the page is in multiple indexes.
 	 * @param string[] $docIds array of document ids
 	 * @param string[]|true|false $sourceFiltering source filtering to apply
+	 * @param bool $usePoolCounter false to disable the pool counter
 	 * @return Status containing pages found, containing an empty array if not found,
 	 *    or an error if there was an error
 	 */
-	public function get( array $docIds, $sourceFiltering ) {
+	public function get( array $docIds, $sourceFiltering, $usePoolCounter = true ) {
 		$connection = $this->getOverriddenConnection();
 		$indexType = $connection->pickIndexTypeForNamespaces(
 			$this->searchContext->getNamespaces()
@@ -375,39 +406,42 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		) );
 		$size *= count( $docIds );
 
-		return Util::doPoolCounterWork(
-			$this->getPoolCounterType(),
-			$this->user,
-			function () use ( $docIds, $sourceFiltering, $indexType, $size, $connection ) {
-				try {
-					$this->startNewLog( 'get of {indexType}.{docIds}', 'get', [
-						'indexType' => $indexType,
-						'docIds' => $docIds,
-					] );
-					// Shard timeout not supported on get requests so we just use the client side timeout
-					$connection->setTimeout( $this->getClientTimeout( 'get' ) );
-					// We use a search query instead of _get/_mget, these methods are
-					// theorically well suited for this kind of job but they are not
-					// supported on aliases with multiple indices (content/general)
-					$pageType = $connection->getPageType( $this->indexBaseName, $indexType );
-					$query = new \Elastica\Query( new \Elastica\Query\Ids( $docIds ) );
-					$query->setParam( '_source', $sourceFiltering );
-					$query->addParam( 'stats', 'get' );
-					// We ignore limits provided to the searcher
-					// otherwize we could return fewer results than
-					// the ids requested.
-					$query->setFrom( 0 );
-					$query->setSize( $size );
-					$resultSet = $pageType->search( $query, [ 'search_type' => 'query_then_fetch' ] );
-					return $this->success( $resultSet->getResults() );
-				} catch ( \Elastica\Exception\NotFoundException $e ) {
-					// NotFoundException just means the field didn't exist.
-					// It is up to the caller to decide if that is an error.
-					return $this->success( [] );
-				} catch ( \Elastica\Exception\ExceptionInterface $e ) {
-					return $this->failure( $e );
-				}
-			} );
+		$work = function () use ( $docIds, $sourceFiltering, $indexType, $size, $connection ) {
+			try {
+				$this->startNewLog( 'get of {indexType}.{docIds}', 'get', [
+					'indexType' => $indexType,
+					'docIds' => $docIds,
+				] );
+				// Shard timeout not supported on get requests so we just use the client side timeout
+				$connection->setTimeout( $this->getClientTimeout( 'get' ) );
+				// We use a search query instead of _get/_mget, these methods are
+				// theorically well suited for this kind of job but they are not
+				// supported on aliases with multiple indices (content/general)
+				$pageType = $connection->getPageType( $this->indexBaseName, $indexType );
+				$query = new \Elastica\Query( new \Elastica\Query\Ids( $docIds ) );
+				$query->setParam( '_source', $sourceFiltering );
+				$query->addParam( 'stats', 'get' );
+				// We ignore limits provided to the searcher
+				// otherwize we could return fewer results than
+				// the ids requested.
+				$query->setFrom( 0 );
+				$query->setSize( $size );
+				$resultSet = $pageType->search( $query, [ 'search_type' => 'query_then_fetch' ] );
+				return $this->success( $resultSet->getResults(), $connection );
+			} catch ( \Elastica\Exception\NotFoundException $e ) {
+				// NotFoundException just means the field didn't exist.
+				// It is up to the caller to decide if that is an error.
+				return $this->success( [], $connection );
+			} catch ( \Elastica\Exception\ExceptionInterface $e ) {
+				return $this->failure( $e, $connection );
+			}
+		};
+
+		if ( $usePoolCounter ) {
+			return Util::doPoolCounterWork( $this->getPoolCounterType(), $this->user, $work );
+		} else {
+			return $work();
+		}
 	}
 
 	/**
@@ -431,9 +465,9 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 					$resultSet = $store->find( $name, [
 						'timeout' => $this->getTimeout( 'namespace' ),
 					] );
-					return $this->success( $resultSet->getResults() );
+					return $this->success( $resultSet->getResults(), $connection );
 				} catch ( \Elastica\Exception\ExceptionInterface $e ) {
-					return $this->failure( $e );
+					return $this->failure( $e, $connection );
 				}
 			} );
 	}
@@ -458,49 +492,43 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 */
 	protected function searchOne() {
 		$search = $this->buildSearch();
-
+		$description = "{$this->searchContext->getSearchType()} search for '{$this->searchContext->getOriginalSearchTerm()}'";
+		$msearch = MSearchRequests::build( self::MAINSEARCH_MSEARCH_KEY, $search );
+		if ( $this->searchContext->getDebugOptions()->isCirrusDumpQuery() ) {
+			return $msearch->dumpQuery( $description );
+		}
 		if ( !$this->searchContext->areResultsPossible() ) {
 			return $this->emptyResultSet();
 		}
 
-		$result = $this->searchMulti( [ $search ] );
-		if ( $result->isOK() ) {
-			// Convert array of responses to single value
-			$value = $result->getValue();
-			$result->setResult( true, reset( $value ) );
+		$mresults = $this->searchMulti( $msearch );
+
+		if ( $mresults->hasFailure() ) {
+			return $mresults->getFailure();
 		}
 
-		return $result;
+		if ( $this->searchContext->getDebugOptions()->isReturnRaw() ) {
+			return $mresults->dumpResults( $description );
+		}
+		return $mresults->transformAndGetSingle( $this->searchContext->getResultsType(), self::MAINSEARCH_MSEARCH_KEY );
 	}
 
 	/**
 	 * Powers full-text-like searches including prefix search.
 	 *
-	 * @param \Elastica\Search[] $searches
-	 * @param ResultsType[] $resultsTypes Specific ResultType instances to use with $searches. Any
-	 *  search without a matching key in this array uses context result type.
-	 * @return Status results from the query transformed by the resultsType
+	 * @param MSearchRequests $msearches
+	 * @return MSearchResponses search responses
 	 */
-	protected function searchMulti( $searches, array $resultsTypes = [] ) {
+	protected function searchMulti( MSearchRequests $msearches ) {
+		$searches = $msearches->getRequests();
 		$contextResultsType = $this->searchContext->getResultsType();
 		$cirrusDebugOptions = $this->searchContext->getDebugOptions();
-		if ( $this->limit <= 0 && !$cirrusDebugOptions->isCirrusDumpQuery() ) {
-			if ( $cirrusDebugOptions->isCirrusDumpResult() ) {
-				return Status::newGood( [
-						'description' => 'Canceled due to offset out of bounds',
-						'path' => '',
-						'result' => [],
-				] );
-			} else {
-				$this->searchContext->setResultsPossible( false );
-				$this->searchContext->addWarning( 'cirrussearch-offset-too-large',
-					self::MAX_OFFSET_LIMIT, $this->offset );
-				$retval = [];
-				foreach ( $searches as $key => $search ) {
-					$retval[$key] = $contextResultsType->createEmptyResult();
-				}
-				return Status::newGood( $retval );
-			}
+		Assert::precondition( !$cirrusDebugOptions->isCirrusDumpQuery(), 'Must not reach this method when dumping the query' );
+
+		// TODO: should this be moved upper in the stack?
+		if ( $this->limit <= 0 ) {
+			return $msearches->failure( Status::newFatal( 'cirrussearch-offset-too-large',
+				self::MAX_OFFSET_LIMIT, $this->offset ) );
 		}
 
 		$connection = $this->getOverriddenConnection();
@@ -513,23 +541,9 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 				'limit' => $this->limit ?: null,
 				// Used syntax
 				'syntax' => $this->searchContext->getSyntaxUsed(),
-			]
+			],
+			$this->searchContext->getNamespaces() ?: []
 		);
-
-		if ( $cirrusDebugOptions->isCirrusDumpQuery() ) {
-			$retval = [];
-			$description = $log->formatDescription();
-			foreach ( $searches as $key => $search ) {
-				$retval[$key] = [
-					'description' => $description,
-					'path' => $search->getPath(),
-					'params' => $search->getOptions(),
-					'query' => $search->getQuery()->toArray(),
-					'options' => $search->getOptions(),
-				];
-			}
-			return Status::newGood( $retval );
-		}
 
 		// Similar to indexing support only the bulk code path, rather than
 		// single and bulk. The extra overhead should be minimal, and the
@@ -544,11 +558,11 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		}
 
 		// Perform the search
-		$work = function () use ( $search, $log ) {
+		$work = function () use ( $search, $log, $connection ) {
 			return Util::doPoolCounterWork(
 				$this->getPoolCounterType(),
 				$this->user,
-				function () use ( $search, $log ) {
+				function () use ( $search, $log, $connection ) {
 					try {
 						$this->start( $log );
 						// @todo only reports the first error, also turns
@@ -561,12 +575,12 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 							// by hasError()
 							!$multiResultSet->getResponse()->isOk()
 						) {
-							return $this->multiFailure( $multiResultSet );
+							return $this->multiFailure( $multiResultSet, $connection );
 						} else {
-							return $this->success( $multiResultSet );
+							return $this->success( $multiResultSet, $connection );
 						}
 					} catch ( \Elastica\Exception\ExceptionInterface $e ) {
-						return $this->failure( $e );
+						return $this->failure( $e, $connection );
 					}
 				},
 				$this->searchContext->isSyntaxUsed( 'regex' ) ?
@@ -577,16 +591,16 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		// Wrap with caching if needed, but don't cache debugging queries
 		$skipCache = $cirrusDebugOptions->mustNeverBeCached();
 		if ( $this->searchContext->getCacheTtl() > 0 && !$skipCache ) {
-			$work = function () use ( $work, $searches, $log, $resultsTypes, $contextResultsType ) {
-				$requestStats = MediaWikiServices::getInstance()->getStatsdDataFactory();
-				$cache = ObjectCache::getMainWANInstance();
+			$work = function () use ( $work, $searches, $log, $contextResultsType ) {
+				$services = MediaWikiServices::getInstance();
+				$requestStats = $services->getStatsdDataFactory();
+				$cache = $services->getMainWANObjectCache();
 				$keyParts = [];
 				foreach ( $searches as $key => $search ) {
-					$resultsType = $resultsTypes[$key] ?? $contextResultsType;
 					$keyParts[] = $search->getPath() .
 						serialize( $search->getOptions() ) .
 						serialize( $search->getQuery()->toArray() ) .
-						serialize( $resultsType );
+						( $contextResultsType !== null ? get_class( $contextResultsType ) : "NONE" );
 				}
 				$key = $cache->makeKey( 'cirrussearch', 'search', 'v2', md5(
 					implode( '|', $keyParts )
@@ -598,7 +612,28 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 					$requestStats->increment( "$statsKey.hit" );
 					$log->setCachedResult( $logVariables );
 					$this->successViaCache( $log );
-					return $multiResultSet;
+
+					if ( $multiResultSet->isOK() ) {
+						/**
+						 * @var $cachedMResultSet \Elastica\Multi\ResultSet
+						 */
+						$cachedMResultSet = $multiResultSet->getValue();
+						if ( count( $cachedMResultSet->getResultSets() ) !== count( $searches ) ) {
+							LoggerFactory::getInstance( 'CirrusSearch' )
+								->warning( 'Ignoring a cached Multi/ResultSet wanted {nb_queries} response(s) but received {nb_responses}',
+									[
+										'nb_queries' => count( $searches ),
+										'nb_responses' => count( $cachedMResultSet->getResultSets() )
+									] );
+							$requestStats->increment( "$statsKey.incoherent" );
+						} else {
+							return $multiResultSet;
+						}
+					} else {
+						LoggerFactory::getInstance( 'CirrusSearch' )
+							->warning( 'Cached a Status value that is not OK' );
+						$requestStats->increment( "$statsKey.nok" );
+					}
 				} else {
 					$requestStats->increment( "$statsKey.miss" );
 				}
@@ -632,41 +667,23 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 
 		// @todo Does this need anything special for multi-search changes?
 		if ( !$status->isOK() ) {
-			return $status;
+			return $msearches->failure( $status );
 		}
 
-		$retval = [];
-		if ( $cirrusDebugOptions->isCirrusDumpResult() ) {
-			$description = $log->formatDescription();
-			foreach ( $status->getValue()->getResultSets() as $key => $resultSet ) {
-				$retval[$key] = [
-					'description' => $description,
-					'path' => $searches[$key]->getPath(),
-					'result' => $resultSet->getResponse()->getData(),
-				];
-			}
-			return Status::newGood( $retval );
+		$response = $status->getValue();
+		/**
+		 * @var $response \Elastica\Multi\ResultSet
+		 */
+		if ( count( $response->getResultSets() ) !== count( $msearches->getRequests() ) ) {
+			// Temp hack to investigate T231023 (use php serialize just in case it has some invalid
+			// UTF8 sequences that would prevent this message from being sent to logstash
+			LoggerFactory::getInstance( 'CirrusSearch' )
+				->warning( "Incoherent response received (#searches != #responses) for {query}: {response}",
+					[ 'query' => $this->searchContext->getOriginalSearchTerm(), 'response' => serialize( $response->getResponse() ) ] );
+			return $msearches->failure( Status::newFatal( 'cirrussearch-backend-error' ) );
 		}
-
-		$timedOut = false;
-		foreach ( $status->getValue()->getResultSets() as $key => $resultSet ) {
-			$response = $resultSet->getResponse();
-			if ( $response->hasError() ) {
-				// @todo error handling
-				$retval[$key] = null;
-			} else {
-				$resultsType = $resultsTypes[$key] ?? $contextResultsType;
-				$retval[$key] = $resultsType->transformElasticsearchResult(
-					$this->searchContext,
-					$resultSet
-				);
-				if ( $resultSet->hasTimedOut() ) {
-					$timedOut = true;
-				}
-			}
-		}
-
-		if ( $timedOut ) {
+		$mreponses = $msearches->toMSearchResponses( $response->getResultSets() );
+		if ( $mreponses->hasTimeout() ) {
 			LoggerFactory::getInstance( 'CirrusSearch' )->warning(
 				$log->getDescription() . " timed out and only returned partial results!",
 				$log->getLogVariables()
@@ -676,10 +693,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 				: 'cirrussearch-timed-out'
 			);
 		}
-
-		$status->setResult( true, $retval );
-
-		return $status;
+		return $mreponses;
 	}
 
 	/**
@@ -930,7 +944,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 			return null;
 		}
 
-		$config = new HashSearchConfig( $overrides, [ 'inherit' ] );
+		$config = new HashSearchConfig( $overrides, [ HashSearchConfig::FLAG_INHERIT ] );
 		$other = clone $this;
 		$other->config = $config;
 		$other->searchContext = $other->searchContext->withConfig( $config );
@@ -938,8 +952,11 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		return $other;
 	}
 
+	/**
+	 * @return Status
+	 */
 	private function emptyResultSet() {
-		$status = Status::newGood( ResultSet::emptyResultSet( $this->searchContext->isSpecialKeywordUsed() ) );
+		$status = Status::newGood( BaseCirrusSearchResultSet::emptyResultSet( $this->searchContext->isSpecialKeywordUsed() ) );
 		foreach ( $this->searchContext->getWarnings() as $warning ) {
 			$status->warning( ...$warning );
 		}
@@ -962,7 +979,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	public function makeSearcher( SearchQuery $query ) {
 		return new self( $this->connection, $query->getOffset(), $query->getLimit(),
 			$query->getSearchConfig(), $query->getNamespaces(), $this->user,
-			null, $query->getDebugOptions() );
+			null, $query->getDebugOptions(), $this->namespacePrefixParser );
 	}
 
 	/**
@@ -986,5 +1003,63 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		Assert::precondition( defined( 'MW_PHPUNIT_TEST' ),
 			'getOffsetLimit must only be called for testing purposes' );
 		return [ $this->offset, $this->limit ];
+	}
+
+	/**
+	 * Build a FullTextQueryBuilder defined in the $builderSettings:
+	 * format is:
+	 * [
+	 *     'builder_factory' => callback
+	 *     'settings' => ...
+	 * ]
+	 * where callback must be function that accepts the settings array and returns a FullTextQueryBuilder
+	 *
+	 * Legacy version:
+	 * [
+	 *     'builder_class' => ClassName
+	 *     'settings' => ...
+	 * ]
+	 * where ClassName must declare a constructor with these arguments:
+	 *   SearchConfig $config, KeywordFeature[] $features, $settings
+	 *
+	 * Visible for testing only
+	 * @param array $builderSettings
+	 * @param SearchConfig $config
+	 * @param KeywordFeature[] $features
+	 * @return FullTextQueryBuilder
+	 * @throws \ReflectionException
+	 */
+	final public static function buildFullTextBuilder(
+		array $builderSettings,
+		SearchConfig $config,
+		array $features
+	): FullTextQueryBuilder {
+		if ( isset( $builderSettings['builder_class'] ) ) {
+			$objectFactorySpecs = [
+				'class' => $builderSettings['builder_class'],
+				'args' => [
+					$config,
+					$features,
+					$builderSettings['settings']
+				]
+			];
+		} elseif ( $builderSettings['builder_factory'] ) {
+			$objectFactorySpecs = [
+				'factory' => $builderSettings['builder_factory'],
+				'args' => [
+					$builderSettings['settings']
+				]
+			];
+		} else {
+			throw new \InvalidArgumentException( 'Missing builder_class or builder_factory in the builderSettings' );
+		}
+
+		/** @var FullTextQueryBuilder $qb */
+		$qb = ObjectFactory::getObjectFromSpec( $objectFactorySpecs );
+		if ( !( $qb instanceof FullTextQueryBuilder ) ) {
+			throw new RuntimeException( 'Bad builder class configured.' );
+		}
+
+		return $qb;
 	}
 }

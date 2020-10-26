@@ -8,7 +8,8 @@
 			"Dars",
 			"Piramidion",
 			"Similartothissimilartothat",
-			"SimondR"
+			"SimondR",
+			"Movses"
 		]
 	},
 	"cirrussearch-desc": "Пошук для MediaWiki на базі Elasticsearch",
@@ -65,6 +66,7 @@
 	"cirrussearch-feature-deepcat-endpoint": "$wgCirrusSearchCategoryEndpoint має бути встановлено як дійсна кінцева точка SPARQL для використання глибокого пошуку категорії.",
 	"cirrussearch-feature-deepcat-exception": "Запит SPARQL на пошук глибокої категорії зазнав невдачі",
 	"cirrussearch-feature-deepcat-toomany": "Запит глибокої категорії повернув надто багато категорій",
+	"cirrussearch-feature-deepcat-invalid-title": "Некоректно вказана категорія.",
 	"cirrussearch-incategory-feature-no-valid-categories": "Не задано жодних дійсних категорій для «$1».",
 	"cirrussearch-mlt-feature-no-valid-titles": "Не задано жодних дійсних назв для «$1».",
 	"cirrussearch-mlt-not-configured": "Функція «$1» неправильно налаштована. Попросіть адміністратора виправити $wgCirrusSearchMoreLikeThisFields",
@@ -77,5 +79,6 @@
 	"cirrussearch-article-words": "Слова в усіх контентних сторінках",
 	"cirrussearch-keyword-prefix-ns-mismatch": "Простір назв, виявлений у пошуковому терміні <code>prefix:</code> є несумісним із запитуваними просторами назв. Ви можете це виправити, додавши до свого запиту префікс <code>all:</code>.",
 	"cirrussearch-autoselect-profile": "Нехай пошукова програма самостійно підбере найкращий профіль для використання.",
-	"cirrussearch-offset-too-large": "Не вдалося отримати результати. Підтримується до $1 пошукових результатів, але запитано результати, що починаються з $2."
+	"cirrussearch-offset-too-large": "Не вдалося отримати результати. Підтримується до $1 пошукових результатів, але запитано результати, що починаються з $2.",
+	"cirrussearch-offset-not-allowed-with-random-sort": "Запит пагінації буде ігноровано, оскільки результати відсортовано випадково."
 }

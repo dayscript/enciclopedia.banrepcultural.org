@@ -3,6 +3,7 @@
 namespace CirrusSearch\BuildDocument;
 
 use CirrusSearch\ElasticsearchIntermediary;
+use CirrusSearch\ElasticaErrorHandler;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\SearchRequestLog;
 use CirrusSearch\Connection;
@@ -157,7 +158,6 @@ class RedirectsAndIncomingLinks extends ElasticsearchIntermediary {
 					'query' => $pageCount,
 				] );
 				$result = $this->linkCountMultiSearch->search();
-				$this->success();
 				for ( $index = 0; $index < $linkCountClosureCount; $index++ ) {
 					if ( $result[$index] === null ) {
 						// Seems to happen during connection issues? Treat it the
@@ -168,11 +168,20 @@ class RedirectsAndIncomingLinks extends ElasticsearchIntermediary {
 								$numNulls++;
 							}
 						}
+
+						// Log the raw request/response until we understand how these happen
+						ElasticaErrorHandler::logRequestResponse( $this->connection,
+							"Received null for link count on {numNulls} out of {linkCountClosureCount} pages", [
+								'numNulls' => $numNulls,
+								'linkCountClosureCount' => $linkCountClosureCount,
+							] );
+
 						throw new \Elastica\Exception\RuntimeException(
 							"Received null for link count on $numNulls out of $linkCountClosureCount pages" );
 					}
 					$this->linkCountClosures[ $index ]( $result[ $index ]->getTotalHits() );
 				}
+				$this->success();
 			} catch ( \Elastica\Exception\ExceptionInterface $e ) {
 				// Note that we still return the pages and execute the update here, we just complain
 				$this->failure( $e );

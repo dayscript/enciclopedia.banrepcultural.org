@@ -2,7 +2,7 @@
 
 namespace CirrusSearch\Search\Rescore;
 
-use CirrusSearch\OtherIndexes;
+use CirrusSearch\OtherIndexesUpdater;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\Util;
 use Elastica\Query\FunctionScore;
@@ -20,7 +20,6 @@ class BoostTemplatesFunctionScoreBuilder extends FunctionScoreBuilder {
 	private $boostedQueries;
 
 	/**
-	 * BoostTemplatesFunctionScoreBuilder constructor.
 	 * @param SearchConfig $config
 	 * @param int[]|null $requestedNamespaces
 	 * @param bool $localSearch
@@ -46,7 +45,7 @@ class BoostTemplatesFunctionScoreBuilder extends FunctionScoreBuilder {
 
 		$otherIndices = [];
 		if ( $requestedNamespaces && !$localSearch ) {
-			$otherIndices = OtherIndexes::getExtraIndexesForNamespaces(
+			$otherIndices = OtherIndexesUpdater::getExtraIndexesForNamespaces(
 				$config,
 				$requestedNamespaces
 			);

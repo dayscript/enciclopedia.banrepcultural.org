@@ -55,6 +55,7 @@
 	"cirrussearch-feature-too-many-conditions": "'$1'에 지정한 조건이 너무 많습니다. $2으(로) 줄입니다.",
 	"cirrussearch-feature-deepcat-exception": "심층 분류 검색 SPARQL 쿼리가 실패했습니다",
 	"cirrussearch-feature-deepcat-toomany": "심층 분류 질의는 너무 많은 분류를 반환했습니다",
+	"cirrussearch-feature-deepcat-invalid-title": "지정된 분류는 유효하지 않습니다.",
 	"cirrussearch-incategory-feature-no-valid-categories": "유효한 분류가 '$1'에 추가되지 않았습니다.",
 	"cirrussearch-mlt-feature-no-valid-titles": "유효한 제목이 '$1'에 추가되지 않았습니다.",
 	"cirrussearch-mlt-not-configured": "'$1' 기능은 잘못 구성되어 있습니다. 관리자에게 $wgCirrusSearchMoreLikeThisFields의 수정을 요청하십시오",
@@ -66,5 +67,6 @@
 	"cirrussearch-explore-similar-languages-none": "다른 언어에서 사용할 수 없음",
 	"cirrussearch-article-words": "모든 콘텐츠 문서의 단어",
 	"cirrussearch-keyword-prefix-ns-mismatch": "<code>prefix:</code> 검색 용어로 찾은 이름공간은 요청된 이름공간과 호환되지 않습니다. 쿼리 앞에 <code>all:</code>를 붙임으로써 해결할 수 있습니다.",
-	"cirrussearch-autoselect-profile": "검색 엔진이 최상의 프로필을 사용하도록 결정하게 합니다."
+	"cirrussearch-autoselect-profile": "검색 엔진이 최상의 프로필을 사용하도록 결정하게 합니다.",
+	"cirrussearch-offset-too-large": "결과를 검색할 수 없습니다. 최대 $1개의 검색 결과를 지원하지만 $2개를 기점으로 결과가 요청되었습니다."
 }

@@ -80,6 +80,8 @@ class RebuildRecentchanges extends Maintenance {
 
 	/**
 	 * Rebuild pass 1: Insert `recentchanges` entries for page revisions.
+	 *
+	 * @param ILBFactory $lbFactory
 	 */
 	private function rebuildRecentChangesTablePass1( ILBFactory $lbFactory ) {
 		$dbw = $this->getDB( DB_MASTER );
@@ -168,6 +170,15 @@ class RebuildRecentchanges extends Maintenance {
 					+ $actorMigration->getInsertValues( $dbw, 'rc_user', $user ),
 				__METHOD__
 			);
+
+			$rcid = $dbw->insertId();
+			$dbw->update(
+				'change_tag',
+				[ 'ct_rc_id' => $rcid ],
+				[ 'ct_rev_id' => $row->rev_id ],
+				__METHOD__
+			);
+
 			if ( ( ++$inserted % $this->getBatchSize() ) == 0 ) {
 				$lbFactory->waitForReplication();
 			}
@@ -177,6 +188,8 @@ class RebuildRecentchanges extends Maintenance {
 	/**
 	 * Rebuild pass 2: Enhance entries for page revisions with references to the previous revision
 	 * (rc_last_oldid, rc_new etc.) and size differences (rc_old_len, rc_new_len).
+	 *
+	 * @param ILBFactory $lbFactory
 	 */
 	private function rebuildRecentChangesTablePass2( ILBFactory $lbFactory ) {
 		$dbw = $this->getDB( DB_MASTER );
@@ -199,25 +212,25 @@ class RebuildRecentchanges extends Maintenance {
 		$lastOldId = 0;
 		$lastSize = null;
 		$updated = 0;
-		foreach ( $res as $obj ) {
+		foreach ( $res as $row ) {
 			$new = 0;
 
-			if ( $obj->rc_cur_id != $lastCurId ) {
+			if ( $row->rc_cur_id != $lastCurId ) {
 				# Switch! Look up the previous last edit, if any
-				$lastCurId = intval( $obj->rc_cur_id );
-				$emit = $obj->rc_timestamp;
+				$lastCurId = intval( $row->rc_cur_id );
+				$emit = $row->rc_timestamp;
 
-				$row = $dbw->selectRow(
+				$revRow = $dbw->selectRow(
 					'revision',
 					[ 'rev_id', 'rev_len' ],
 					[ 'rev_page' => $lastCurId, "rev_timestamp < " . $dbw->addQuotes( $emit ) ],
 					__METHOD__,
 					[ 'ORDER BY' => 'rev_timestamp DESC' ]
 				);
-				if ( $row ) {
-					$lastOldId = intval( $row->rev_id );
+				if ( $revRow ) {
+					$lastOldId = intval( $revRow->rev_id );
 					# Grab the last text size if available
-					$lastSize = !is_null( $row->rev_len ) ? intval( $row->rev_len ) : null;
+					$lastSize = !is_null( $revRow->rev_len ) ? intval( $revRow->rev_len ) : null;
 				} else {
 					# No previous edit
 					$lastOldId = 0;
@@ -233,7 +246,7 @@ class RebuildRecentchanges extends Maintenance {
 				$size = (int)$dbw->selectField(
 					'revision',
 					'rev_len',
-					[ 'rev_id' => $obj->rc_this_oldid ],
+					[ 'rev_id' => $row->rc_this_oldid ],
 					__METHOD__
 				);
 
@@ -249,13 +262,13 @@ class RebuildRecentchanges extends Maintenance {
 					],
 					[
 						'rc_cur_id' => $lastCurId,
-						'rc_this_oldid' => $obj->rc_this_oldid,
-						'rc_timestamp' => $obj->rc_timestamp // index usage
+						'rc_this_oldid' => $row->rc_this_oldid,
+						'rc_timestamp' => $row->rc_timestamp // index usage
 					],
 					__METHOD__
 				);
 
-				$lastOldId = intval( $obj->rc_this_oldid );
+				$lastOldId = intval( $row->rc_this_oldid );
 				$lastSize = $size;
 
 				if ( ( ++$updated % $this->getBatchSize() ) == 0 ) {
@@ -267,6 +280,8 @@ class RebuildRecentchanges extends Maintenance {
 
 	/**
 	 * Rebuild pass 3: Insert `recentchanges` entries for action logs.
+	 *
+	 * @param ILBFactory $lbFactory
 	 */
 	private function rebuildRecentChangesTablePass3( ILBFactory $lbFactory ) {
 		global $wgLogRestrictions, $wgFilterLogTypes;
@@ -320,7 +335,7 @@ class RebuildRecentchanges extends Maintenance {
 					'rc_title' => $row->log_title,
 					'rc_minor' => 0,
 					'rc_bot' => 0,
-					'rc_patrolled' => 1,
+					'rc_patrolled' => $row->log_type == 'upload' ? 0 : 2,
 					'rc_new' => 0,
 					'rc_this_oldid' => 0,
 					'rc_last_oldid' => 0,
@@ -339,6 +354,14 @@ class RebuildRecentchanges extends Maintenance {
 				__METHOD__
 			);
 
+			$rcid = $dbw->insertId();
+			$dbw->update(
+				'change_tag',
+				[ 'ct_rc_id' => $rcid ],
+				[ 'ct_log_id' => $row->log_id ],
+				__METHOD__
+			);
+
 			if ( ( ++$inserted % $this->getBatchSize() ) == 0 ) {
 				$lbFactory->waitForReplication();
 			}
@@ -347,6 +370,8 @@ class RebuildRecentchanges extends Maintenance {
 
 	/**
 	 * Rebuild pass 4: Mark bot and autopatrolled entries.
+	 *
+	 * @param ILBFactory $lbFactory
 	 */
 	private function rebuildRecentChangesTablePass4( ILBFactory $lbFactory ) {
 		global $wgUseRCPatrol, $wgMiserMode;
@@ -359,7 +384,9 @@ class RebuildRecentchanges extends Maintenance {
 		# @NOTE: users with 'bot' rights choose when edits are bot edits or not. That information
 		# may be lost at this point (aside from joining on the patrol log table entries).
 		$botgroups = [ 'bot' ];
-		$autopatrolgroups = $wgUseRCPatrol ? User::getGroupsWithPermission( 'autopatrol' ) : [];
+		$autopatrolgroups = $wgUseRCPatrol ? MediaWikiServices::getInstance()
+			->getPermissionManager()
+			->getGroupsWithPermission( 'autopatrol' ) : [];
 
 		# Flag our recent bot edits
 		if ( $botgroups ) {
@@ -376,8 +403,8 @@ class RebuildRecentchanges extends Maintenance {
 			);
 
 			$botusers = [];
-			foreach ( $res as $obj ) {
-				$botusers[] = User::newFromRow( $obj );
+			foreach ( $res as $row ) {
+				$botusers[] = User::newFromRow( $row );
 			}
 
 			# Fill in the rc_bot field
@@ -428,8 +455,8 @@ class RebuildRecentchanges extends Maintenance {
 				[ 'user_groups' => [ 'JOIN', 'user_id = ug_user' ] ] + $userQuery['joins']
 			);
 
-			foreach ( $res as $obj ) {
-				$patrolusers[] = User::newFromRow( $obj );
+			foreach ( $res as $row ) {
+				$patrolusers[] = User::newFromRow( $row );
 			}
 
 			# Fill in the rc_patrolled field
@@ -438,11 +465,12 @@ class RebuildRecentchanges extends Maintenance {
 				foreach ( $actorQuery['orconds'] as $cond ) {
 					$dbw->update(
 						'recentchanges',
-						[ 'rc_patrolled' => 1 ],
+						[ 'rc_patrolled' => 2 ],
 						[
 							$cond,
 							'rc_timestamp > ' . $dbw->addQuotes( $dbw->timestamp( $this->cutoffFrom ) ),
 							'rc_timestamp < ' . $dbw->addQuotes( $dbw->timestamp( $this->cutoffTo ) ),
+							'rc_patrolled' => 0
 						],
 						__METHOD__
 					);
@@ -453,8 +481,10 @@ class RebuildRecentchanges extends Maintenance {
 	}
 
 	/**
-	 * Rebuild pass 5: Delete duplicate entries where we generate both a page revision and a log entry
-	 * for a single action (upload only, at the moment, but potentially also move, protect, ...).
+	 * Rebuild pass 5: Delete duplicate entries where we generate both a page revision and a log
+	 * entry for a single action (upload only, at the moment, but potentially move, protect, ...).
+	 *
+	 * @param ILBFactory $lbFactory
 	 */
 	private function rebuildRecentChangesTablePass5( ILBFactory $lbFactory ) {
 		$dbw = wfGetDB( DB_MASTER );
@@ -475,9 +505,9 @@ class RebuildRecentchanges extends Maintenance {
 		);
 
 		$updates = 0;
-		foreach ( $res as $obj ) {
-			$rev_id = $obj->ls_value;
-			$log_id = $obj->ls_log_id;
+		foreach ( $res as $row ) {
+			$rev_id = $row->ls_value;
+			$log_id = $row->ls_log_id;
 
 			// Mark the logging row as having an associated rev id
 			$dbw->update(

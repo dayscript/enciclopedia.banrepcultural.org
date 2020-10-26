@@ -148,4 +148,72 @@ class ApiQueryTest extends ApiTestCase {
 			);
 		}
 	}
+
+	public function testShouldNotExportPagesThatUserCanNotRead() {
+		$title = Title::makeTitle( NS_MAIN, 'Test article' );
+		$this->insertPage( $title );
+
+		$this->setTemporaryHook( 'getUserPermissionsErrors',
+			function ( Title $page, &$user, $action, &$result ) use ( $title ) {
+				if ( $page->equals( $title ) && $action === 'read' ) {
+					$result = false;
+					return false;
+				}
+			} );
+
+		$data = $this->doApiRequest( [
+			'action' => 'query',
+			'titles' => $title->getPrefixedText(),
+			'export' => 1,
+		] );
+
+		$this->assertArrayHasKey( 'query', $data[0] );
+		$this->assertArrayHasKey( 'export', $data[0]['query'] );
+		// This response field contains an XML document even if no pages were exported
+		$this->assertNotContains( $title->getPrefixedText(), $data[0]['query']['export'] );
+	}
+
+	public function testIsReadMode() {
+		$api = new ApiMain(
+			new FauxRequest( [ 'action' => 'query', 'meta' => 'tokens', 'type' => 'login' ] )
+		);
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertFalse( $queryApi->isReadMode(),
+			'isReadMode() => false when meta=tokens is the only module' );
+
+		$api = new ApiMain( new FauxRequest( [
+			'action' => 'query', 'meta' => 'tokens', 'type' => 'login', 'rawcontinue' => 1,
+			'indexpageids' => 1
+		] )
+		);
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertFalse( $queryApi->isReadMode(),
+			'rawcontinue and indexpageids are also allowed' );
+
+		$api = new ApiMain(
+			new FauxRequest( [ 'action' => 'query', 'meta' => 'tokens|siteinfo', 'type' => 'login' ] )
+		);
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertTrue( $queryApi->isReadMode(),
+			'isReadMode() => true when other meta modules are present' );
+
+		$api = new ApiMain( new FauxRequest( [
+			'action' => 'query', 'meta' => 'tokens', 'type' => 'login', 'list' => 'allpages'
+		] ) );
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertTrue( $queryApi->isReadMode(),
+			'isReadMode() => true when other modules are present' );
+
+		$api = new ApiMain( new FauxRequest( [
+			'action' => 'query', 'meta' => 'tokens', 'type' => 'login', 'titles' => 'Foo'
+		] ) );
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertTrue( $queryApi->isReadMode(),
+			'isReadMode() => true when other ApiQuery parameters are present' );
+
+		$api = new ApiMain( new FauxRequest( [ 'action' => 'query' ] ) );
+		$queryApi = new ApiQuery( $api, 'query' );
+		$this->assertTrue( $queryApi->isReadMode(),
+			'isReadMode() => true when no modules are requested' );
+	}
 }

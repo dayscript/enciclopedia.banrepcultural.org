@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Arystanbek"
+		]
+	},
+	"globalblocking-block-reason": "Себебі:",
+	"globalblocking-block-edit-dropdown": "Бұғаттау себептерін өңдеу",
+	"globalblocking-block-expiry": "Мерзімі бітпек:",
+	"globalblocking-block-expiry-selector-other": "Басқа уақыт:",
+	"globalblocking-ipaddress": "IP мекенжайы:",
+	"globalblocking-ipbanononly": "Тек аноним қатысушыларды бұғаттау",
+	"globalblocking-search-ip": "IP мекенжайы:",
+	"globalblocking-search-submit": "Бұғаттауларды іздеу",
+	"globalblocking-list-anononly": "анонимус тек",
+	"globalblocking-list-unblock": "аластау",
+	"globalblocking-list-whitelist": "ортақ статусы",
+	"globalblocking-list-modify": "жаңарту",
+	"globalblocking-unblock-reason": "Себебі:",
+	"globalblocking-whitelist-reason": "СебебІ:",
+	"globalblocking-whitelist-status": "Жергілікті статусы:",
+	"globalblocking-whitelist-submit": "Жергілікті статусты өзгерту",
+	"globalblocking-logpage": "Ғаламдық бұғаттау журналы"
+}

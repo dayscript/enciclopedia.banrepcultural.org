@@ -4,12 +4,14 @@ namespace CirrusSearch;
 
 use DeferredUpdates;
 use MediaWiki\Logger\LoggerFactory;
-use SearchResultSet;
+use ISearchResultSet;
+use MediaWiki\User\UserIdentity;
 use User;
+use UIDGenerator;
 
 /**
  * Handles logging information about requests made to various destinations,
- * such as monolog and statsd.
+ * such as monolog, EventBus and statsd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +30,15 @@ use User;
  */
 class RequestLogger {
 	/**
-	 * @const int max number of results to store in CirrusSearchRequestSet logs (per request)
+	 * @const int max number of results to store in cirrussearch-request logs (per request)
 	 */
 	const LOG_MAX_RESULTS = 50;
+
+	// If a title hit was given to the user, but the hit was not
+	// obtained via ElasticSearch, we won't really know where it came from.
+	// We still want to log the fact that the request set generated a hit
+	// for this title.  When this happens, the hit index field value will be this.
+	const UNKNOWN_HIT_INDEX = '_UNKNOWN_';
 
 	/**
 	 * @var RequestLog[] Set of requests made
@@ -38,7 +46,7 @@ class RequestLogger {
 	private $logs = [];
 
 	/**
-	 * @var array[string] Result page ids that were returned to user
+	 * @var string[] Result page ids that were returned to user
 	 */
 	private $resultTitleStrings = [];
 
@@ -57,12 +65,35 @@ class RequestLogger {
 	}
 
 	/**
+	 * @param float $percentage A value between 0 and 1 indiciating the
+	 *  percentage of calls that should return true.
+	 * @return bool True on $percentage calls to this method
+	 */
+	private function sample( $percentage ) {
+		if ( $percentage <= 0 ) {
+			return false;
+		}
+		if ( $percentage >= 1 ) {
+			return true;
+		}
+		$rand = random_int( 0, PHP_INT_MAX ) / PHP_INT_MAX;
+		return $rand <= $percentage;
+	}
+
+	/**
 	 * Summarizes all the requests made in this process and reports
 	 * them along with the test they belong to.
 	 */
 	private function reportLogs() {
 		if ( $this->logs ) {
-			$this->buildRequestSetLog();
+
+			// Build the mediawiki/search/requestset event and log it to the (json+EventBus)
+			// cirrussearch-request channel.
+			LoggerFactory::getInstance( 'cirrussearch-request' )->debug(
+				'', $this->buildCirrusSearchRequestEvent()
+			);
+
+			// reset logs
 			$this->logs = [];
 		}
 	}
@@ -76,7 +107,7 @@ class RequestLogger {
 	 * @return array A map of information about the performed request, suitible
 	 *  for use as a psr-3 log context.
 	 */
-	public function addRequest( RequestLog $log, User $user = null, $slowMillis = null ) {
+	public function addRequest( RequestLog $log, UserIdentity $user = null, $slowMillis = null ) {
 		global $wgCirrusSearchLogElasticRequests;
 
 		// @todo Is this necessary here? Check on what uses the response value
@@ -142,7 +173,7 @@ class RequestLogger {
 	 * API's that is correct, for Special:Search a hook catches the final results and
 	 * sets them here.
 	 *
-	 * @param SearchResultSet[] $matches
+	 * @param ISearchResultSet[] $matches
 	 */
 	public function setResultPages( array $matches ) {
 		$titleStrings = [];
@@ -155,150 +186,191 @@ class RequestLogger {
 	}
 
 	/**
-	 * Builds and ships a log context that is serialized to an avro
-	 * schema. Avro is very specific that all fields must be defined,
-	 * even if they have a default, and that types must match exactly.
-	 * "5" is not an int as much as php would like it to be.
+	 * Builds and ships a log context of an object that conforms to the
+	 * JSONSchema  mediawiki/search/requestset event schema.
 	 *
-	 * To ensure no problems serializing all properties must be explicitly
-	 * cast to the correct type.
-	 *
-	 * Avro will happily ignore fields that are present but not used. To
-	 * add new fields to the schema they must first be added here and
-	 * deployed. Then the schema can be updated. Removing goes in reverse,
-	 * adjust the schema to ignore the column, then deploy code no longer
-	 * providing it.
-	 *
-	 * All default values should match those use in the
-	 * CirrusSearchRequestSet.idl (mediawiki-event-schemas repository)
+	 * @return array mediawiki/search/requestset event object
 	 */
-	private function buildRequestSetLog() {
-		global $wgRequest;
+	private function buildCirrusSearchRequestEvent() {
+		global $wgRequest, $wgServerName;
+		$webrequest = $wgRequest;
 
 		// for the moment RequestLog::getRequests() is still created in the
 		// old format to serve the old log formats, so here we transform the
-		// context into the new avro defined format. At some point the context
-		// should just be created in the correct format.
-		$requests = [];
-		$allCached = true;
+		// context into the new mediawiki/cirrussearch/request event format.
+		// At some point the context should just be created in the correct format.
+		$elasticSearchRequests = [];
+
+		// If false, then at least one of the Elasticsearch request responses
+		// returned was not from cache
+		$allRequestsCached = true;
+
+		// While building the elasticSearchRequests object, collect
+		// a list of all hits from all Elasticsearch requests.
 		$allHits = [];
-		foreach ( $this->logs as $idx => $log ) {
-			foreach ( $log->getRequests() as $context ) {
-				$request = [
-					'query' => isset( $context['query'] ) ? (string)$context['query'] : '',
-					'queryType' => isset( $context['queryType'] ) ? (string)$context['queryType'] : '',
-					// populated below
-					'indices' => isset( $context['index'] ) ? explode( ',', $context['index'] ) : [],
-					'tookMs' => isset( $context['tookMs'] ) ? (int)$context['tookMs'] : -1,
-					'elasticTookMs' => isset( $context['elasticTookMs'] ) ? (int)$context['elasticTookMs'] : -1,
-					'limit' => isset( $context['limit'] ) ? (int)$context['limit'] : -1,
-					'hitsTotal' => isset( $context['hitsTotal'] ) ? (int)$context['hitsTotal'] : -1,
-					'hitsReturned' => isset( $context['hitsReturned'] ) ? (int)$context['hitsReturned'] : -1,
-					'hitsOffset' => isset( $context['hitsOffset'] ) ? (int)$context['hitsOffset'] : -1,
-					// populated below
-					'namespaces' => isset( $context['namespaces'] ) ? array_map( 'intval', $context['namespaces'] ) : [],
-					'suggestion' => isset( $context['suggestion'] ) ? (string)$context['suggestion'] : '',
-					'suggestionRequested' => (bool)( $context['suggestionRequested'] ?? isset( $context['suggestion'] ) ),
-					'maxScore' => isset( $context['maxScore'] ) ? (float)$context['maxScore'] : -1.0,
-					'payload' => isset( $context['payload'] ) ? array_map( 'strval', $context['payload'] ) : [],
-					'hits' => isset( $context['hits'] ) ? $this->encodeHits( $context['hits'] ) : [],
-				];
-				if ( !empty( $context['syntax'] ) ) {
-					$request['payload']['syntax'] = implode( ',', $context['syntax'] );
-				}
-				$allHits = array_merge( $allHits, $request['hits'] );
-				if ( $log->isCachedResponse() ) {
-					$request['payload']['cached'] = 'true';
-				} else {
-					$allCached = false;
-				}
-				if ( isset( $this->extraPayload[$idx] ) ) {
-					foreach ( $this->extraPayload[$idx] as $key => $value ) {
-						$request['payload'][$key] = (string)$value;
+
+		// Iterate over each individual Elasticsearch request
+		foreach ( $this->logs as $idx => $elasticSearchRequestLog ) {
+			foreach ( $elasticSearchRequestLog->getRequests() as $requestContext ) {
+				// Build an entry in the elasticSearchRequests array from each logged
+				// Elasticsearch request.
+				$requestEntry = [];
+
+				Util::setIfDefined( $requestContext, 'query', $requestEntry, 'query', 'strval' );
+				Util::setIfDefined( $requestContext, 'queryType', $requestEntry, 'query_type', 'strval' );
+				Util::setIfDefined(
+					$requestContext, 'index', $requestEntry, 'indices',
+					// Use list for search indices, not csv string.
+					function ( $v ) {
+						return explode( ',', $v );
 					}
+				);
+				Util::setIfDefined(
+					$requestContext, 'namespaces', $requestEntry, 'namespaces',
+					// Make sure namespace values are all integers.
+					function ( $v ) {
+						if ( empty( $v ) ) {
+							return $v;
+						} else {
+							return array_values( array_map( 'intval', $v ) );
+						}
+					}
+				);
+				Util::setIfDefined( $requestContext, 'tookMs', $requestEntry, 'request_time_ms', 'intval' );
+				Util::setIfDefined( $requestContext, 'elasticTookMs', $requestEntry, 'search_time_ms', 'intval' );
+				Util::setIfDefined( $requestContext, 'limit', $requestEntry, 'limit', 'intval' );
+				Util::setIfDefined( $requestContext, 'hitsTotal', $requestEntry, 'hits_total', 'intval' );
+				Util::setIfDefined( $requestContext, 'hitsReturned', $requestEntry, 'hits_returned', 'intval' );
+				Util::setIfDefined( $requestContext, 'hitsOffset', $requestEntry, 'hits_offset', 'intval' );
+				Util::setIfDefined( $requestContext, 'suggestion', $requestEntry, 'suggestion', 'strval' );
+
+				// suggestion_requested is true if suggestionRequested or if any suggestion is present.
+				$requestEntry['suggestion_requested'] =
+					(bool)( $requestContext['suggestionRequested'] ?? isset( $requestContext['suggestion'] ) );
+
+				Util::setIfDefined( $requestContext, 'maxScore', $requestEntry, 'max_score', 'floatval' );
+
+				if ( isset( $this->extraPayload[$idx] ) ) {
+					// fields in extraPayload keys must be explicitly
+					// set here if we want to include them in the event.
+					Util::setIfDefined(
+						$this->extraPayload[$idx], 'langdetect', $requestEntry, 'langdetect', 'strval'
+					);
 				}
 
-				$requests[] = $request;
+				Util::setIfDefined( $requestContext, 'syntax', $requestEntry, 'syntax' );
+
+				// If response was servied from cache.
+				$requestEntry['cached'] = (bool)$elasticSearchRequestLog->isCachedResponse();
+				// $wereAllResponsesCached will be used later for
+				// deteriming if all responses for the request set were cached.
+				if ( !$requestEntry['cached'] ) {
+					$allRequestsCached = false;
+				}
+
+				Util::setIfDefined(
+					$requestContext, 'hits', $requestEntry, 'hits',
+					function ( $v ) {
+						return $this->encodeHits( $v );
+					}
+				);
+				if ( isset( $requestEntry['hits'] ) ) {
+					$allHits = array_merge( $allHits, $requestEntry['hits'] );
+				}
+
+				$elasticSearchRequests[] = $requestEntry;
 			}
 		}
 
-		// Reindex allHits by page title's. It's maybe not perfect, but it's
+		// Reindex allHits by page titles. It's maybe not perfect, but it's
 		// hopefully a "close enough" representation of where our final result
 		// set came from. maybe :(
 		$allHitsByTitle = [];
 		foreach ( $allHits as $hit ) {
-			$allHitsByTitle[$hit['title']] = $hit;
+			$allHitsByTitle[$hit['page_title']] = $hit;
 		}
 		$resultHits = [];
-		// FIXME: temporary hack to investigate why SpecialSearch can display results
-		// that do not come from cirrus.
-		$bogusResult = null;
+		// $this->resultTitleStrings give us title hits that were actually provided to the user.
+		// Build a subset top level list of hits from each sub request's list of hits.
 		$resultTitleStrings = array_slice( $this->resultTitleStrings, 0, self::LOG_MAX_RESULTS );
 		foreach ( $resultTitleStrings as $titleString ) {
-			// Track only the first missing title.
-			if ( $bogusResult === null && !isset( $allHitsByTitle[$titleString] ) ) {
-				$bogusResult = $titleString;
-			}
-
-			$resultHits[] = $allHitsByTitle[$titleString] ?? [
-				'title' => $titleString,
-				'index' => "",
-				'pageId' => -1,
-				'score' => -1,
-				'profileName' => ""
+			// $allHitsByTitle[$titleString] will have the hit. If there isn't a hit
+			// for this title, then this title 'hit' did not come from a ElasticSearch request,
+			// so log a 'fake' hit for it.  In this case, the index will be self::UNKNOWN_HIT_INDEX.
+			$hit = $allHitsByTitle[$titleString] ?? [
+				'page_title' => (string)$titleString,
+				'index' => self::UNKNOWN_HIT_INDEX,
 			];
+			$resultHits[] = $hit;
 		}
 
-		$requestSet = [
-			'id' => Util::getRequestSetToken(),
-			'ts' => time(),
-			'wikiId' => wfWikiID(),
+		$requestEvent = [
+			// This schema can be found in the mediawiki/event-schemas repository.
+			// The $schema URI here should be updated if we increment schema versions.
+			'$schema' => '/mediawiki/cirrussearch/request/0.0.1',
+			'meta' => [
+				'request_id' => $webrequest->getRequestId(),
+				'id' => UIDGenerator::newUUIDv4(),
+				'dt' => wfTimestamp( TS_ISO_8601 ),
+				'domain' => $wgServerName,
+				'stream' => 'mediawiki.cirrussearch-request',
+			],
+			'http' => [
+				'method' => $webrequest->getMethod(),
+				'client_ip' => $webrequest->getIP(),
+				'has_cookies' => $webrequest->getHeader( 'Cookie' ) ? true : false,
+			],
+			'database' => wfWikiID(),
+			'mediawiki_host' => gethostname(),
+			'search_id' => Util::getRequestSetToken(),
 			'source' => Util::getExecutionContext(),
 			'identity' => Util::generateIdentToken(),
-			'ip' => $wgRequest->getIP() ?: '',
-			'userAgent' => $wgRequest->getHeader( 'User-Agent' ) ?: '',
-			'backendUserTests' => UserTesting::getInstance()->getActiveTestNamesWithBucket(),
-			'tookMs' => $this->getPhpRequestTookMs(),
-			'hits' => $resultHits,
-			'payload' => [
-				// useful while we are testing accept-lang based interwiki
-				'acceptLang' => (string)( $wgRequest->getHeader( 'Accept-Language' ) ?: '' ),
-				// Helps to track down what actually caused the request. Will promote to full
-				// param if it proves useful
-				'queryString' => http_build_query( $_GET ),
-				// When tracking down performance issues it is useful to know if they are localized
-				// to a particular set of instances
-				'host' => gethostname(),
-				// Referer can be helpful when trying to figure out what requests were made by bots.
-				'referer' => (string)( $wgRequest->getHeader( 'Referer' ) ?: '' ),
-				// Reasonable indication it's not a "normal" web request, as a standard web request
-				// would have first had a WMF-Last-Access cookie set, and then submitting an
-				// autocomplete/fulltext search would have sent that as well.
-				'hascookies' => $wgRequest->getHeader( 'Cookie' ) ? "1" : "0",
-			],
-			'requests' => $requests,
+			'request_time_ms' => $this->getPhpRequestTookMs(),
+			'all_elasticsearch_requests_cached' => $allRequestsCached,
 		];
 
-		if ( $bogusResult !== null ) {
-			if ( is_string( $bogusResult ) ) {
-				$requestSet['payload']['bogusResult'] = $bogusResult;
-			} else {
-				$requestSet['payload']['bogusResult'] = 'NOT_A_STRING?: ' . gettype( $bogusResult );
+		$webRequestValues = $webrequest->getValues();
+		if ( !empty( $webRequestValues ) ) {
+			$requestEvent['params'] = [];
+			// Make sure all params are string keys and values
+			foreach ( $webRequestValues as $k => $v ) {
+				if ( is_array( $v ) ) {
+					$v = implode( ',', $v );
+				}
+				$k = $webrequest->normalizeUnicode( $k );
+				$requestEvent['params'][(string)$k] = (string)$v;
 			}
 		}
 
-		if ( $allCached ) {
-			$requestSet['payload']['cached'] = 'true';
+		// Don't set these fields if there is no data.
+		if ( !empty( $resultHits ) ) {
+			$requestEvent['hits'] = $resultHits;
+		}
+		if ( !empty( $elasticSearchRequests ) ) {
+			$requestEvent['elasticsearch_requests'] = $elasticSearchRequests;
+		}
+		$activeTestNames = UserTesting::getInstance()->getActiveTestNamesWithBucket();
+		if ( !empty( $activeTestNames ) ) {
+			$requestEvent['backend_user_tests'] = $activeTestNames;
 		}
 
-		LoggerFactory::getInstance( 'CirrusSearchRequestSet' )->debug( '', $requestSet );
+		// If in webrequests, log these request headers in http.headers.
+		$httpRequestHeadersToLog = [ 'accept-language', 'referer', 'user-agent' ];
+		foreach ( $httpRequestHeadersToLog as $header ) {
+			if ( $webrequest->getHeader( $header ) ) {
+				$requestEvent['http']['request_headers'][$header] =
+					(string)$webrequest->normalizeUnicode( $webrequest->getHeader( $header ) );
+			}
+		}
+
+		return $requestEvent;
 	}
 
 	/**
-	 * @param SearchResultSet $matches
+	 * @param ISearchResultSet $matches
 	 * @return string[]
 	 */
-	private function extractTitleStrings( SearchResultSet $matches ) {
+	private function extractTitleStrings( ISearchResultSet $matches ) {
 		$strings = [];
 		foreach ( $matches as $result ) {
 			$strings[] = (string)$result->getTitle();
@@ -338,28 +410,24 @@ class RequestLogger {
 	}
 
 	/**
-	 * Enforce all avro-specified type constraints on CirrusSearchHit and limit
-	 * the number of results to the maximum specified. The defaults should
-	 * match the defaults specified in CirrusSearchRequestSet.idl
-	 * (mediawiki-event-schemas repository)
+	 * Enforce all type constraints on the hits field and limit
+	 * the number of results to the maximum specified.
 	 *
 	 * @param array[] $hits
 	 * @return array[]
 	 */
 	private function encodeHits( array $hits ) {
-		$result = [];
+		$formattedHits = [];
 		foreach ( array_slice( $hits, 0, self::LOG_MAX_RESULTS )  as $hit ) {
-			$result[] = [
-				'title' => isset( $hit['title'] ) ? (string)$hit['title'] : '',
-				'index' => isset( $hit['index'] ) ? (string)$hit['index'] : '',
-				// @todo this can be a string, and should be docId
-				'pageId' => isset( $hit['pageId'] ) ? (int)$hit['pageId'] : -1,
-				'score' => isset( $hit['score'] ) ? (float)$hit['score'] : -1,
-				'profileName' => isset( $hit['profileName'] ) ? (string)$hit['profileName'] : '',
-			];
+			$formattedHit = [];
+			Util::setIfDefined( $hit, 'title', $formattedHit, 'page_title', 'strval' );
+			Util::setIfDefined( $hit, 'pageId', $formattedHit, 'page_id', 'intval' );
+			Util::setIfDefined( $hit, 'index', $formattedHit, 'index', 'strval' );
+			Util::setIfDefined( $hit, 'score', $formattedHit, 'score', 'floatval' );
+			Util::setIfDefined( $hit, 'profileName', $formattedHit, 'profile_name', 'strval' );
+			$formattedHits[] = $formattedHit;
 		}
-
-		return $result;
+		return $formattedHits;
 	}
 
 	/**

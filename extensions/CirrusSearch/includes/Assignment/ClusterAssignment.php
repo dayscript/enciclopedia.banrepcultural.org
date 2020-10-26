@@ -3,6 +3,15 @@
 namespace CirrusSearch\Assignment;
 
 interface ClusterAssignment {
+
+	/**
+	 * @param string $cluster The cluster to id.
+	 * @return string An identifier that unique describes the
+	 *  connection properties. Instances of the same implementation
+	 *  will return same value for same configuration.
+	 */
+	public function uniqueId( $cluster );
+
 	/**
 	 * @return string Name of the cluster group to search against
 	 */
@@ -12,6 +21,12 @@ interface ClusterAssignment {
 	 * @return string[] List of the cluster groups to send writes to
 	 */
 	public function getWritableClusters(): array;
+
+	/**
+	 * @param string $clusterName
+	 * @return bool True when the named cluster is writable
+	 */
+	public function canWriteToCluster( $clusterName );
 
 	/**
 	 * @param string|null $cluster Name of cluster group to return connection

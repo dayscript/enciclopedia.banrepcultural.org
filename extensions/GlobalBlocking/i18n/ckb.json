@@ -1,0 +1,17 @@
+{
+	"@metadata": {
+		"authors": [
+			"Calak",
+			"Épine"
+		]
+	},
+	"globalblocking-block-reason": "هۆکار:",
+	"globalblocking-block-expiry-selector-other": "کاتی تر:",
+	"globalblocking-ipaddress": "ناونیشانی ئایپی:",
+	"globalblocking-search-ip": "ناونیشانی ئایپی:",
+	"globalblocking-unblock-reason": "هۆکار:",
+	"globalblocking-whitelist-reason": "هۆکار:",
+	"globalblocking-logpage": "لۆگی بەربەستنی سەرانسەری",
+	"right-globalblock": "دروستکردن و لابردنی بەربەستنە جیھانییەکان",
+	"right-globalblock-whitelist": "ناچالاککردنی خۆماڵیی بەربەستنە سەرانسەرییەکان"
+}

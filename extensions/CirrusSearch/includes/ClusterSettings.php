@@ -28,6 +28,18 @@ class ClusterSettings {
 	}
 
 	/**
+	 * @return bool True when the cluster is allowed to contain private indices
+	 */
+	public function isPrivateCluster() {
+		$privateClusters = $this->config->get( 'CirrusSearchPrivateClusters' );
+		if ( $privateClusters === null ) {
+			return true;
+		} else {
+			return in_array( $this->cluster, $privateClusters );
+		}
+	}
+
+	/**
 	 * @param string $indexType
 	 * @return int Number of shards the index should have
 	 */
@@ -61,6 +73,17 @@ class ClusterSettings {
 		}
 		throw new \Exception( "If \$wgCirrusSearchReplicas is " .
 			"an array it must contain all index types." );
+	}
+
+	/**
+	 * @param string $indexType
+	 * @return int Number of shards per node, or 'unlimited'.
+	 */
+	public function getMaxShardsPerNode( $indexType ) {
+		$settings = $this->config->get( 'CirrusSearchMaxShardsPerNode' );
+		$max = $settings[$this->cluster][$indexType] ?? $settings[$indexType] ?? -1;
+		// Allow convenience setting of 'unlimited' which translates to elasticsearch -1 (unbounded).
+		return $max === 'unlimited' ? -1 : $max;
 	}
 
 	/**
