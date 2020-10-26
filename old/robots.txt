@@ -1,3 +1,0 @@
-User-agent: *
-Disallow: 
-Sitemap: https://enciclopedia.banrepcultural.org/sitemap/sitemap-index-enciclopedia.xml
