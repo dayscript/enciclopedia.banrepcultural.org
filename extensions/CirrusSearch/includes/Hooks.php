@@ -5,27 +5,28 @@ namespace CirrusSearch;
 use ApiBase;
 use ApiMain;
 use ApiOpenSearch;
-use CirrusSearch;
+use ApiUsageException;
 use CirrusSearch\Job\JobTraits;
 use CirrusSearch\Profile\SearchProfileServiceFactory;
 use CirrusSearch\Search\FancyTitleResultsType;
-use Content;
 use DeferredUpdates;
+use Html;
+use ISearchResultSet;
 use JobQueueGroup;
 use LinksUpdate;
-use OutputPage;
+use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
-use Revision;
-use ISearchResultSet;
+use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\User\UserIdentity;
+use OutputPage;
+use RequestContext;
 use SpecialSearch;
 use Title;
-use RequestContext;
-use ApiUsageException;
 use User;
 use WebRequest;
 use WikiPage;
 use Xml;
-use Html;
 
 /**
  * All CirrusSearch's external hooks.
@@ -79,8 +80,7 @@ class Hooks {
 	 * @param WebRequest $request
 	 */
 	public static function initializeForRequest( WebRequest $request ) {
-		global $wgSearchType, $wgHooks,
-			$wgCirrusSearchPhraseRescoreWindowSize,
+		global $wgCirrusSearchPhraseRescoreWindowSize,
 			$wgCirrusSearchFunctionRescoreWindowSize,
 			$wgCirrusSearchFragmentSize,
 			$wgCirrusSearchAllFields,
@@ -91,35 +91,31 @@ class Hooks {
 			$wgCirrusSearchEnableAltLanguage,
 			$wgCirrusSearchUseCompletionSuggester;
 
-		// Install our prefix search hook only if we're enabled.
-		if ( $wgSearchType === 'CirrusSearch' ) {
-			$wgHooks[ 'PrefixSearchExtractNamespace' ][] = 'CirrusSearch\Hooks::prefixSearchExtractNamespace';
-			$wgHooks[ 'SearchGetNearMatch' ][] = 'CirrusSearch\Hooks::onSearchGetNearMatch';
-		}
-
 		self::overrideMoreLikeThisOptionsFromMessage();
 
-		if ( $request ) {
-			self::overrideNumeric( $wgCirrusSearchPhraseRescoreWindowSize,
-				$request, 'cirrusPhraseWindow', 10000 );
-			self::overrideNumeric( $wgCirrusSearchPhraseRescoreBoost,
-				$request, 'cirrusPhraseBoost' );
-			self::overrideNumeric( $wgCirrusSearchPhraseSlop[ 'boost' ],
-				$request, 'cirrusPhraseSlop', 10 );
-			self::overrideNumeric( $wgCirrusSearchFunctionRescoreWindowSize,
-				$request, 'cirrusFunctionWindow', 10000 );
-			self::overrideNumeric( $wgCirrusSearchFragmentSize,
-				$request, 'cirrusFragmentSize', 1000 );
-			self::overrideYesNo( $wgCirrusSearchAllFields[ 'use' ],
-				$request, 'cirrusUseAllFields' );
+		self::overrideNumeric( $wgCirrusSearchPhraseRescoreWindowSize,
+			$request, 'cirrusPhraseWindow', 10000 );
+		self::overrideNumeric( $wgCirrusSearchPhraseRescoreBoost,
+			$request, 'cirrusPhraseBoost' );
+		self::overrideNumeric( $wgCirrusSearchPhraseSlop[ 'boost' ],
+			$request, 'cirrusPhraseSlop', 10 );
+		self::overrideNumeric( $wgCirrusSearchFunctionRescoreWindowSize,
+			$request, 'cirrusFunctionWindow', 10000 );
+		self::overrideNumeric( $wgCirrusSearchFragmentSize,
+			$request, 'cirrusFragmentSize', 1000 );
+		self::overrideYesNo( $wgCirrusSearchAllFields[ 'use' ],
+			$request, 'cirrusUseAllFields' );
+		if ( $wgCirrusSearchUseCompletionSuggester === 'yes' || $wgCirrusSearchUseCompletionSuggester === true ) {
+			// Only allow disabling the completion suggester, enabling it from request params might cause failures
+			// as the index might not be present.
 			self::overrideYesNo( $wgCirrusSearchUseCompletionSuggester,
 				$request, 'cirrusUseCompletionSuggester' );
-			self::overrideMoreLikeThisOptions( $request );
-			self::overrideSecret( $wgCirrusSearchLogElasticRequests,
-				$wgCirrusSearchLogElasticRequestsSecret, $request, 'cirrusLogElasticRequests', false );
-			self::overrideYesNo( $wgCirrusSearchEnableAltLanguage,
-				$request, 'cirrusAltLanguage' );
 		}
+		self::overrideMoreLikeThisOptions( $request );
+		self::overrideSecret( $wgCirrusSearchLogElasticRequests,
+			$wgCirrusSearchLogElasticRequestsSecret, $request, 'cirrusLogElasticRequests', false );
+		self::overrideYesNo( $wgCirrusSearchEnableAltLanguage,
+			$request, 'cirrusAltLanguage' );
 	}
 
 	/**
@@ -224,7 +220,7 @@ class Hooks {
 				// @deprecated Use minimum_should_match now
 				$k = 'minimum_should_match';
 				if ( is_numeric( $v ) && $v > 0 && $v <= 1 ) {
-					$v = ( (int)( $v * 100 ) ) . '%';
+					$v = ( (int)( (float)$v * 100 ) ) . '%';
 				} else {
 					break;
 				}
@@ -426,8 +422,11 @@ class Hooks {
 		$params = [
 			'addedLinks' => self::prepareTitlesForLinksUpdate(
 				$linksUpdate->getAddedLinks(), $wgCirrusSearchLinkedArticlesToUpdate ),
+			// We exclude links that contains invalid UTF-8 sequences, reason is that page created
+			// before T13143 was fixed might sill have bad links the pagelinks table
+			// and thus will cause LinksUpdate to believe that these links are removed.
 			'removedLinks' => self::prepareTitlesForLinksUpdate(
-				$linksUpdate->getRemovedLinks(), $wgCirrusSearchUnlinkedArticlesToUpdate ),
+				$linksUpdate->getRemovedLinks(), $wgCirrusSearchUnlinkedArticlesToUpdate, true ),
 		];
 		// non recursive LinksUpdate can go to the non prioritized queue
 		if ( $linksUpdate->isRecursive() ) {
@@ -448,7 +447,11 @@ class Hooks {
 	 * @param string &$search
 	 * @return bool
 	 */
-	public static function prefixSearchExtractNamespace( &$namespaces, &$search ) {
+	public static function onPrefixSearchExtractNamespace( &$namespaces, &$search ) {
+		global $wgSearchType;
+		if ( $wgSearchType !== 'CirrusSearch' ) {
+			return true;
+		}
 		return self::prefixSearchExtractNamespaceWithConnection( self::getConnection(), $namespaces, $search );
 	}
 
@@ -493,6 +496,11 @@ class Hooks {
 	 * @throws ApiUsageException
 	 */
 	public static function onSearchGetNearMatch( $term, &$titleResult ) {
+		global $wgSearchType;
+		if ( $wgSearchType !== 'CirrusSearch' ) {
+			return true;
+		}
+
 		$title = Title::newFromText( $term );
 		if ( $title === null ) {
 			return false;
@@ -546,12 +554,23 @@ class Hooks {
 
 	/**
 	 * When we've moved a Title from A to B.
-	 * @param Title $title The old title
-	 * @param Title $newTitle The new title
-	 * @param User $user User who made the move
+	 * @param LinkTarget $title The old title
+	 * @param LinkTarget $newTitle The new title
+	 * @param UserIdentity $user User who made the move
 	 * @param int $oldId The page id of the old page.
+	 * @param int $redirId
+	 * @param string $reason
+	 * @param RevisionRecord $revisionRecord
 	 */
-	public static function onTitleMoveComplete( Title $title, Title $newTitle, $user, $oldId ) {
+	public static function onPageMoveComplete(
+		LinkTarget $title,
+		LinkTarget $newTitle,
+		UserIdentity $user,
+		int $oldId,
+		int $redirId,
+		string $reason,
+		RevisionRecord $revisionRecord
+	) {
 		// When a page is moved the update and delete hooks are good enough to catch
 		// almost everything.  The only thing they miss is if a page moves from one
 		// index to another.  That only happens if it switches namespace.
@@ -563,6 +582,7 @@ class Hooks {
 		$oldIndexType = $conn->getIndexSuffixForNamespace( $title->getNamespace() );
 		$newIndexType = $conn->getIndexSuffixForNamespace( $newTitle->getNamespace() );
 		if ( $oldIndexType !== $newIndexType ) {
+			$title = Title::newFromLinkTarget( $title );
 			$job = new Job\DeletePages( $title, [
 				'indexType' => $oldIndexType,
 				'docId' => self::getConfig()->makeId( $oldId )
@@ -570,7 +590,7 @@ class Hooks {
 			// Push the job after DB commit but cancel on rollback
 			wfGetDB( DB_MASTER )->onTransactionIdle( function () use ( $job ) {
 				JobQueueGroup::singleton()->lazyPush( $job );
-			} );
+			}, __METHOD__ );
 		}
 	}
 
@@ -579,12 +599,23 @@ class Hooks {
 	 * This includes limiting them to $max titles.
 	 * @param Title[] $titles titles to prepare
 	 * @param int $max maximum number of titles to return
+	 * @param bool $excludeBadUTF exclude links that contains invalid UTF sequences
 	 * @return array
 	 */
-	private static function prepareTitlesForLinksUpdate( $titles, $max ) {
+	public static function prepareTitlesForLinksUpdate( $titles, $max, $excludeBadUTF = false ) {
 		$titles = self::pickFromArray( $titles, $max );
 		$dBKeys = [];
 		foreach ( $titles as $title ) {
+			$key = $title->getPrefixedDBkey();
+			if ( $excludeBadUTF ) {
+				$fixedKey = mb_convert_encoding( $key, 'UTF-8', 'UTF-8' );
+				if ( $fixedKey !== $key ) {
+					LoggerFactory::getInstance( 'CirrusSearch' )
+						->warning( "Ignoring title {title} with invalid UTF-8 sequences.",
+							[ 'title' => $fixedKey ] );
+					continue;
+				}
+			}
 			$dBKeys[] = $title->getPrefixedDBkey();
 		}
 		return $dBKeys;
@@ -724,6 +755,10 @@ class Hooks {
 		];
 	}
 
+	/**
+	 * @param array[] $profiles
+	 * @return string[]
+	 */
 	private static function autoCompleteOptionsForPreferences( array $profiles ): array {
 		$available = [];
 		foreach ( $profiles as $profile ) {
@@ -825,52 +860,4 @@ class Hooks {
 			$extraStats['cirrussearch-article-words'] = $wordCount;
 		}
 	}
-
-	/**
-	 * @param WikiPage $wikiPage
-	 * @param User $user
-	 * @param Content $content
-	 * @param string $summary
-	 * @param bool $isMinor
-	 * @param bool $isWatch
-	 * @param string $section
-	 * @param int $flags
-	 * @param Revision $revision
-	 */
-	public static function onPageContentInsertComplete(
-		WikiPage $wikiPage,
-		$user,
-		$content,
-		$summary,
-		$isMinor,
-		$isWatch,
-		$section,
-		$flags,
-		$revision
-	) {
-		global $wgCirrusSearchInstantIndexNew;
-		if ( empty( $wgCirrusSearchInstantIndexNew ) ) {
-			return;
-		}
-		if ( $wikiPage->isRedirect() ) {
-			// Not much point to instant-index redirects since they usually won't have
-			// much useful content.
-			return;
-		}
-		if ( is_array( $wgCirrusSearchInstantIndexNew ) ) {
-			$namespace = $wikiPage->getTitle()->getNamespace();
-			if ( !in_array( $namespace, $wgCirrusSearchInstantIndexNew ) ) {
-				// Index only in namespaces specified in the config
-				return;
-			}
-		}
-		// Update newly created page. This may not have all the correct link data, etc.
-		// but that will be picked up later by the LinkUpdate job.
-		DeferredUpdates::addCallableUpdate( function () use ( $wikiPage ) {
-			$updater = Updater::build( self::getConfig(), null );
-			$updater->updatePages( [ $wikiPage ],
-				Updater::SKIP_LINKS | Updater::INDEX_ON_SKIP | Updater::INSTANT_INDEX );
-		} );
-	}
-
 }

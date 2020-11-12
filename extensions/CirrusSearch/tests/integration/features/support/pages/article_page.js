@@ -2,6 +2,8 @@
 // Page showing the article with some actions.  This is the page that everyone
 // is used to reading on wikipedia.  My mom would recognize this page.
 
+'use strict';
+
 const TitlePage = require( './title_page' );
 
 class ArticlePage extends TitlePage {
@@ -27,12 +29,12 @@ class ArticlePage extends TitlePage {
 
 	get_search_suggestion_at( nth ) {
 		nth--;
-		let suggestions = this.get_search_suggestions();
+		const suggestions = this.get_search_suggestions();
 		return suggestions.length > nth ? suggestions[ nth ] : null;
 	}
 
 	get_search_suggestions() {
-		let selector = '.suggestions .suggestions-results a.mw-searchSuggest-link';
+		const selector = '.suggestions .suggestions-results a.mw-searchSuggest-link';
 		browser.waitForVisible( selector, 10000 );
 		return this.collect_element_attribute( 'title', selector );
 	}

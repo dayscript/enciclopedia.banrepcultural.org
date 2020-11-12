@@ -100,7 +100,7 @@ class UserTesting {
 	}
 
 	/**
-	 * @param array $config
+	 * @param array[] $config
 	 * @param callable|null $callback
 	 * @param string|null $trigger Value to manually trigger a test.
 	 */
@@ -111,6 +111,7 @@ class UserTesting {
 		foreach ( $config as $testName => $testConfig ) {
 			if ( $trigger ) {
 				foreach ( $testConfig['buckets'] as $bucket => $bucketConfig ) {
+					'@phan-var array $bucketConfig';
 					if ( isset( $bucketConfig['trigger'] ) && $bucketConfig['trigger'] === $trigger ) {
 						$this->activateTest( $testName, $bucket, $testConfig );
 						break;

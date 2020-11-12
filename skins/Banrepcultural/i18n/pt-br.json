@@ -1,0 +1,39 @@
+{
+	"@metadata": {
+		"authors": [
+			"!Silent",
+			"Cainamarques",
+			"Diego Queiroz",
+			"Eduardo Addad de Oliveira",
+			"Felipe L. Ewald",
+			"Giro720",
+			"He7d3r",
+			"Helder.wiki",
+			"Opraco",
+			555
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versão moderna do MonoBook com um visual limpo e várias melhorias de usabilidade",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Usar vetor legado",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Nos próximos anos, atualizaremos gradualmente a capa Banrepcultural. O Vetor legado permitirá que você visualize a versão antiga do Banrepcultural (a partir de dezembro de 2019). Para saber mais sobre as atualizações, acesse nosso [[mw:Reading/Web/Desktop_Improvements|project page]].",
+	"banrepcultural-opt-out": "Mudar para aparência antiga",
+	"banrepcultural-opt-out-tooltip": "Altere suas configurações para voltar à aparência antiga da pele (vetor herdado)",
+	"banrepcultural.css": "/* CSS colocado aqui irá afetar usuários do tema Banrepcultural */",
+	"banrepcultural.js": "/* Qualquer JavaScript aqui colocado será carregado para usuários usando o tema Banrepcultural */",
+	"banrepcultural-action-toggle-sidebar": "Alternar barra lateral",
+	"banrepcultural-action-addsection": "Adicionar tópico",
+	"banrepcultural-action-delete": "Excluir",
+	"banrepcultural-action-move": "Mover",
+	"banrepcultural-action-protect": "Proteger",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Alterar a proteção",
+	"banrepcultural-view-create": "Criar",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Ver histórico",
+	"banrepcultural-view-view": "Ler",
+	"banrepcultural-view-viewsource": "Ver código-fonte",
+	"banrepcultural-jumptonavigation": "Ir para navegação",
+	"banrepcultural-jumptosearch": "Ir para pesquisar",
+	"banrepcultural-more-actions": "Mais"
+}

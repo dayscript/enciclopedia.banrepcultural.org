@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Benojan",
+			"Poiuyt",
+			"飞舞回堂前"
+		]
+	},
+	"banrepcultural.css": "/* 放勒伊𡍲个CSS会影响用Banrepcultural皮肤个用户 */",
+	"banrepcultural-action-addsection": "加話題",
+	"banrepcultural-action-delete": "删除",
+	"banrepcultural-action-move": "移动",
+	"banrepcultural-action-protect": "保护",
+	"banrepcultural-action-undelete": "取消删除",
+	"banrepcultural-action-unprotect": "更改保护",
+	"banrepcultural-view-create": "创建",
+	"banrepcultural-view-edit": "编辑",
+	"banrepcultural-view-history": "望历史",
+	"banrepcultural-view-view": "阅读",
+	"banrepcultural-view-viewsource": "望源码",
+	"banrepcultural-more-actions": "更多"
+}

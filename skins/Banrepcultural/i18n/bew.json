@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Naval Scene"
+		]
+	},
+	"banrepcultural-action-delete": "Ngapus",
+	"banrepcultural-action-move": "Pindahin",
+	"banrepcultural-action-undelete": "Balikin nyang keapus",
+	"banrepcultural-view-create": "Bikin"
+}

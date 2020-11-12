@@ -153,7 +153,7 @@ class RescoreBuilder {
 
 	/**
 	 * @param array $rescore
-	 * @return integer the window size defined in the profile
+	 * @return int the window size defined in the profile
 	 * or the value from config if window_size_override is set.
 	 */
 	private function windowSize( array $rescore ) {
@@ -227,7 +227,7 @@ class RescoreBuilder {
 				}
 				$profileName = $profile['fallback_profile'];
 				if ( isset( $seen[$profileName] ) ) {
-					$chain = implode( '->', $seen ) . "->$profileName";
+					$chain = implode( '->', array_keys( $seen ) ) . "->$profileName";
 					throw new InvalidRescoreProfileException( "Cycle in rescore fallbacks: $chain" );
 				}
 

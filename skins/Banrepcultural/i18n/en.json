@@ -1,14 +1,28 @@
 {
 	"@metadata": {
-		"authors": [
-			"Sophivorus"
-		]
+		"authors": []
 	},
 	"skinname-banrepcultural": "Banrepcultural",
-	"banrepcultural-desc": "Simple, responsive and mobile-friendly skin",
-	"banrepcultural-wiki": "Wiki",
-	"banrepcultural-tools": "Tools",
-	"banrepcultural-actions": "Actions",
-	"banrepcultural-you": "You",
-	"banrepcultural-search": "Search in the encyclopedia"
+	"banrepcultural-skin-desc": "Modern version of MonoBook with fresh look and many usability improvements",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Use Legacy Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Over the next few years, we will be gradually updating the Banrepcultural skin. Legacy Banrepcultural will allow you to view the old version of Banrepcultural (as of December 2019). To learn more about the updates, go to our [[mw:Reading/Web/Desktop_Improvements|project page]].",
+	"banrepcultural-opt-out": "Switch to old look",
+	"banrepcultural-opt-out-tooltip": "Change your settings to go back to the old look of the skin (legacy Banrepcultural)",
+	"banrepcultural.css": "/* All CSS here will be loaded for users of the Banrepcultural skin */",
+	"banrepcultural.js": "/* All JavaScript here will be loaded for users of the Banrepcultural skin */",
+	"banrepcultural-action-toggle-sidebar": "Toggle sidebar",
+	"banrepcultural-action-addsection": "Add topic",
+	"banrepcultural-action-delete": "Delete",
+	"banrepcultural-action-move": "Move",
+	"banrepcultural-action-protect": "Protect",
+	"banrepcultural-action-undelete": "Undelete",
+	"banrepcultural-action-unprotect": "Change protection",
+	"banrepcultural-view-create": "Create",
+	"banrepcultural-view-edit": "Edit",
+	"banrepcultural-view-history": "View history",
+	"banrepcultural-view-view": "Read",
+	"banrepcultural-view-viewsource": "View source",
+	"banrepcultural-jumptonavigation": "Jump to navigation",
+	"banrepcultural-jumptosearch": "Jump to search",
+	"banrepcultural-more-actions": "More"
 }

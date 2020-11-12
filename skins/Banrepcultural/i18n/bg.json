@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Borislav",
+			"DCLXVI",
+			"Spiritia",
+			"StanProg"
+		]
+	},
+	"banrepcultural-skin-desc": "Модерна версия на MonoBook с обновен дизайн и много подобрения на ползваемостта",
+	"banrepcultural-action-addsection": "Добавяне на тема",
+	"banrepcultural-action-delete": "Изтриване",
+	"banrepcultural-action-move": "Преместване",
+	"banrepcultural-action-protect": "Защита",
+	"banrepcultural-action-undelete": "Възстановяване",
+	"banrepcultural-action-unprotect": "Промяна на защитата",
+	"banrepcultural-view-create": "Създаване",
+	"banrepcultural-view-edit": "Редактиране",
+	"banrepcultural-view-history": "История",
+	"banrepcultural-view-view": "Преглед",
+	"banrepcultural-view-viewsource": "Преглед на кода",
+	"banrepcultural-jumptonavigation": "Направо към навигацията",
+	"banrepcultural-jumptosearch": "Направо към търсенето",
+	"banrepcultural-more-actions": "Още"
+}

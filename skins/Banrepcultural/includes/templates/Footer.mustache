@@ -1,0 +1,65 @@
+{{!
+	@typedef object footerItem
+	@prop string id of list item element
+	@prop string html of list item
+	@prop footerItem[] items
+
+	@typedef object footerRow
+	@prop string className of list element
+	@prop string id of list element
+	@prop footerItem[] array-items
+
+	string html-hook-banrepcultural-before-footer output of BanrepculturalBeforeFooter hook
+	string|null html-userlangattributes a string of attribute HTML
+	footerRow[] array-footer-rows iterable list of footer rows
+}}
+{{{html-hook-banrepcultural-before-footer}}}
+{{! `role` is unnecessary but kept to support selectors in any gadgets or user styles and
+	to mitigate a VoiceOver bug. }}
+<footer id="footer" class="mw-footer" role="contentinfo" {{{html-userlangattributes}}}>
+	<div class="footer-column">
+		<a id="footer-icon"></a>
+		<ul>
+			<li><a target="_blank" href="https://www.banrepcultural.org/acerca-de">Acerca de Banrepcultural</a></li>
+			<li><a target="_blank" href="https://www.banrep.gov.co/">Banco de la República</a></li>
+			<li><a target="_blank" href="https://www.banrepcultural.org/accesibilidad">Accesibilidad</a></li>
+			<li><a target="_blank" href="https://www.banrep.gov.co/es/transparencia-acceso-informacion-publica">Transparencia</a></li>
+			<li><a target="_blank" href="https://www.banrepcultural.org/noticias">Noticias</a></li>
+			<li><a target="_blank" href="https://www.banrepcultural.org/prensa">Prensa</a></li>
+			<li><a target="_blank" href="https://www.banrepcultural.org/servicios/publicaciones">Publicaciones</a></li>
+			<li><br>
+				<div class="social-links">
+					<a target="_blank" class="facebook-link" href="https://www.banrepcultural.org/redes"></a>
+					<a target="_blank" class="youtube-link" href="https://www.banrepcultural.org/redes"></a>
+					<a target="_blank" class="instagram-link" href="https://www.banrepcultural.org/redes"></a>
+					<a target="_blank" class="twitter-link" href="https://www.banrepcultural.org/redes"></a>
+				</div>
+			</li>
+		</ul>
+	</div>
+	<div class="footer-column">
+		<h2>Información de interés y ayuda</h2>
+		<div><a href="/en">Versión en inglés</a></div>
+		<div><a href="/servicios/preguntas-frecuentes">Preguntas frecuentes</a></div>
+		<div><a href="/mapa-del-sitio">Mapa del sitio</a></div>
+		<div><a href="/servicios/catalogo-bibliografico-en-linea">Catálogo en línea</a></div>
+		<div><a href="/servicios/preguntas-frecuentes">Hazte socio</a></div>
+		<div><a href="https://www.banrepcultural.org/boletin-cultural/">Boletín cultural y bibliográfico</a></div>
+		<div><a href="/publicaciones">Derechos de Autor</a></div>
+		<div><a href="/eform/submit/danos-tu-opinion">¿Encontraste algun error?</a></div>
+		<div><a href="/creditos">Créditos</a></div>
+	</div>
+	<div class="footer-column">
+		<h2>Contacto y avisos legales</h2>
+		<div><a href="https://www.banrep.gov.co/donde-estamos">Localización física y horarios de atención al público en el territorio nacional</a></div>
+		<div><a href="https://www.banrep.gov.co/atencion-ciudadano">Atención al ciudadano</a></div>
+		<div><a href="https://atencionalciudadano.banrep.gov.co/siac/ess.do">Formulario electrónico de solicitudes de información</a></div>
+		<div><a href="/servicios/listas-de-correo">Listas de correo</a></div>
+		<div><a href="mailto: AtencionalCiudadano@banrep.gov.co">Contáctenos: atencionalciudadano@banrep.gov.co</a></div>
+		<div><a href="https://www.banrep.gov.co/notificaciones-judiciales">Buzón de notificaciones judiciales</a></div>
+		<div><a href="https://www.banrep.gov.co/aviso-legal">Aviso legal</a></div>
+		<div><a href="https://www.banrep.gov.co/proteccion-datos-personales">Políticas de protección de datos personales</a></div>
+		<div><a href="https://www.banrep.gov.co/politicas-de-seguridad-de-la-informacion">Políticas de seguridad de la información</a></div>
+	</div>
+	<div id="copyright">© 2017 Banco de la República, Colombia. Todos los derechos reservados.</div>
+</footer>

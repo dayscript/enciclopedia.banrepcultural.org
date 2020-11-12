@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Freeyak",
+			"Phurbutsering",
+			"ཁ་བཏགས་ནག་པོ"
+		]
+	},
+	"banrepcultural-action-addsection": "བརྗོད་གཞི་ཁ་སྣོན།",
+	"banrepcultural-action-delete": "སུབས།",
+	"banrepcultural-action-move": "སྤོར་བ།",
+	"banrepcultural-action-protect": "འགོག་སྲུང།",
+	"banrepcultural-action-undelete": "མི་བསུབས་",
+	"banrepcultural-action-unprotect": "སྲུང་སྐྱོབ་གློད་པ།",
+	"banrepcultural-view-create": "གསར་བཟོ།",
+	"banrepcultural-view-edit": "རྩོམ་སྒྲིག",
+	"banrepcultural-view-history": "ལོ་རྒྱུས་ལ་ལྟ་བ།",
+	"banrepcultural-view-view": "ཀློག་པ།",
+	"banrepcultural-view-viewsource": "ཁུངས་ལ་ལྟ་བ།",
+	"banrepcultural-more-actions": "དེ་ལས་མང་བ།"
+}

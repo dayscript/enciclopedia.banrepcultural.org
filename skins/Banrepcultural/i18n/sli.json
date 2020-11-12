@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Przemub",
+			"Schläsinger",
+			"Timpul",
+			"Äberlausitzer"
+		]
+	},
+	"banrepcultural-action-addsection": "Obschnitt hinzufiega",
+	"banrepcultural-action-delete": "Läscha",
+	"banrepcultural-action-move": "Verschieba",
+	"banrepcultural-action-protect": "Schützen",
+	"banrepcultural-action-undelete": "Wiederherstella",
+	"banrepcultural-action-unprotect": "Freigahn",
+	"banrepcultural-view-create": "Erstella",
+	"banrepcultural-view-edit": "Bearbeita",
+	"banrepcultural-view-history": "Versionsgeschichte",
+	"banrepcultural-view-view": "Lessa",
+	"banrepcultural-view-viewsource": "Quelltext siehn"
+}

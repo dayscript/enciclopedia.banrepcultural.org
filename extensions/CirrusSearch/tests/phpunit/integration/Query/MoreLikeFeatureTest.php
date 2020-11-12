@@ -5,8 +5,8 @@ namespace CirrusSearch\Query;
 use CirrusSearch\CirrusIntegrationTestCase;
 use CirrusSearch\CrossSearchStrategy;
 use CirrusSearch\HashSearchConfig;
-use CirrusSearch\SearchConfig;
 use CirrusSearch\Search\SearchContext;
+use CirrusSearch\SearchConfig;
 use Elastica\Query\AbstractQuery;
 use Elastica\Query\BoolQuery;
 use MediaWiki\MediaWikiServices;
@@ -233,20 +233,20 @@ class MoreLikeFeatureTest extends CirrusIntegrationTestCase {
 
 		$result = $feature->apply( $context, $term );
 
-		$this->assertEquals( $mltUsed, $context->isSyntaxUsed( 'more_like' ) );
+		$this->assertSame( $mltUsed, $context->isSyntaxUsed( 'more_like' ) );
 		if ( $mltUsed ) {
 			$this->assertGreaterThan( 0, $context->getCacheTtl() );
 		} else {
-			$this->assertEquals( 0, $context->getCacheTtl() );
+			$this->assertSame( 0, $context->getCacheTtl() );
 		}
 		if ( $expectedQuery === null ) {
 			$this->assertFalse( $context->areResultsPossible() );
 		} else {
 			$this->assertEquals( $expectedQuery, $context->getQuery() );
 			if ( $expectedQuery instanceof \Elastica\Query\MatchAll ) {
-				$this->assertEquals( $term, $result, 'Term must be unchanged' );
+				$this->assertSame( $term, $result, 'Term must be unchanged' );
 			} else {
-				$this->assertEquals( $remainingText, $result, 'Term must be empty string' );
+				$this->assertSame( $remainingText, $result, 'Term must be empty string' );
 			}
 		}
 	}

@@ -1,0 +1,33 @@
+{
+	"@metadata": {
+		"authors": [
+			"Minh Nguyen",
+			"Trần Nguyễn Minh Huy",
+			"Vinhtantran",
+			"Withoutaname"
+		]
+	},
+	"skinname-banrepcultural": "Vectơ",
+	"banrepcultural-skin-desc": "Giao diện làm lại từ MonoBook có màu tươi và khả dụng hơn",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Chế độ Vectơ cũ",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Trong thời gian vài năm nữa, giao diện Vectơ sẽ được cập nhật từ từ. Chế độ Vectơ cũ cho phép bạn xem phiên bản giao diện Vectơ cũ (tính đến tháng 12 năm 2019). Tìm hiểu thêm về các thay đổi này tại [[mw:Reading/Web/Desktop_Improvements|trang dự án]].",
+	"banrepcultural-opt-out": "Chuyển sang giao diện cũ",
+	"banrepcultural-opt-out-tooltip": "Thay đổi tùy chọn để quay lại kiểu giao diện cũ (Vectơ cũ)",
+	"banrepcultural.css": "/* Tất cả mã CSS tại đây sẽ được tải khi người dùng sử dụng giao diện Vectơ */",
+	"banrepcultural.js": "/* Tất cả mã JavaScript tại đây sẽ được tải khi người dùng sử dụng giao diện Vectơ */",
+	"banrepcultural-action-toggle-sidebar": "Bật/tắt thanh bên",
+	"banrepcultural-action-addsection": "Thêm đề tài",
+	"banrepcultural-action-delete": "Xóa",
+	"banrepcultural-action-move": "Di chuyển",
+	"banrepcultural-action-protect": "Khóa",
+	"banrepcultural-action-undelete": "Phục hồi",
+	"banrepcultural-action-unprotect": "Đổi mức khóa",
+	"banrepcultural-view-create": "Tạo",
+	"banrepcultural-view-edit": "Sửa đổi",
+	"banrepcultural-view-history": "Xem lịch sử",
+	"banrepcultural-view-view": "Đọc",
+	"banrepcultural-view-viewsource": "Xem mã nguồn",
+	"banrepcultural-jumptonavigation": "Buớc tưới chuyển hướng",
+	"banrepcultural-jumptosearch": "Bước tới tìm kiếm",
+	"banrepcultural-more-actions": "Khác"
+}

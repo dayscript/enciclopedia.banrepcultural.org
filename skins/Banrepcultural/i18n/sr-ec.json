@@ -1,0 +1,34 @@
+{
+	"@metadata": {
+		"authors": [
+			"Acamicamacaraca",
+			"BadDog",
+			"Milicevic01",
+			"Obsuser",
+			"Rancher",
+			"Жељко Тодоровић",
+			"Михајло Анђелковић"
+		]
+	},
+	"skinname-banrepcultural": "Векторско",
+	"banrepcultural-skin-desc": "Модерна верзија Монобука са свежим изгледом и много корисних побољшања",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Користи стару векторску тему",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Током неколико наредних година, постепено ћемо ажурирати векторску тему. Стара векторска тема омогућиће вам да користите ту стару верзију (од децембра 2019). Како бисте сазнали више о ажурирањима, идите на [[mw:Reading/Web/Desktop_Improvements|страницу пројекта]].",
+	"banrepcultural-opt-out-tooltip": "Промените подешавања да бисте се вратили старом изгледу теме (застарела векторска)",
+	"banrepcultural.css": "/* CSS постављен овде ће утицати на све кориснике векторске теме */",
+	"banrepcultural.js": "/* JavaScript постављен овде ће се учитати за све оне који користе векторску тему */",
+	"banrepcultural-action-addsection": "Додај тему",
+	"banrepcultural-action-delete": "Избриши",
+	"banrepcultural-action-move": "Премести",
+	"banrepcultural-action-protect": "Заштити",
+	"banrepcultural-action-undelete": "Врати",
+	"banrepcultural-action-unprotect": "Промени заштиту",
+	"banrepcultural-view-create": "Направи",
+	"banrepcultural-view-edit": "Уреди",
+	"banrepcultural-view-history": "Историја",
+	"banrepcultural-view-view": "Читај",
+	"banrepcultural-view-viewsource": "Извор",
+	"banrepcultural-jumptonavigation": "Иди на навигацију",
+	"banrepcultural-jumptosearch": "Иди на претрагу",
+	"banrepcultural-more-actions": "Више"
+}

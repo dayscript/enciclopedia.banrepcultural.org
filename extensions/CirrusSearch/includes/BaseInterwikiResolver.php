@@ -2,12 +2,12 @@
 
 namespace CirrusSearch;
 
-use WANObjectCache;
 use BagOStuff;
 use MediaWiki\Interwiki\InterwikiLookup;
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use MultiHttpClient;
+use WANObjectCache;
 
 /**
  * Base InterwikiResolver class.
@@ -60,7 +60,7 @@ abstract class BaseInterwikiResolver implements InterwikiResolver {
 		$this->config = $config;
 		$this->useConfigDumpApi = $this->config->get( 'CirrusSearchFetchConfigFromApi' );
 		if ( $client === null ) {
-			$client = new MultiHttpClient( [
+			$client = MediaWikiServices::getInstance()->getHttpRequestFactory()->createMultiClient( [
 				'connTimeout' => $this->config->get( 'CirrusSearchInterwikiHTTPConnectTimeout' ),
 				'reqTimeout' => $this->config->get( 'CirrusSearchInterwikiHTTPTimeout' )
 			] );

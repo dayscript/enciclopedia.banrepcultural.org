@@ -91,7 +91,7 @@ class SuggestBuilder {
 	 * NOTE: Currently a fixed value because the completion suggester does not support
 	 * multi namespace suggestion.
 	 *
-	 * @var int $targetNamespace
+	 * @var int
 	 */
 	private $targetNamespace = NS_MAIN; // @phan-suppress-current-line PhanUndeclaredConstant NS_MAIN is defined
 
@@ -207,7 +207,7 @@ class SuggestBuilder {
 					'text' => $data['text'],
 					'variants' => []
 				];
-				$docs[] = $this->buildTitleSuggestion( $data['title']->getArticleID(), $suggestion,
+				$docs[] = $this->buildTitleSuggestion( (string)$data['title']->getArticleID(), $suggestion,
 					$data['score'], $data['inputDoc'], $data['explain'] );
 			}
 		}
@@ -400,7 +400,7 @@ class SuggestBuilder {
 	 *
 	 * @param string $groupHead string the group "head"
 	 * @param string[] $candidates array of string the candidates
-	 * @param boolean $checkVariants if the candidate does not match the groupHead try to match a variant
+	 * @param bool $checkVariants if the candidate does not match the groupHead try to match a variant
 	 * @return array 'group' key contains the group with the
 	 *         head and its variants and 'candidates' contains the remaining
 	 *         candidates that were not close enough to $groupHead.
@@ -440,7 +440,7 @@ class SuggestBuilder {
 	 *
 	 * @param string $a
 	 * @param string $b
-	 * @return integer the edit distance between a and b
+	 * @return int the edit distance between a and b
 	 */
 	private function distance( $a, $b ) {
 		$a = $this->trimForDistanceCheck( $a );
@@ -509,7 +509,7 @@ class SuggestBuilder {
 
 	/**
 	 * @param Connection $connection
-	 * @param $indexBaseName
+	 * @param string|null $indexBaseName
 	 * @return int
 	 */
 	private static function fetchMaxDoc( Connection $connection, $indexBaseName = null ) {

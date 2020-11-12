@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"គីមស៊្រុន",
+			"វ័ណថារិទ្ធ"
+		]
+	},
+	"skinname-banrepcultural": "វ៉ិចទ័រ​​",
+	"banrepcultural.css": "/* CSS បានដាក់ទីនេះនឹងមានអនុភាពលើអ្នកប្រើប្រាស់នៃសំបក Banrepcultural */",
+	"banrepcultural-action-addsection": "បន្ថែម​ប្រធានបទ​",
+	"banrepcultural-action-delete": "លុបចោល",
+	"banrepcultural-action-move": "ប្តូរទីតាំង",
+	"banrepcultural-action-protect": "ការពារ",
+	"banrepcultural-action-undelete": "ឈប់លុបចោល",
+	"banrepcultural-action-unprotect": "ប្ដូរការការពារ",
+	"banrepcultural-view-create": "បង្កើត​",
+	"banrepcultural-view-edit": "កែប្រែ​",
+	"banrepcultural-view-history": "មើល​ប្រវត្តិ​",
+	"banrepcultural-view-view": "អាន",
+	"banrepcultural-view-viewsource": "មើល​កូដ",
+	"banrepcultural-more-actions": "ច្រើនទៀត"
+}

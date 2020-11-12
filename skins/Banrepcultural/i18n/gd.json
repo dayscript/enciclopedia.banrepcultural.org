@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Akerbeltz",
+			"GunChleoc"
+		]
+	},
+	"banrepcultural-skin-desc": "Tionndadh ùr-nodha de MonoBook le dreach ùr air 's iomadh leasachadh air a sho-chleachdachd",
+	"banrepcultural-action-addsection": "Cuir ris cuspair",
+	"banrepcultural-action-delete": "Sguab às",
+	"banrepcultural-action-move": "Gluais",
+	"banrepcultural-action-protect": "Dìon",
+	"banrepcultural-action-undelete": "Neo-dhèan an sguabadh às",
+	"banrepcultural-action-unprotect": "Atharraich an dìon",
+	"banrepcultural-view-create": "Cruthaich",
+	"banrepcultural-view-edit": "Deasaich",
+	"banrepcultural-view-history": "Seall an eachdraidh",
+	"banrepcultural-view-view": "Leugh",
+	"banrepcultural-view-viewsource": "Seall an tùs",
+	"banrepcultural-more-actions": "Barrachd"
+}

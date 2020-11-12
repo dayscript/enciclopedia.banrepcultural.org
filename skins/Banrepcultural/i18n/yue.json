@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ktchankt",
+			"Roy17",
+			"Waihorace",
+			"Yueman"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "MonoBook嘅摩登版，有新嘅樣，又有好多功能改進",
+	"banrepcultural.css": "/* 響呢度放 CSS 碼去改用戶用嘅域達畫面 */",
+	"banrepcultural.js": "/* 響每一次個頁面載入時，用域達畫面嘅用戶都會載入呢度任何嘅JavaScript */",
+	"banrepcultural-action-addsection": "加主題",
+	"banrepcultural-action-delete": "剷走",
+	"banrepcultural-action-move": "搬",
+	"banrepcultural-action-protect": "保護",
+	"banrepcultural-action-undelete": "取消剷走",
+	"banrepcultural-action-unprotect": "改保護",
+	"banrepcultural-view-create": "開",
+	"banrepcultural-view-edit": "改",
+	"banrepcultural-view-history": "修改紀錄",
+	"banrepcultural-view-view": "閱",
+	"banrepcultural-view-viewsource": "睇吓原始碼",
+	"banrepcultural-more-actions": "更多"
+}

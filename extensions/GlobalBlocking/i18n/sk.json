@@ -2,8 +2,10 @@
 	"@metadata": {
 		"authors": [
 			"Helix84",
+			"Luky001",
+			"Macofe",
 			"Teslaton",
-			"Macofe"
+			"Vlad5250"
 		]
 	},
 	"globalblocking-desc": "[[Special:GlobalBlock|Umožňuje]] zablokovať IP adresy [[Special:GlobalBlockList|na viacerých wiki]]",
@@ -21,8 +23,8 @@
 	"globalblocking-block-expiryinvalid": "Čas vypršania, ktorý ste zadali je neplatný.",
 	"globalblocking-block-submit": "Globálne zablokovať túto IP adresu",
 	"globalblocking-modify-submit": "Zmeniť toto globálne blokovanie",
-	"globalblocking-block-success": "IP adresa $1 bola úspešne zablokovaná na všetkých projektoch.",
-	"globalblocking-modify-success": "Globálne blokovanie $1 bolo úspešne zmenené",
+	"globalblocking-block-success": "IP adresa $1 bola zablokovaná na všetkých projektoch.",
+	"globalblocking-modify-success": "Globálne blokovanie $1 bolo zmenené.",
 	"globalblocking-block-alreadyblocked": "IP adresa $1 je už globálne zablokovaná.\nExistujúce blokovanie si môžete pozrieť v [[Special:GlobalBlockList|Zozname globálnych blokovaní]] alebo môžete zmeniť voľby existujúceho blokovania tým, že znova odošlete tento formulár.",
 	"globalblocking-block-bigrange": "Rozsah, ktorý ste uviedli ($1) nemožno zablokovať, pretože je príliš veľký. Najviac môžete zablokovať 65&nbsp;536 adries (CIDR zápis: /16).",
 	"globalblocking-list-intro": "Toto je zoznam všetkých globálnych blokovaní, ktoré sú momentálne účinné. Niektoré blokovania sú označené ako lokálne vypnuté: To znamená, že sú účinné na ostatných stránkach, ale lokálny správca sa rozhodol ich vypnúť na tejto wiki.",
@@ -50,7 +52,7 @@
 	"globalblocking-unblock-legend": "Odstrániť globálne blokovanie",
 	"globalblocking-unblock-submit": "Odstrániť globálne blokovanie",
 	"globalblocking-unblock-reason": "Dôvod:",
-	"globalblocking-unblock-unblocked": "Úspešne ste odstránili globálne blokovanie #$2 IP adresy '''$1'''",
+	"globalblocking-unblock-unblocked": "Odstránili ste globálne blokovanie #$2 IP adresy '''$1'''.",
 	"globalblocking-unblock-intro": "Tento formulár slúži na odstránenie globálneho blokovania.",
 	"globalblocking-whitelist": "Lokálny stav globálneho blokovania",
 	"globalblocking-whitelist-notapplied": "Táto wiki nepoužíva globálne blokovania,\ntakže lokálny stav globálnych blokovaní nemožno meniť.",
@@ -59,12 +61,12 @@
 	"globalblocking-whitelist-status": "Lokálny stav:",
 	"globalblocking-whitelist-statuslabel": "Vypnúť toto globálne blokovanie na {{GRAMMAR:lokál|{{SITENAME}}}}",
 	"globalblocking-whitelist-submit": "Zmeniť lokálny stav",
-	"globalblocking-whitelist-whitelisted": "Úspešne ste vypli globálne blokovanie #$2 IP adresy '''$1''' na {{GRAMMAR:lokál|{{SITENAME}}}}.",
-	"globalblocking-whitelist-dewhitelisted": "Úspešne ste znova zapli globálne blokovanie #$2 IP adresy '''$1''' na {{GRAMMAR:lokál|{{SITENAME}}}}.",
-	"globalblocking-whitelist-nochange": "Nevykonali ste zmeny lokálneho stavu tohto blokovania.\nMôžete sa vrátiť na [[Special:GlobalBlockList|Zoznam globálnych blokovaní]].",
-	"globalblocking-whitelist-intro": "Tento formulár slúži na úpravu lokálneho stavu globálneho blokovania. Ak vypnete globálne blokovanie pre túto wiki, používatelia z danej IP adresy budú môcť normálne vykonávať úpravy.\nMôžete sa vrátiť na [[Special:GlobalBlockList|Zoznam globálnych blokovaní]].",
+	"globalblocking-whitelist-whitelisted": "Vypli ste globálne blokovanie #$2 IP adresy '''$1''' na {{GRAMMAR:lokál|{{SITENAME}}}}.",
+	"globalblocking-whitelist-dewhitelisted": "Znova ste zapli globálne blokovanie #$2 IP adresy '''$1''' na {{GRAMMAR:lokál|{{SITENAME}}}}.",
+	"globalblocking-whitelist-nochange": "Nevykonali ste žiadne zmeny lokálneho stavu tohto blokovania.",
+	"globalblocking-whitelist-intro": "Tento formulár slúži na úpravu lokálneho stavu globálneho blokovania. Ak vypnete globálne blokovanie pre túto wiki, používatelia z danej IP adresy budú môcť normálne vykonávať úpravy.",
 	"globalblocking-ipblocked": "'''Vaša IP adresa bola zablokovaná na všetkých wiki.'''\n\nZablokoval: $1 ($2).\nDôvod zablokovania: ''$3''.\n\n* Zablokované: $4\n* Blokovanie vyprší: $5\n\nAk chcete o zablokovaní diskutovať, môžete kontaktovať $1.\nFunkciu „{{int:emailuser}}“ môžete použiť len ak máte v [[Special:Preferences|nastaveniach]] uvedenú korektnú e-mailovú adresu a nemáte použitie funkcie zablokované.\nVaša aktuálna IP adresa je $6.\nV prípade otázok prosím uveďte všetky uvedené informácie.",
-	"globalblocking-blocked-nopassreset": "Nemôžete nastaviť nové heslo používateľovi, pretože ste globáne zablokovaný.",
+	"globalblocking-blocked-nopassreset": "Nemôžete nastaviť nové heslo používateľovi, pretože vaša IP adresa je globálne zablokovaná.",
 	"globalblocking-logpage": "Záznam globálnych blokovaní",
 	"globalblocking-logpagetext": "Toto je záznam globálnych blokovaní, ktoré boli vytvorené a zrušené na tejto wiki.\nMali by ste pamätať na to, že globálne blokovania je možné vytvoriť a odstrániť na iných wiki a tieto globálne blokovania môžu ovplyvniť túto wiki.\nVšetky aktívne blokovania si môžete pozrieť na [[Special:GlobalBlockList|zozname globálnych blokovaní]].",
 	"globalblocking-block-logentry": "globálne zablokoval [[$1]] s časom vypršania $2",
@@ -79,10 +81,12 @@
 	"globalblock": "Globálne zablokovať IP adresu",
 	"globalblockstatus": "Lokálny stav globálnych blokovaní",
 	"removeglobalblock": "Odstrániť globálne blokovanie",
-	"right-globalblock": "Robiť globálne blokovania",
-	"action-globalblock": "globálne blokovať",
+	"right-globalblock": "Vytváranie a odstraňovanie globálnych blokovaní",
+	"action-globalblock": "globálne blokovať a odblokovať",
 	"right-globalblock-whitelist": "Lokálne vypnúť globálne blokovania",
 	"action-globalblock-whitelist": "definovať výnimky z globálnych blokovaní",
 	"right-globalblock-exempt": "Obchádzať globálne blokovania",
-	"action-globalblock-exempt": "obchádzať globálne blokovania"
+	"action-globalblock-exempt": "obchádzať globálne blokovania",
+	"log-action-filter-gblblock-gblock": "Globálne blokovanie",
+	"log-action-filter-gblblock-gunblock": "Globálne odblokovanie"
 }

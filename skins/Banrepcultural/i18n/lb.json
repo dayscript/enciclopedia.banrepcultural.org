@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Robby"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Modern Versioun vu Monobook mat frëschem Look a ville Verbesserunge vun der Benotzerfrëndlechkeet",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Déi al-Versioun vu Banrepcultural benotzen",
+	"banrepcultural-opt-out": "An den ale Layout wiesselen",
+	"banrepcultural.css": "/* CSS deen hei steet huet Afloss op all Benotzer vum Ausgesinn Banrepcultural */",
+	"banrepcultural.js": "/* All JavaScript hei gëtt gelueden esoubal ee Benotzer d'Ausgesinn Banrepcultural benotzt */",
+	"banrepcultural-action-addsection": "Sujet dobäisetzen",
+	"banrepcultural-action-delete": "Läschen",
+	"banrepcultural-action-move": "Réckelen",
+	"banrepcultural-action-protect": "Spären",
+	"banrepcultural-action-undelete": "Restauréieren",
+	"banrepcultural-action-unprotect": "Spär änneren",
+	"banrepcultural-view-create": "Uleeën",
+	"banrepcultural-view-edit": "Änneren",
+	"banrepcultural-view-history": "Versioune weisen",
+	"banrepcultural-view-view": "Liesen",
+	"banrepcultural-view-viewsource": "Quellcode weisen",
+	"banrepcultural-jumptonavigation": "Op d'Navigatioun wiesselen",
+	"banrepcultural-jumptosearch": "Op d'Siche wiesselen",
+	"banrepcultural-more-actions": "Méi"
+}

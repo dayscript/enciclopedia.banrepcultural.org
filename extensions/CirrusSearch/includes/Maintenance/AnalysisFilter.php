@@ -36,7 +36,7 @@ class AnalysisFilter {
 	}
 
 	/**
-	 * @param array $mappings Elasticsearch mapping configuration
+	 * @param array[] $mappings Elasticsearch mapping configuration
 	 * @return Set The set of analyzer names referenced in $mappings
 	 */
 	public function findUsedAnalyzersInMappings( array $mappings ) {
@@ -56,15 +56,15 @@ class AnalysisFilter {
 	 * @return array $properties with analyzer aliases applied
 	 */
 	private function pushAnalyzerAliasesIntoField( array $properties, array $aliases ) {
-		foreach ( $properties as $name => $config ) {
+		foreach ( $properties as &$config ) {
 			foreach ( self::$ANALYZER_FIELDS as $key ) {
 				if ( isset( $config[$key] ) && isset( $aliases[$config[$key]] ) ) {
-					$properties[$name][$key] = $aliases[$config[$key]];
+					$config[$key] = $aliases[$config[$key]];
 				}
 			}
 			foreach ( self::$SUBFIELD_FIELDS as $key ) {
-				if ( isset( $config[$key] ) ) {
-					$properties[$name][$key] = $this->pushAnalyzerAliasesIntoField(
+				if ( isset( $config[$key] ) && is_array( $config[$key] ) ) {
+					$config[$key] = $this->pushAnalyzerAliasesIntoField(
 						$config[$key], $aliases
 					);
 				}
@@ -74,7 +74,7 @@ class AnalysisFilter {
 	}
 
 	/**
-	 * @param array $mappings Elasticsearch index mapping configuration
+	 * @param array[] $mappings Elasticsearch index mapping configuration
 	 * @param string[] $aliases Mapping from old name to new name for analyzers
 	 * @return array Updated index mapping configuration
 	 */

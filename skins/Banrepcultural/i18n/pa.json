@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aalam",
+			"Babanwalia",
+			"Raj Singh",
+			"TariButtar",
+			"Tow"
+		]
+	},
+	"banrepcultural-skin-desc": "ਮੋਨੋਬੁੱਕ ਦੀ ਆਧੁਨਿਕ ਵਰਜਨ ਜਿਸ ਵਿਚ ਤਾਜ਼ਾ ਦਿੱਖ ਅਤੇ ਬਹੁਤ ਸਾਰੇ ਉਪਯੋਗਤਾ ਸੁਧਾਰ ਹਨ",
+	"banrepcultural-action-addsection": "ਵਿਸ਼ਾ ਜੋੜੋ",
+	"banrepcultural-action-delete": "ਹਟਾਓ",
+	"banrepcultural-action-move": "ਭੇਜੋ",
+	"banrepcultural-action-protect": "ਸੁਰੱਖਿਆ",
+	"banrepcultural-action-undelete": "ਹਟਾਉਣਾ-ਵਾਪਸ",
+	"banrepcultural-action-unprotect": "ਸੁਰੱਖਿਆ ਬਦਲੋ",
+	"banrepcultural-view-create": "ਬਣਾਓ",
+	"banrepcultural-view-edit": "ਸੋਧੋ",
+	"banrepcultural-view-history": "ਅਤੀਤ ਵੇਖੋ",
+	"banrepcultural-view-view": "ਪੜ੍ਹੋ",
+	"banrepcultural-view-viewsource": "ਸਰੋਤ ਵੇਖੋ",
+	"banrepcultural-more-actions": "ਹੋਰ"
+}

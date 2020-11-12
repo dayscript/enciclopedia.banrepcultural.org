@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kaajawa",
+			"V.narsikar"
+		]
+	},
+	"skinname-banrepcultural": "सदिश",
+	"banrepcultural-skin-desc": "मोनोबुकची आधुनिक आवृत्ती टवटवीत दिसण्यासह व अनेक वापर सुधारणा असलेली",
+	"banrepcultural-action-addsection": "विषय जोडा",
+	"banrepcultural-action-delete": "वगळा",
+	"banrepcultural-action-move": "स्थानांतरण",
+	"banrepcultural-action-protect": "सुरक्षित करा",
+	"banrepcultural-action-undelete": "वगळलेले पुनर्स्थापित करा",
+	"banrepcultural-action-unprotect": "सुरक्षितता बदला",
+	"banrepcultural-view-create": "तयार करा",
+	"banrepcultural-view-edit": "संपादन",
+	"banrepcultural-view-history": "इतिहास पहा",
+	"banrepcultural-view-view": "वाचा",
+	"banrepcultural-view-viewsource": "स्रोत पहा",
+	"banrepcultural-more-actions": "अधिक"
+}

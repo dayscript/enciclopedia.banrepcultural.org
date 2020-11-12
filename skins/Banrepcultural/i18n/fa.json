@@ -1,0 +1,33 @@
+{
+	"@metadata": {
+		"authors": [
+			"Alireza Ivaz",
+			"Calak",
+			"DEXi",
+			"Ebraminio",
+			"Huji",
+			"Ladsgroup",
+			"Reza1615",
+			"Zack90"
+		]
+	},
+	"skinname-banrepcultural": "وکتور",
+	"banrepcultural-skin-desc": "نگارش مدرن مونوبوک با نمای تازه و بهینه‌سازی‌های کاربردی",
+	"banrepcultural-opt-out": "بازگشت به ظاهر قدیمی",
+	"banrepcultural.css": "/* دستورات این بخش کاربرانی را که از پوستهٔ وکتور استفاده کنند تحت تاثیر قرار می‌دهند. */",
+	"banrepcultural.js": "/ * کدهای جاوااسکریپتی که در اینجا قرار می‌گیرند برای کاربران پوستهٔ وکتور  بارگیری می‌شود * /",
+	"banrepcultural-action-addsection": "افزودن بخش",
+	"banrepcultural-action-delete": "حذف",
+	"banrepcultural-action-move": "انتقال",
+	"banrepcultural-action-protect": "محافظت",
+	"banrepcultural-action-undelete": "احیا",
+	"banrepcultural-action-unprotect": "تغییر سطح حفاظت",
+	"banrepcultural-view-create": "ایجاد",
+	"banrepcultural-view-edit": "ویرایش",
+	"banrepcultural-view-history": "نمایش تاریخچه",
+	"banrepcultural-view-view": "خواندن",
+	"banrepcultural-view-viewsource": "نمایش مبدأ",
+	"banrepcultural-jumptonavigation": "پرش به ناوبری",
+	"banrepcultural-jumptosearch": "پرش به جستجو",
+	"banrepcultural-more-actions": "بیشتر"
+}

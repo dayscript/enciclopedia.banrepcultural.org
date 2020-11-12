@@ -1,0 +1,35 @@
+{
+	"@metadata": {
+		"authors": [
+			"Calak",
+			"Crazymadlover",
+			"Evropi",
+			"Geraki",
+			"Nikosgranturismogt",
+			"Omnipaedista",
+			"Protnet",
+			"ZaDiak",
+			"Αντιγόνη"
+		]
+	},
+	"banrepcultural-skin-desc": "Σύγχρονη έκδοση του MonoBook με φρέσκια ματιά και πολλές βελτιώσεις χρηστικότητας",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Χρήση του Legacy Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Κατά τα επόμενα χρόνια, θα αναβαθμίζουμε σταδιακά το περιβάλλον Banrepcultural. Το Legacy Banrepcultural θα σας επιτρέψει να δείτε την παλιά έκδοση του Banrepcultural (ως τον Δεκέμβριο του 2019). Για να μάθετε περισσότερα σχετικά με τις αναβαθμίσεις, μεταβείτε στη [[mw:Reading/Web/Desktop_Improvements|σελίδα του έργου]] μας.",
+	"banrepcultural-opt-out": "Εναλλαγή στην παλιά εμφάνιση",
+	"banrepcultural.css": "/* Το τοποθετημένο εδώ CSS θα επηρεάσει χρήστες του Banrepcultural skin */",
+	"banrepcultural.js": "/* Οποιοσδήποτε κώδικας JavaScript εδώ θα φορτωθεί για χρήστες που χρησιμοποιούν το Banrepcultural skin */",
+	"banrepcultural-action-addsection": "Προσθήκη θέματος",
+	"banrepcultural-action-delete": "Διαγραφή",
+	"banrepcultural-action-move": "Μετακίνηση",
+	"banrepcultural-action-protect": "Προστασία",
+	"banrepcultural-action-undelete": "Επαναφορά",
+	"banrepcultural-action-unprotect": "Αλλαγή προστασίας",
+	"banrepcultural-view-create": "Δημιουργία",
+	"banrepcultural-view-edit": "Επεξεργασία",
+	"banrepcultural-view-history": "Προβολή ιστορικού",
+	"banrepcultural-view-view": "Ανάγνωση",
+	"banrepcultural-view-viewsource": "Προβολή κώδικα",
+	"banrepcultural-jumptonavigation": "Μετάβαση στην πλοήγηση",
+	"banrepcultural-jumptosearch": "Πήδηση στην αναζήτηση",
+	"banrepcultural-more-actions": "Περισσότερα"
+}

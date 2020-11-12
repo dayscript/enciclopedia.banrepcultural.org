@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Agilight",
+			"Sborsody",
+			"Монгуш Салим"
+		]
+	},
+	"skinname-banrepcultural": "Вектор",
+	"banrepcultural-action-addsection": "Тема немээр",
+	"banrepcultural-action-delete": "Ырадыры",
+	"banrepcultural-action-move": "Өскээр адаар",
+	"banrepcultural-action-protect": "Камгалаары",
+	"banrepcultural-action-undelete": "Эгидер",
+	"banrepcultural-action-unprotect": "Камгалалды өскертири",
+	"banrepcultural-view-create": "Тургузуп кылыр",
+	"banrepcultural-view-edit": "Эдер",
+	"banrepcultural-view-history": "Төөгүнү көөр",
+	"banrepcultural-view-view": "Номчуур",
+	"banrepcultural-view-viewsource": "Дөзү бижиин көөрү",
+	"banrepcultural-more-actions": "Оон ыңай"
+}

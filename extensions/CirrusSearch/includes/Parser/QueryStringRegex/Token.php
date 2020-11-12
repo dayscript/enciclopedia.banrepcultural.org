@@ -60,7 +60,7 @@ class Token {
 	private $query;
 
 	/**
-	 * @var int token type
+	 * @var int|null token type
 	 */
 	private $type;
 
@@ -70,7 +70,7 @@ class Token {
 	private $image;
 
 	/**
-	 * @var ParsedNode|null $node
+	 * @var ParsedNode|null
 	 */
 	private $node;
 

@@ -2,7 +2,7 @@
 
 namespace CirrusSearch\Maintenance;
 
-use CirrusSearch;
+use CirrusSearch\CirrusSearch;
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\SearchConfig;
 use Hooks;
@@ -89,12 +89,17 @@ class AnalysisConfigBuilder {
 			}
 		}
 		$this->icu = in_array( 'analysis-icu', $plugins );
-		if ( is_null( $config ) ) {
+		if ( $config === null ) {
 			$config = MediaWikiServices::getInstance()
 				->getConfigFactory()
 				->makeConfig( 'CirrusSearch' );
 		}
-		$this->similarity = $config->getProfileService()->loadProfile( SearchProfileService::SIMILARITY );
+		$similarity = $config->getProfileService()->loadProfile( SearchProfileService::SIMILARITY );
+		if ( !array_key_exists( 'similarity', $similarity ) ) {
+			$similarity['similarity'] = [];
+		}
+		Hooks::run( 'CirrusSearchSimilarityConfig', [ &$similarity['similarity'] ] );
+		$this->similarity = $similarity;
 
 		$this->config = $config;
 	}
@@ -259,6 +264,7 @@ class AnalysisConfigBuilder {
 			}
 			$config[ 'analyzer' ][ $analyzer ][ 'filter' ] =
 				$this->switchFiltersToICUFoldingPreserve(
+					// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset
 					$config[ 'analyzer' ][ $analyzer ][ 'filter' ], true );
 		}
 
@@ -327,13 +333,15 @@ class AnalysisConfigBuilder {
 			return $this->config->get( 'CirrusSearchICUFoldingUnicodeSetFilter' );
 		}
 		switch ( $language ) {
-		// @todo: complete the default filters per language
-		// For Swedish (sv), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T160562
-		// For Serbian (sr), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T183015
-		// For Slovak (sk), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T190815
-		// For Bosnian (bs), Croatian (hr), and Serbo-Croatian (sh),
-		// see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T192395
-		// For Esperanto (eo), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T202173
+		/* @todo: complete the default filters per language
+		 * For Swedish (sv), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T160562
+		 * For Serbian (sr), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T183015
+		 * For Bosnian (bs), Croatian (hr), and Serbo-Croatian (sh),
+		 *   see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T192395
+		 * For Esperanto (eo), see https://www.mediawiki.org/wiki/User:TJones_(WMF)/T202173
+		 * For Slovak (sk)—which has no folding configured here!—see:
+		 *   https://www.mediawiki.org/wiki/User:TJones_(WMF)/T223787
+		 */
 		case 'bs':
 		case 'hr':
 		case 'sh':
@@ -345,8 +353,6 @@ class AnalysisConfigBuilder {
 			return '[^åäöÅÄÖ]';
 		case 'ru':
 			return '[^йЙ]';
-		case 'sk':
-			return '[^ÁáÄäČčĎďÉéÍíĹĺĽľŇňÓóÔôŔŕŠšŤťÚúÝýŽž]';
 		case 'sv':
 			return '[^åäöÅÄÖ]';
 		default:
@@ -654,7 +660,6 @@ class AnalysisConfigBuilder {
 				'stopwords' => [ "," ],
 			];
 
-			/* @phan-suppress-next-line PhanUndeclaredVariable $filters may be declared, phan can't see it */
 			$filters = $filters ?? [];
 			$filters[] = 'smartcn_stop';
 			$filters[] = 'lowercase';
@@ -799,6 +804,9 @@ STEMMER_RULES
 			];
 
 			$filters = [];
+			if ( in_array( 'extra-analysis-homoglyph', $this->plugins ) ) {
+				$filters[] = 'homoglyph_norm';
+			}
 			$filters[] = 'french_elision';
 			$filters[] = 'lowercase';
 			$filters[] = 'french_stop';
@@ -1163,15 +1171,17 @@ STEMMER_RULES
 			$config[ 'analyzer' ][ 'text_search' ] = $config[ 'analyzer' ][ 'text' ];
 			break;
 		case 'slovak':
-			// Unpack default analyzer to add Slovak stemming and custom folding
-			// See https://www.mediawiki.org/wiki/User:TJones_(WMF)/T190815
+			/* Unpack default analyzer to add Slovak stemming and custom folding
+			 * See https://www.mediawiki.org/wiki/User:TJones_(WMF)/T190815
+			 *   and https://www.mediawiki.org/wiki/User:TJones_(WMF)/T223787
+			 */
 			$config[ 'analyzer' ][ 'text' ] = [
 				'type' => 'custom',
 				'tokenizer' => 'standard',
 				'filter' => [
 					'lowercase',
-					'asciifolding',
 					'slovak_stemmer',
+					'asciifolding',
 				],
 			];
 
@@ -1213,6 +1223,7 @@ STEMMER_RULES
 
 		// replace lowercase filters with icu_normalizer filter
 		if ( $this->icu ) {
+			// @phan-suppress-next-line PhanTypePossiblyInvalidDimOffset
 			foreach ( $config[ 'analyzer' ] as &$analyzer ) {
 				if ( !isset( $analyzer[ 'filter'  ] ) ) {
 					continue;
@@ -1296,7 +1307,7 @@ STEMMER_RULES
 	/**
 	 * Get list of filters that are mentioned in analyzers but not defined
 	 * explicitly.
-	 * @param array[] $config Full configuration array
+	 * @param array[] &$config Full configuration array
 	 * @param string[] $analyzers List of analyzers to consider.
 	 * @return array List of default filters, each containing only filter type
 	 */
@@ -1321,7 +1332,7 @@ STEMMER_RULES
 	 * ignore it. If it has the same name, but different content - create new filter
 	 * with different name by prefixing it with language code.
 	 *
-	 * @param array[] $config Configuration being processed
+	 * @param array[] &$config Configuration being processed
 	 * @param array[] $standardFilters Existing filters list
 	 * @param array[] $defaultFilters List of default filters already mentioned in the config
 	 * @param string $prefix Prefix for disambiguation
@@ -1354,7 +1365,7 @@ STEMMER_RULES
 
 	/**
 	 * Replace certain filter name in all configs with different name.
-	 * @param array[] $config Configuration being processed
+	 * @param array[] &$config Configuration being processed
 	 * @param string $oldName
 	 * @param string $newName
 	 */
@@ -1375,7 +1386,7 @@ STEMMER_RULES
 	/**
 	 * Merge per-language config into the main config.
 	 * It will copy specific analyzer and all dependant filters and char_filters.
-	 * @param array $config Main config
+	 * @param array &$config Main config
 	 * @param array $langConfig Per-language config
 	 * @param string $name Name for analyzer whose config we're merging
 	 * @param string $prefix Prefix for this configuration

@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"Artsiom91",
+			"Mikalai Udodau",
+			"Yury Tarasievich",
+			"Дзяніс Тутэйшы",
+			"Хомелка"
+		]
+	},
+	"banrepcultural-skin-desc": "Сучасная версія вокладкі Манабук, з абноўленым відам і шматлікімі зручнымі паляпшэннямі",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Ужыць Legacy Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Цягам наступных некалькіх гадоў мы будзем паступова абнаўляць шаблон Banrepcultural. Legacy Banrepcultural дазволіць праглядаць старую версію Banrepcultural (станам на снежань 2019 года). Каб даведацца больш, перайдзіце на нашу [[mw:Reading/Web/Desktop_Improvements|старонку праекта]].",
+	"banrepcultural-action-addsection": "Дадаць тэму",
+	"banrepcultural-action-delete": "Выдаліць",
+	"banrepcultural-action-move": "Перанесці",
+	"banrepcultural-action-protect": "Ахова",
+	"banrepcultural-action-undelete": "Аднавіць",
+	"banrepcultural-action-unprotect": "Змяніць ахову",
+	"banrepcultural-view-create": "Стварыць",
+	"banrepcultural-view-edit": "Правіць",
+	"banrepcultural-view-history": "Паказаць гісторыю",
+	"banrepcultural-view-view": "Чытаць",
+	"banrepcultural-view-viewsource": "Паказаць зыходны тэкст",
+	"banrepcultural-more-actions": "Яшчэ"
+}

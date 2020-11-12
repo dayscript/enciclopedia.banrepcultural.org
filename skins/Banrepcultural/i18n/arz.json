@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ghaly",
+			"Meno25",
+			"Ramsis II"
+		]
+	},
+	"banrepcultural.css": "/* CSS اللى هنا حتأثر على اليوزرز اللى بيستخدموا واجهة فكتور */",
+	"banrepcultural.js": "/* اى جافاسكريبت هنا حتتحمل لكل يوزر بيستخدم واجهة فكتور */",
+	"banrepcultural-action-addsection": "ضيف موضوع",
+	"banrepcultural-action-delete": "مسح",
+	"banrepcultural-action-move": "نقل",
+	"banrepcultural-action-protect": "حمايه",
+	"banrepcultural-action-undelete": "الغى المسح",
+	"banrepcultural-action-unprotect": "غير الحمايه",
+	"banrepcultural-view-create": "اعمل",
+	"banrepcultural-view-edit": "تعديل",
+	"banrepcultural-view-history": "استعراض التاريخ",
+	"banrepcultural-view-view": "قرايه",
+	"banrepcultural-view-viewsource": "استعراض المصدر",
+	"banrepcultural-more-actions": "اكتر"
+}

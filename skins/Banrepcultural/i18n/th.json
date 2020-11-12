@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ans",
+			"Geonuch",
+			"Horus",
+			"Octahedron80",
+			"Woraponboonkerd"
+		]
+	},
+	"skinname-banrepcultural": "เวกเตอร์",
+	"banrepcultural-skin-desc": "โมโนบุ๊กยุคใหม่กับมุมมองที่มีชีวิตชีวาและมีการปรับปรุงประสิทธิภาพการใช้งานจำนวนมาก",
+	"banrepcultural.css": "/* สไตล์ชีตในหน้านี้จะส่งผลแก่ผู้ใช้ที่ใช้สกินเวกเตอร์ */",
+	"banrepcultural.js": "/* จาวาสคริปต์ใด ๆ ในหน้านี้จะถูกโหลดให้แก่ผู้ใช้ที่ใช้สกินเวกเตอร์ */",
+	"banrepcultural-action-addsection": "เพิ่มหัวข้อ",
+	"banrepcultural-action-delete": "ลบ",
+	"banrepcultural-action-move": "เปลี่ยนชื่อ",
+	"banrepcultural-action-protect": "ป้องกัน",
+	"banrepcultural-action-undelete": "กู้คืน",
+	"banrepcultural-action-unprotect": "เปลี่ยนการป้องกัน",
+	"banrepcultural-view-create": "สร้าง",
+	"banrepcultural-view-edit": "แก้ไข",
+	"banrepcultural-view-history": "ดูประวัติ",
+	"banrepcultural-view-view": "อ่าน",
+	"banrepcultural-view-viewsource": "ดูต้นฉบับ",
+	"banrepcultural-jumptonavigation": "ไปยังการนำทาง",
+	"banrepcultural-jumptosearch": "ไปยังการค้นหา",
+	"banrepcultural-more-actions": "เพิ่มเติม"
+}

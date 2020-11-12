@@ -2,14 +2,15 @@
 
 namespace CirrusSearch\Test;
 
-use CirrusSearch;
 use CirrusSearch\CirrusIntegrationTestCase;
+use CirrusSearch\CirrusSearch;
 use CirrusSearch\CompletionSuggester;
 use CirrusSearch\Connection;
 use CirrusSearch\ElasticsearchIntermediary;
 use CirrusSearch\HashSearchConfig;
-use CirrusSearch\RequestLogger;
+use CirrusSearch\Hooks;
 use CirrusSearch\RequestLog;
+use CirrusSearch\RequestLogger;
 use CirrusSearch\SearchConfig;
 use CirrusSearch\Searcher;
 use Elastica\Response;
@@ -31,15 +32,11 @@ class RequestLoggerTest extends CirrusIntegrationTestCase {
 	/** @var array mediawiki/cirrussearch/request schema */
 	private $schema;
 
-	protected function setUp() {
+	protected function setUp() : void {
 		parent::setUp();
 
 		$schemaPath = self::$FIXTURE_DIR . 'requestLogging/mediawiki_cirrussearch_request.schema.yaml';
 		$this->schema = Yaml::parseFile( $schemaPath );
-	}
-
-	protected function tearDown() {
-		parent::tearDown();
 	}
 
 	public function testHasQueryLogs() {
@@ -145,7 +142,7 @@ class RequestLoggerTest extends CirrusIntegrationTestCase {
 	/**
 	 * @dataProvider requestLoggingProvider
 	 */
-	public function testRequestLogging( array $query, $responses = null, $expectedLogs ) {
+	public function testRequestLogging( array $query, $responses, $expectedLogs ) {
 		$globals = [
 			'wgCirrusSearchFullTextQueryBuilderProfile' => 'default',
 			'wgCirrusSearchInterwikiSources' => [],
@@ -164,7 +161,7 @@ class RequestLoggerTest extends CirrusIntegrationTestCase {
 				$limit = isset( $query['limit'] ) ? $query['limit'] : 20;
 				$namespaces = isset( $query['namespaces'] ) ? $query['namespaces'] : null;
 				$config = new HashSearchConfig(
-					[ CirrusSearch\SearchConfig::INDEX_BASE_NAME => 'wiki' ],
+					[ SearchConfig::INDEX_BASE_NAME => 'wiki' ],
 					[ HashSearchConfig::FLAG_INHERIT ] );
 				$searchEngine = new CirrusSearch( $config );
 				$searchEngine->setConnection( $connection );
@@ -268,8 +265,8 @@ class RequestLoggerTest extends CirrusIntegrationTestCase {
 				->getMock();
 			$transport->expects( $this->any() )
 				->method( 'exec' )
-				->will( new \PHPUnit_Framework_MockObject_Stub_ConsecutiveCalls(
-					array_map( function ( $response ) {
+				->will( $this->onConsecutiveCalls(
+					...array_map( function ( $response ) {
 						return new Response( $response, 200 );
 					}, $responses )
 				) );
@@ -285,7 +282,7 @@ class RequestLoggerTest extends CirrusIntegrationTestCase {
 		$connection = new Connection( $config, 'default' );
 		$this->setTemporaryHook( 'PrefixSearchExtractNamespace',
 			function ( &$namespace, &$query ) use ( $connection ) {
-				return CirrusSearch\Hooks::prefixSearchExtractNamespaceWithConnection( $connection,
+				return Hooks::prefixSearchExtractNamespaceWithConnection( $connection,
 					$namespace, $query );
 			}
 		);

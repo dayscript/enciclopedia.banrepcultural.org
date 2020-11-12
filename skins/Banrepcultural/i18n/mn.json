@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chinneeb",
+			"MongolWiki",
+			"Sembuk",
+			"Wisdom"
+		]
+	},
+	"banrepcultural-action-addsection": "Сэдэв нэмэх",
+	"banrepcultural-action-delete": "Устгах",
+	"banrepcultural-action-move": "Зөөх",
+	"banrepcultural-action-protect": "Хамгаалах",
+	"banrepcultural-action-undelete": "Үл устгах",
+	"banrepcultural-action-unprotect": "Хамгаалалтаа солих",
+	"banrepcultural-view-create": "Үүсгэх",
+	"banrepcultural-view-edit": "Засварлах",
+	"banrepcultural-view-history": "Түүх",
+	"banrepcultural-view-view": "Унших",
+	"banrepcultural-view-viewsource": "Кодыг харах",
+	"banrepcultural-more-actions": "Дэлгэрэнгүй"
+}

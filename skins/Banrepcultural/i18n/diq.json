@@ -1,0 +1,39 @@
+{
+	"@metadata": {
+		"authors": [
+			"1917 Ekim Devrimi",
+			"Asmen",
+			"Calak",
+			"Dılmıc",
+			"Erdemaslancan",
+			"Gambollar",
+			"Gorizon",
+			"Gırd",
+			"Kumkumuk",
+			"Mirzali",
+			"Orbot707",
+			"Velg"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Asayışo de newe be versiyonê MonoBookiyo modern ra û weşkerdışê ke şenê bıgureniyê",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Vektorê kehani bıkarnê",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Serre ke ma ver yenê ma dê asayışê vektori qedemeyın rocanê kerê. Kehan versiyonê kehan vektori hetana Çele 2019 mısade deyeno. Seba rocane kerdışan zêde melumati rê şırê [[mw:Reading/Web/Desktop_Improvements|pela proceyi]]",
+	"banrepcultural-opt-out": "Ravêr asayışê verêni",
+	"banrepcultural-opt-out-tooltip": "Kehan asayışê cildi şiyayışi rê eyaranê ho bıvurnê  (Vektoro kehan)",
+	"banrepcultural-action-toggle-sidebar": "Toggle sidebar",
+	"banrepcultural-action-addsection": "Mewzu dek",
+	"banrepcultural-action-delete": "Bestere",
+	"banrepcultural-action-move": "Bıkırışe",
+	"banrepcultural-action-protect": "Bışevekne",
+	"banrepcultural-action-undelete": "Meestere",
+	"banrepcultural-action-unprotect": "Sıtarnayışi bıvurne",
+	"banrepcultural-view-create": "Vıraze",
+	"banrepcultural-view-edit": "Bıvurne",
+	"banrepcultural-view-history": "Verêni bıvêne",
+	"banrepcultural-view-view": "Bıwane",
+	"banrepcultural-view-viewsource": "Çımeyi bıvêne",
+	"banrepcultural-jumptonavigation": "Xıl de be pusula",
+	"banrepcultural-jumptosearch": "Xıl de cıgeyrayışi",
+	"banrepcultural-more-actions": "Zêde"
+}

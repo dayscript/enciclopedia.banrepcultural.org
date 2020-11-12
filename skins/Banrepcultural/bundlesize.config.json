@@ -1,0 +1,22 @@
+[
+	{
+		"resourceModule": "skins.banrepcultural.styles.legacy",
+		"maxSize": "7.8 kB"
+	},
+	{
+		"resourceModule": "skins.banrepcultural.styles",
+		"maxSize": "8.5 kB"
+	},
+	{
+		"resourceModule": "skins.banrepcultural.icons",
+		"maxSize": "0.6 kB"
+	},
+	{
+		"resourceModule": "skins.banrepcultural.styles.responsive",
+		"maxSize": "0.6 kB"
+	},
+	{
+		"resourceModule": "skins.banrepcultural.legacy.js",
+		"maxSize": "1.7 kB"
+	}
+]

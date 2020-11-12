@@ -13,6 +13,7 @@ use CirrusSearch\Query\InSourceFeature;
 use CirrusSearch\Query\InTitleFeature;
 use CirrusSearch\Query\KeywordFeature;
 use CirrusSearch\Query\LanguageFeature;
+use CirrusSearch\Query\LegacyKeywordFeature;
 use CirrusSearch\Query\LinksToFeature;
 use CirrusSearch\Query\LocalFeature;
 use CirrusSearch\Query\MoreLikeFeature;
@@ -31,7 +32,7 @@ use MediaWiki\Sparql\SparqlClient;
  */
 class FullTextKeywordRegistry implements KeywordRegistry {
 	/**
-	 * @var KeywordFeature[]
+	 * @var (LegacyKeywordFeature|KeywordFeature)[]
 	 */
 	private $features;
 
@@ -87,6 +88,7 @@ class FullTextKeywordRegistry implements KeywordRegistry {
 
 		$extraFeatures = [];
 		\Hooks::run( 'CirrusSearchAddQueryFeatures', [ $config, &$extraFeatures ] );
+		// @phan-suppress-next-line PhanEmptyForeach May be set by hook
 		foreach ( $extraFeatures as $extra ) {
 			if ( $extra instanceof SimpleKeywordFeature ) {
 				$this->features[] = $extra;

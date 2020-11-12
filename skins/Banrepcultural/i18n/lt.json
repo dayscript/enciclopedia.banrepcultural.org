@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Albertas",
+			"Garas",
+			"Homo",
+			"Hugo.arg",
+			"Matasg",
+			"Perkunas",
+			"Tomasdd"
+		]
+	},
+	"skinname-banrepcultural": "Vektorinė",
+	"banrepcultural-skin-desc": "Moderni MonoBook versija su šviežiausia išvaizda ir daugybe panaudojamumo patobulinimų",
+	"banrepcultural-action-addsection": "Pridėti temą",
+	"banrepcultural-action-delete": "Ištrinti",
+	"banrepcultural-action-move": "Pervardyti",
+	"banrepcultural-action-protect": "Užrakinti",
+	"banrepcultural-action-undelete": "Atkurti",
+	"banrepcultural-action-unprotect": "Keisti apsaugą",
+	"banrepcultural-view-create": "Kurti",
+	"banrepcultural-view-edit": "Keisti",
+	"banrepcultural-view-history": "Istorija",
+	"banrepcultural-view-view": "Skaityti",
+	"banrepcultural-view-viewsource": "Žiūrėti kodą",
+	"banrepcultural-more-actions": "Daugiau"
+}

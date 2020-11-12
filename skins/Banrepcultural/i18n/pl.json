@@ -1,0 +1,33 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chrumps",
+			"Matma Rex",
+			"Rail",
+			"Sp5uhe"
+		]
+	},
+	"skinname-banrepcultural": "Wektor",
+	"banrepcultural-skin-desc": "Odświeżona wersja skórki Książka, z nowym wyglądem i usprawnieniami",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Użyj starego Wektora",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "W ciągu najbliższych kilku lat będziemy stopniowo aktualizować skórkę Wektor. Stary Wektor umożliwi ci używanie poprzedniej wersji skórki (na grudzień 2019). Aby dowiedzieć się więcej o aktualizacjach przejdź do naszej [[mw:Reading/Web/Desktop_Improvements|strony projektu]].",
+	"banrepcultural-opt-out": "Przełącz na stary widok",
+	"banrepcultural-opt-out-tooltip": "Zmień ustawienia, aby powrócić do starego wyglądu skórki (stary Wektor)",
+	"banrepcultural.css": "/* Umieszczony tutaj kod CSS wpłynie na wygląd skórki Wektor */",
+	"banrepcultural.js": "/* Umieszczony tutaj kod JavaScript zostanie załadowany wyłącznie przez użytkowników korzystających ze skórki Wektor */",
+	"banrepcultural-action-toggle-sidebar": "Przełącz panel boczny",
+	"banrepcultural-action-addsection": "Dodaj temat",
+	"banrepcultural-action-delete": "Usuń",
+	"banrepcultural-action-move": "Przenieś",
+	"banrepcultural-action-protect": "Zabezpiecz",
+	"banrepcultural-action-undelete": "Odtwórz",
+	"banrepcultural-action-unprotect": "Zmień zabezpieczenie",
+	"banrepcultural-view-create": "Utwórz",
+	"banrepcultural-view-edit": "Edytuj",
+	"banrepcultural-view-history": "Wyświetl historię",
+	"banrepcultural-view-view": "Czytaj",
+	"banrepcultural-view-viewsource": "Tekst źródłowy",
+	"banrepcultural-jumptonavigation": "Przejdź do nawigacji",
+	"banrepcultural-jumptosearch": "Przejdź do wyszukiwania",
+	"banrepcultural-more-actions": "Więcej"
+}

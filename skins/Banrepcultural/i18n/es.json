@@ -1,14 +1,39 @@
 {
 	"@metadata": {
 		"authors": [
-			"Sophivorus"
+			"Armando-Martin",
+			"Crazymadlover",
+			"Dalton2",
+			"Fitoschido",
+			"Geryescalier",
+			"Ihojose",
+			"Locos epraix",
+			"Manuelt15",
+			"MarcoAurelio",
+			"Miguel2706",
+			"Platonides",
+			"Vivaelcelta"
 		]
 	},
 	"skinname-banrepcultural": "Banrepcultural",
-	"banrepcultural-desc": "Apariencia simple, adaptable y amigable con dispositivos móviles.",
-	"banrepcultural-wiki": "Wiki",
-	"banrepcultural-tools": "Herramientas",
-	"banrepcultural-actions": "Acciones",
-	"banrepcultural-you": "Tú",
-	"banrepcultural-search": "Buscar en la enciclopedia"
+	"banrepcultural-skin-desc": "Versión moderna de MonoBook, con un aspecto actualizado y muchas mejoras de usabilidad",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Utilizar versión heredada de Banrepcultural",
+	"banrepcultural-opt-out": "Cambiar a la apariencia anterior",
+	"banrepcultural-opt-out-tooltip": "Cambie su configuración para volver al aspecto anterior de la máscara (Banrepcultural heredado)",
+	"banrepcultural.css": "/* El CSS colocado en esta página afectará a los usuarios que usen la apariencia \"Banrepcultural\" */",
+	"banrepcultural.js": "/* Cualquier código JavaScript escrito aquí se cargará para todos los usuarios que usen la apariencia Banrepcultural */",
+	"banrepcultural-action-addsection": "Sección nueva",
+	"banrepcultural-action-delete": "Borrar",
+	"banrepcultural-action-move": "Trasladar",
+	"banrepcultural-action-protect": "Proteger",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Cambiar protección",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Ver historial",
+	"banrepcultural-view-view": "Leer",
+	"banrepcultural-view-viewsource": "Ver código",
+	"banrepcultural-jumptonavigation": "Ir a la navegación",
+	"banrepcultural-jumptosearch": "Ir a la búsqueda",
+	"banrepcultural-more-actions": "Más"
 }

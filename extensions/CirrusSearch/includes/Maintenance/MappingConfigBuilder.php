@@ -2,12 +2,13 @@
 
 namespace CirrusSearch\Maintenance;
 
+use CirrusSearch\CirrusSearch;
 use CirrusSearch\Connection;
 use CirrusSearch\Search\CirrusIndexField;
 use CirrusSearch\Search\CirrusSearchIndexFieldFactory;
-use CirrusSearch\SearchConfig;
-use CirrusSearch\Search\TextIndexField;
 use CirrusSearch\Search\SourceTextIndexField;
+use CirrusSearch\Search\TextIndexField;
+use CirrusSearch\SearchConfig;
 use Hooks;
 use SearchIndexField;
 use Wikimedia\Assert\Assert;
@@ -55,7 +56,7 @@ class MappingConfigBuilder {
 	private $config;
 
 	/**
-	 * @var \CirrusSearch
+	 * @var CirrusSearch
 	 */
 	protected $engine;
 
@@ -81,7 +82,7 @@ class MappingConfigBuilder {
 			$flags |= self::OPTIMIZE_FOR_EXPERIMENTAL_HIGHLIGHTER;
 		}
 		$this->flags = $flags;
-		$this->engine = new \CirrusSearch( $config );
+		$this->engine = new CirrusSearch( $config );
 		$this->config = $this->engine->getConfig();
 		$this->searchIndexFieldFactory = new CirrusSearchIndexFieldFactory( $this->config );
 	}
@@ -96,7 +97,12 @@ class MappingConfigBuilder {
 		// and is inferred anyway.
 		$titleExtraAnalyzers = [
 			[ 'analyzer' => 'prefix', 'search_analyzer' => 'near_match', 'index_options' => 'docs', 'norms' => false ],
-			[ 'analyzer' => 'prefix_asciifolding', 'search_analyzer' => 'near_match_asciifolding', 'index_options' => 'docs', 'norms' => false ],
+			[
+				'analyzer' => 'prefix_asciifolding',
+				'search_analyzer' => 'near_match_asciifolding',
+				'index_options' => 'docs',
+				'norms' => false
+			],
 			[ 'analyzer' => 'near_match', 'index_options' => 'docs', 'norms' => false ],
 			[ 'analyzer' => 'near_match_asciifolding', 'index_options' => 'docs', 'norms' => false ],
 			[ 'analyzer' => 'keyword', 'index_options' => 'docs', 'norms' => false ],

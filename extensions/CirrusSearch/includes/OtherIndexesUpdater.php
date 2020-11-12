@@ -2,8 +2,8 @@
 
 namespace CirrusSearch;
 
-use MediaWiki\Logger\LoggerFactory;
 use Elastica\Multi\Search as MultiSearch;
+use MediaWiki\Logger\LoggerFactory;
 use Title;
 
 /**
@@ -162,17 +162,19 @@ class OtherIndexesUpdater extends Updater {
 		// may be configured to write to different clusters.
 		foreach ( $updates as $data ) {
 			list( $otherIndex, $actions ) = $data;
-			// Name of the index to write to on whatever cluster is connected to
-			$indexName = $otherIndex->getIndexName();
-			// Index name and, potentially, a replica group identifier. Needed to
-			// create an appropriate ExternalIndex instance in the job.
-			$externalIndex = $otherIndex->getGroupAndIndexName();
-			$job = Job\ElasticaWrite::build(
-				'sendOtherIndexUpdates',
-				[ $this->localSite, $indexName, $actions ],
-				[ 'cluster' => $this->writeToClusterName, 'external-index' => $externalIndex ]
-			);
-			$job->run();
+			$this->pushElasticaWriteJobs( $actions, function ( array $chunk, string $cluster ) use ( $otherIndex ) {
+				// Name of the index to write to on whatever cluster is connected to
+				$indexName = $otherIndex->getIndexName();
+				// Index name and, potentially, a replica group identifier. Needed to
+				// create an appropriate ExternalIndex instance in the job.
+				$externalIndex = $otherIndex->getGroupAndIndexName();
+				return Job\ElasticaWrite::build(
+					$cluster,
+					'sendOtherIndexUpdates',
+					[ $this->localSite, $indexName, $chunk ],
+					[ 'external-index' => $externalIndex ]
+				);
+			} );
 		}
 	}
 

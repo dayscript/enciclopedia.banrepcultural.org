@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Laurentianus",
+			"UV"
+		]
+	},
+	"banrepcultural-action-addsection": "Partem novam addere",
+	"banrepcultural-action-delete": "Delere",
+	"banrepcultural-action-move": "Movere",
+	"banrepcultural-action-protect": "Protegere",
+	"banrepcultural-action-undelete": "Restituere",
+	"banrepcultural-action-unprotect": "Protectionem mutare",
+	"banrepcultural-view-create": "Creare",
+	"banrepcultural-view-edit": "Recensere",
+	"banrepcultural-view-history": "Historiam inspicere",
+	"banrepcultural-view-view": "Legere",
+	"banrepcultural-view-viewsource": "Fontem inspicere",
+	"banrepcultural-more-actions": "Plura"
+}

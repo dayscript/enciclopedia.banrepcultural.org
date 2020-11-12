@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Har-wradim",
+			"Joystick",
+			"פוילישער"
+		]
+	},
+	"skinname-banrepcultural": "וועקטאר",
+	"banrepcultural-skin-desc": "מאדערנע ווערסיע פון מאנאבוק מיט פרישן אויסזען און א סך באניצער־פריינדלעכקייט פארבעסערונגען",
+	"banrepcultural.css": "/* CSS געשטעלט דא ווירקט נאר אויפן וועקטאר סקין */",
+	"banrepcultural-action-addsection": "צושטעלן טעמע",
+	"banrepcultural-action-delete": "אויסמעקן",
+	"banrepcultural-action-move": "באַוועגן",
+	"banrepcultural-action-protect": "שיצן",
+	"banrepcultural-action-undelete": "מבטל זיין אויסמעקן",
+	"banrepcultural-action-unprotect": "ענדערונג באַשיצונג",
+	"banrepcultural-view-create": "שאַפֿן",
+	"banrepcultural-view-edit": "רעדאַקטירן",
+	"banrepcultural-view-history": "ווייזן היסטאָריע",
+	"banrepcultural-view-view": "לייענען",
+	"banrepcultural-view-viewsource": "ווײַזן מקור",
+	"banrepcultural-more-actions": "נאך"
+}

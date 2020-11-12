@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Fitoschido",
+			"Subi",
+			"Unai Fdz. de Betoño",
+			"Xabier Armendaritz"
+		]
+	},
+	"banrepcultural-skin-desc": "MonoBook-en bertsio modernoa, itxura berriarekin eta erabilgarritasun hobekuntza askorekin",
+	"banrepcultural-action-addsection": "Gehitu atala",
+	"banrepcultural-action-delete": "Ezabatu",
+	"banrepcultural-action-move": "Mugitu",
+	"banrepcultural-action-protect": "Babestu",
+	"banrepcultural-action-undelete": "Berreskuratu",
+	"banrepcultural-action-unprotect": "Babesa aldatu",
+	"banrepcultural-view-create": "Sortu",
+	"banrepcultural-view-edit": "Aldatu",
+	"banrepcultural-view-history": "Ikusi historia",
+	"banrepcultural-view-view": "Irakurri",
+	"banrepcultural-view-viewsource": "Kodea ikusia",
+	"banrepcultural-more-actions": "Gehiago"
+}

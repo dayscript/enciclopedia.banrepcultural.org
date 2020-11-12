@@ -10,6 +10,7 @@ use CirrusSearch\Parser\FullTextKeywordRegistry;
 use CirrusSearch\Parser\NamespacePrefixParser;
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\Query\CountContentWordsBuilder;
+use CirrusSearch\Query\FullTextQueryBuilder;
 use CirrusSearch\Query\KeywordFeature;
 use CirrusSearch\Query\NearMatchQueryBuilder;
 use CirrusSearch\Query\PrefixSearchQueryBuilder;
@@ -24,7 +25,6 @@ use CirrusSearch\Search\SearchRequestBuilder;
 use CirrusSearch\Search\TeamDraftInterleaver;
 use CirrusSearch\Search\TitleHelper;
 use CirrusSearch\Search\TitleResultsType;
-use CirrusSearch\Query\FullTextQueryBuilder;
 use Elastica\Exception\RuntimeException;
 use Elastica\Multi\Search as MultiSearch;
 use Elastica\Query;
@@ -67,11 +67,6 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	const HIGHLIGHT_PRE = '<span class="searchmatch">';
 	const HIGHLIGHT_POST_MARKER = ''; // \uE001
 	const HIGHLIGHT_POST = '</span>';
-
-	/**
-	 * Maximum length, in characters, allowed in queries sent to searchText.
-	 */
-	const MAX_TEXT_SEARCH = 300;
 
 	/**
 	 * Maximum offset + limit depth allowed. As in the deepest possible result
@@ -143,13 +138,14 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * @param Connection $conn
 	 * @param int $offset Offset the results by this much
 	 * @param int $limit Limit the results to this many
-	 * @param SearchConfig|null $config Configuration settings
+	 * @param SearchConfig $config Configuration settings
 	 * @param int[]|null $namespaces Array of namespace numbers to search or null to search all namespaces.
 	 * @param User|null $user user for which this search is being performed.  Attached to slow request logs.
 	 * @param string|bool $index Base name for index to search from, defaults to $wgCirrusSearchIndexBaseName
 	 * @param CirrusDebugOptions|null $options the debugging options to use or null to use defaults
 	 * @param NamespacePrefixParser|null $namespacePrefixParser
 	 * @param InterwikiResolver|null $interwikiResolver
+	 * @param TitleHelper|null $titleHelper
 	 * @see CirrusDebugOptions::defaultOptions()
 	 */
 	public function __construct(
@@ -161,7 +157,8 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		$index = false,
 		CirrusDebugOptions $options = null,
 		NamespacePrefixParser $namespacePrefixParser = null,
-		InterwikiResolver $interwikiResolver = null
+		InterwikiResolver $interwikiResolver = null,
+		TitleHelper $titleHelper = null
 	) {
 		parent::__construct(
 			$conn,
@@ -176,7 +173,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 		// TODO: Make these params mandatory once WBCS stops extending this class
 		$this->namespacePrefixParser = $namespacePrefixParser;
 		$this->interwikiResolver = $interwikiResolver ?: MediaWikiServices::getInstance()->getService( InterwikiResolver::SERVICE );
-		$this->titleHelper = new TitleHelper( $this->config, $this->interwikiResolver );
+		$this->titleHelper = $titleHelper ?: new TitleHelper( wfWikiID(), $this->interwikiResolver );
 	}
 
 	/**
@@ -308,11 +305,6 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * @return Status
 	 */
 	private function searchTextInternal( $term ) {
-		$checkLengthStatus = $this->checkTextSearchRequestLength( $term );
-		if ( !$checkLengthStatus->isOK() ) {
-			return $checkLengthStatus;
-		}
-
 		// Searcher needs to be cloned before any actual query building is done.
 		$interleaveSearcher = $this->buildInterleaveSearcher();
 
@@ -373,6 +365,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 			$response = $mainSet;
 		}
 
+		$status = Status::newGood();
 		if ( $this->namespacePrefixParser !== null ) {
 			$status = Status::newGood( $fallbackRunner->run( $this, $response, $responses, $this->namespacePrefixParser ) );
 			$this->appendMetrics( $fallbackRunner );
@@ -388,7 +381,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	 * Get the page with $docId.  Note that the result is a status containing _all_ pages found.
 	 * It is possible to find more then one page if the page is in multiple indexes.
 	 * @param string[] $docIds array of document ids
-	 * @param string[]|true|false $sourceFiltering source filtering to apply
+	 * @param string[]|bool $sourceFiltering source filtering to apply
 	 * @param bool $usePoolCounter false to disable the pool counter
 	 * @return Status containing pages found, containing an empty array if not found,
 	 *    or an error if there was an error
@@ -688,36 +681,12 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 				$log->getDescription() . " timed out and only returned partial results!",
 				$log->getLogVariables()
 			);
-			$status->warning( $this->searchContext->isSyntaxUsed( 'regex' )
+			$this->searchContext->addWarning( $this->searchContext->isSyntaxUsed( 'regex' )
 				? 'cirrussearch-regex-timed-out'
 				: 'cirrussearch-timed-out'
 			);
 		}
 		return $mreponses;
-	}
-
-	/**
-	 * @param string $term
-	 * @return Status
-	 */
-	private function checkTextSearchRequestLength( $term ) {
-		$requestLength = mb_strlen( $term );
-		if (
-			$requestLength > self::MAX_TEXT_SEARCH &&
-			// allow category intersections longer than the maximum
-			strpos( $term, 'incategory:' ) === false
-		) {
-			/**
-			 * @var \Language $language
-			 */
-			$language = $this->config->get( 'ContLang' );
-			return Status::newFatal(
-				'cirrussearch-query-too-long',
-				$language->formatNum( $requestLength ),
-				$language->formatNum( self::MAX_TEXT_SEARCH )
-			);
-		}
-		return Status::newGood();
 	}
 
 	/**
@@ -979,7 +948,7 @@ class Searcher extends ElasticsearchIntermediary implements SearcherFactory {
 	public function makeSearcher( SearchQuery $query ) {
 		return new self( $this->connection, $query->getOffset(), $query->getLimit(),
 			$query->getSearchConfig(), $query->getNamespaces(), $this->user,
-			null, $query->getDebugOptions(), $this->namespacePrefixParser );
+			false, $query->getDebugOptions(), $this->namespacePrefixParser, $this->interwikiResolver, $this->titleHelper );
 	}
 
 	/**

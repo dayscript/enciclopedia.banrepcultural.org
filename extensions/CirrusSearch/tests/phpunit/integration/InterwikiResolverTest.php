@@ -2,15 +2,15 @@
 
 namespace CirrusSearch\Test;
 
+use CirrusSearch\CirrusConfigInterwikiResolver;
+use CirrusSearch\CirrusIntegrationTestCase;
 use CirrusSearch\EmptyInterwikiResolver;
+use CirrusSearch\HashSearchConfig;
 use CirrusSearch\InterwikiResolver;
+use CirrusSearch\InterwikiResolverFactory;
+use CirrusSearch\SiteMatrixInterwikiResolver;
 use ExtensionRegistry;
 use MediaWiki\MediaWikiServices;
-use CirrusSearch\CirrusIntegrationTestCase;
-use CirrusSearch\CirrusConfigInterwikiResolver;
-use CirrusSearch\HashSearchConfig;
-use CirrusSearch\SiteMatrixInterwikiResolver;
-use CirrusSearch\InterwikiResolverFactory;
 
 /**
  * @group CirrusSearch
@@ -31,8 +31,8 @@ class InterwikiResolverTest extends CirrusIntegrationTestCase {
 		$this->assertEquals( 'fr', $resolver->getInterwikiPrefix( 'frwiki' ) );
 		$this->assertEquals( 'no', $resolver->getInterwikiPrefix( 'nowiki' ) );
 		$this->assertEquals( 'b', $resolver->getInterwikiPrefix( 'enwikibooks' ) );
-		$this->assertEquals( null, $resolver->getInterwikiPrefix( 'simplewiki' ) );
-		$this->assertEquals( null, $resolver->getInterwikiPrefix( 'enwiki' ) );
+		$this->assertNull( $resolver->getInterwikiPrefix( 'simplewiki' ) );
+		$this->assertNull( $resolver->getInterwikiPrefix( 'enwiki' ) );
 
 		// Test sister projects
 		$this->assertArrayHasKey( 'voy', $resolver->getSisterProjectPrefixes() );
@@ -445,7 +445,7 @@ class InterwikiResolverTest extends CirrusIntegrationTestCase {
 		return $resolver;
 	}
 
-	protected function tearDown() {
+	protected function tearDown() : void {
 		MediaWikiServices::getInstance()
 			->resetServiceForTesting( 'InterwikiLookup' );
 		parent::tearDown();

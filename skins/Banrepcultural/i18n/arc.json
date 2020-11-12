@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"334a",
+			"Basharh",
+			"Michaelovic"
+		]
+	},
+	"banrepcultural-action-addsection": "ܐܘܣܦ ܡܠܘܐܐ",
+	"banrepcultural-action-delete": "ܫܘܦ",
+	"banrepcultural-action-move": "ܫܢܝ",
+	"banrepcultural-action-protect": "ܛܪ",
+	"banrepcultural-action-undelete": "ܠܐ ܫܘܦ",
+	"banrepcultural-action-unprotect": "ܫܚܠܦ ܢܛܝܪܘܬܐ",
+	"banrepcultural-view-create": "ܒܪܝ",
+	"banrepcultural-view-edit": "ܫܚܠܦ",
+	"banrepcultural-view-history": "ܚܙܝ ܬܫܥܝܬܐ",
+	"banrepcultural-view-view": "ܩܪܝ",
+	"banrepcultural-view-viewsource": "ܚܙܝ ܡܒܘܥܐ"
+}

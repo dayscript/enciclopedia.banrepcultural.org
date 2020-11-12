@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Abdeaitali",
+			"Enzoreg",
+			"Reda Benkhadra",
+			"SADI9I",
+			"SADIQUI",
+			"Zanatos"
+		]
+	},
+	"banrepcultural-action-addsection": "زيد شي موضوع",
+	"banrepcultural-action-delete": "حدف",
+	"banrepcultural-action-move": "حوّل",
+	"banrepcultural-action-protect": "حمي",
+	"banrepcultural-action-undelete": "لغي الحدف",
+	"banrepcultural-action-unprotect": "بدّل الحماية",
+	"banrepcultural-view-create": "أنشئ",
+	"banrepcultural-view-edit": "بدل",
+	"banrepcultural-view-history": "تاريخ",
+	"banrepcultural-view-view": "قرا",
+	"banrepcultural-view-viewsource": "شوف المصدر",
+	"banrepcultural-more-actions": "كتر"
+}

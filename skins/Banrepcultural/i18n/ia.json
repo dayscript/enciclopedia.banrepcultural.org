@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"McDutchie"
+		]
+	},
+	"banrepcultural-skin-desc": "Version moderne de MonoBook con aspecto rejuvenescite e multe meliorationes de usabilitate.",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Usar le version ancian de Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "In le proxime annos nos va actualisar gradualmente le apparentia Banrepcultural. Il continua a esser possibile usar le version ancian de Banrepcultural (illo de decembre 2019). Pro leger plus sur le actualisationes, va a nostre [[mw:Reading/Web/Desktop_Improvements|pagina de projecto]].",
+	"banrepcultural.css": "/* Le CSS placiate hic afficera le usatores del apparentia Banrepcultural */",
+	"banrepcultural.js": "/* Omne JavaScript hic se executara pro le usatores del apparentia Banrepcultural */",
+	"banrepcultural-action-addsection": "Adder topico",
+	"banrepcultural-action-delete": "Deler",
+	"banrepcultural-action-move": "Renominar",
+	"banrepcultural-action-protect": "Proteger",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Cambiar protection",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Modificar",
+	"banrepcultural-view-history": "Vider historia",
+	"banrepcultural-view-view": "Leger",
+	"banrepcultural-view-viewsource": "Vider texto fonte",
+	"banrepcultural-jumptonavigation": "Saltar al navigation",
+	"banrepcultural-jumptosearch": "Saltar al recerca",
+	"banrepcultural-more-actions": "Plus"
+}

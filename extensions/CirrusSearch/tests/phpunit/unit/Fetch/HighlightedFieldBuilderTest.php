@@ -63,7 +63,7 @@ class HighlightedFieldBuilderTest extends CirrusTestCase {
 	public function testFactories( $expectedFile, $factories, $factoryGroup, $fieldName, SearchConfig $config ) {
 		$this->assertArrayHasKey( $factoryGroup, $factories );
 		$this->assertArrayHasKey( $fieldName, $factories[$factoryGroup] );
-		$this->assertTrue( is_callable( $factories[$factoryGroup][$fieldName] ) );
+		$this->assertIsCallable( $factories[$factoryGroup][$fieldName] );
 		/** @var BaseHighlightedField $actualField */
 		$actualField = ( $factories[$factoryGroup][$fieldName] ) ( $config, $fieldName, 'dummyTarget', 1234 );
 		$this->assertFileContains( $expectedFile, CirrusIntegrationTestCase::encodeFixture( $actualField->toArray() ),
@@ -151,7 +151,7 @@ class HighlightedFieldBuilderTest extends CirrusTestCase {
 		$this->assertEquals( [ '(foo|bar)' ], $options['regex'] );
 		$this->assertEquals( 'lucene', $options['regex_flavor'] );
 		$this->assertEquals( 'testLangCode', $options['locale'] );
-		$this->assertSame( true, $options['skip_query'] );
+		$this->assertTrue( $options['skip_query'] );
 		$this->assertSame( false, $options['regex_case_insensitive'] );
 		$this->assertEquals( 233, $options['max_determinized_states'] );
 		$this->assertNull( $field->getNoMatchSize() );
@@ -167,7 +167,7 @@ class HighlightedFieldBuilderTest extends CirrusTestCase {
 		$field = $field->merge( $field2 );
 		$options = $field->getOptions();
 		$this->assertEquals( [ '(foo|bar)', '(baz|bat)' ], $options['regex'] );
-		$this->assertSame( true, $options['regex_case_insensitive'] );
+		$this->assertTrue( $options['regex_case_insensitive'] );
 
 		$field3 = ExperimentalHighlightedFieldBuilder::newRegexField(
 			$config,
@@ -259,8 +259,8 @@ class HighlightedFieldBuilderTest extends CirrusTestCase {
 		];
 
 		foreach ( $fieldCouples as $couple ) {
-			/** @var BaseHighlightedField $f1 */
-			/** @var BaseHighlightedField $f2 */
+			/** @var BaseHighlightedField $f1 */
+			/** @var BaseHighlightedField $f2 */
 			list( $f1, $f2 ) = $couple;
 			$this->assertMergeOnPrio( $f1, $f2, 'query' );
 			$f1->setHighlightQuery( new MatchAll() );
@@ -296,7 +296,7 @@ class HighlightedFieldBuilderTest extends CirrusTestCase {
 			$f1->merge( $f2 );
 			$this->fail( "Expected InvalidArumentException with message $msg" );
 		} catch ( \InvalidArgumentException $iae ) {
-			$this->assertContains( $msg, $iae->getMessage() );
+			$this->assertStringContainsString( $msg, $iae->getMessage() );
 		}
 	}
 

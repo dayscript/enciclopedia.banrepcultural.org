@@ -1,0 +1,35 @@
+{
+	"@metadata": {
+		"authors": [
+			"Cwlin0416",
+			"Justincheng12345",
+			"Kly",
+			"LNDDYL",
+			"Liuxinyu970226",
+			"Mark85296341"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "現代版的 MonoBook，有著較新穎的外觀與許多使用性的改進",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "使用先前的 Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "在接下來的幾年，我們會逐步更新 Banrepcultural 外觀。先前的 Banrepcultural 能讓您觀看舊版本 Banrepcultural（截至 2019 年 12 月）。要了解更多更新方面內容，請前往我們的[[mw:Reading/Web/Desktop_Improvements|專案頁面]]。",
+	"banrepcultural-opt-out": "切換成舊外觀",
+	"banrepcultural-opt-out-tooltip": "更改您的設定來回到舊模樣主題（舊版 Banrepcultural）",
+	"banrepcultural.css": "/* 此 CSS 會影響使用 Banrepcultural 介面外觀的使用者 */",
+	"banrepcultural.js": "/* 此 JavaScript 會用於使用 Banrepcultural 介面外觀的使用者 */",
+	"banrepcultural-action-toggle-sidebar": "切換側邊欄",
+	"banrepcultural-action-addsection": "新增話題",
+	"banrepcultural-action-delete": "刪除",
+	"banrepcultural-action-move": "移動",
+	"banrepcultural-action-protect": "保護",
+	"banrepcultural-action-undelete": "取消刪除",
+	"banrepcultural-action-unprotect": "變更保護",
+	"banrepcultural-view-create": "建立",
+	"banrepcultural-view-edit": "編輯",
+	"banrepcultural-view-history": "檢視歷史",
+	"banrepcultural-view-view": "閱讀",
+	"banrepcultural-view-viewsource": "檢視原始碼",
+	"banrepcultural-jumptonavigation": "跳至導覽",
+	"banrepcultural-jumptosearch": "跳至搜尋",
+	"banrepcultural-more-actions": "更多"
+}

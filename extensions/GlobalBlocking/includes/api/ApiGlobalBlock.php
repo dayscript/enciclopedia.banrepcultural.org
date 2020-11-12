@@ -26,6 +26,23 @@ class ApiGlobalBlock extends ApiBase {
 				$options
 			);
 
+			if ( $this->getParameter( 'alsolocal' ) && count( $errors ) === 0 ) {
+				SpecialBlock::processForm( [
+					'Target' => $this->getParameter( 'target' ),
+					'Reason' => [ $this->getParameter( 'reason' ) ],
+					'Expiry' => $this->getParameter( 'expiry' ),
+					'HardBlock' => !$this->getParameter( 'anononly' ),
+					'CreateAccount' => true,
+					'AutoBlock' => true,
+					'DisableEmail' => true,
+					'DisableUTEdit' => $this->getParameter( 'localblockstalk' ),
+					'Reblock' => true,
+					'Confirm' => true,
+					'Watch' => false
+				], $this->getContext() );
+				$result->addValue( 'globalblock', 'blockedlocally', true );
+			}
+
 			if ( count( $errors ) ) {
 				foreach ( $errors as &$error ) {
 					$error = [
@@ -42,14 +59,14 @@ class ApiGlobalBlock extends ApiBase {
 			} else {
 				$result->addValue( 'globalblock', 'user', $this->getParameter( 'target' ) );
 				$result->addValue( 'globalblock', 'blocked', '' );
-				$block = GlobalBlocking::getGlobalBlockingBlock( $this->getParameter( 'target' ), true );
-				if ( $block->gb_anon_only ) {
+				if ( $this->getParameter( 'anononly' ) ) {
 					$result->addValue( 'globalblock', 'anononly', '' );
 				}
-				if ( $block->gb_expiry == wfGetDB( DB_REPLICA )->getInfinity() ) {
+				$expiry = SpecialBlock::parseExpiryInput( $this->getParameter( 'expiry' ) );
+				if ( $expiry == wfGetDB( DB_REPLICA )->getInfinity() ) {
 					$displayExpiry = 'infinite';
 				} else {
-					$displayExpiry = wfTimestamp( TS_ISO_8601, $block->gb_expiry );
+					$displayExpiry = wfTimestamp( TS_ISO_8601, $expiry );
 				}
 				$result->addValue( 'globalblock', 'expiry', $displayExpiry );
 			}
@@ -64,7 +81,9 @@ class ApiGlobalBlock extends ApiBase {
 			$logPage->addEntry(
 				'gunblock',
 				Title::makeTitleSafe( NS_USER, $block->gb_address ),
-				$this->getParameter( 'reason' )
+				$this->getParameter( 'reason' ),
+				[],
+				$this->getUser()
 			);
 			$result->addValue( 'globalblock', 'user', $this->getParameter( 'target' ) );
 			$result->addValue( 'globalblock', 'unblocked', '' );
@@ -91,6 +110,12 @@ class ApiGlobalBlock extends ApiBase {
 				ApiBase::PARAM_TYPE => 'boolean'
 			],
 			'modify' => [
+				ApiBase::PARAM_TYPE => 'boolean'
+			],
+			'alsolocal' => [
+				ApiBase::PARAM_TYPE => 'boolean'
+			],
+			'localblockstalk' => [
 				ApiBase::PARAM_TYPE => 'boolean'
 			],
 			'token' => [

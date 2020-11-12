@@ -3,12 +3,15 @@
 namespace CirrusSearch\Fallbacks;
 
 use CirrusSearch\Parser\BasicQueryClassifier;
+use CirrusSearch\Parser\QueryStringRegex\SearchQueryParseException;
 use CirrusSearch\Search\CirrusSearchResultSet;
 use CirrusSearch\Search\SearchQuery;
 use CirrusSearch\Search\SearchQueryBuilder;
 use CirrusSearch\Searcher;
 use Elastica\ResultSet as ElasticaResultSet;
+use HtmlArmor;
 use ISearchResultSet;
+use MediaWiki\Logger\LoggerFactory;
 
 trait FallbackMethodTrait {
 
@@ -66,9 +69,9 @@ trait FallbackMethodTrait {
 	 * @param FallbackRunnerContext $context
 	 * @param SearchQuery $originalQuery
 	 * @param string $suggestedQuery
-	 * @param string|null $suggestedQuerySnippet
+	 * @param HtmlArmor|string|null $suggestedQuerySnippet
 	 * @param int $resultsThreshold
-	 * @return CirrusSearchResultSet the new resultSet or the previous set found in the FallbackRunnerContext
+	 * @return FallbackStatus
 	 * @throws \CirrusSearch\Parser\ParsedQueryClassifierException
 	 * @see SearchQuery::isAllowRewrite()
 	 * @see FallbackRunnerContext::costlyCallAllowed()
@@ -76,33 +79,42 @@ trait FallbackMethodTrait {
 	 */
 	public function maybeSearchAndRewrite(
 		FallbackRunnerContext $context,
-		$originalQuery,
-		$suggestedQuery,
+		SearchQuery $originalQuery,
+		string $suggestedQuery,
 		$suggestedQuerySnippet = null,
-		$resultsThreshold = 1
-	): CirrusSearchResultSet {
+		int $resultsThreshold = 1
+	): FallbackStatus {
 		$previousSet = $context->getPreviousResultSet();
 		if ( !$originalQuery->isAllowRewrite()
 			 || !$context->costlyCallAllowed()
 			 || $this->resultsThreshold( $previousSet, $resultsThreshold )
 			 || !$originalQuery->getParsedQuery()->isQueryOfClass( BasicQueryClassifier::SIMPLE_BAG_OF_WORDS )
 		) {
-			return $previousSet;
+			// Only provide the suggestion, not the results of the suggestion.
+			return FallbackStatus::suggestQuery( $suggestedQuery, $suggestedQuerySnippet );
 		}
 
-		$rewrittenQuery = SearchQueryBuilder::forRewrittenQuery( $originalQuery,
-			$suggestedQuery, $context->getNamespacePrefixParser() )->build();
+		try {
+			$rewrittenQuery = SearchQueryBuilder::forRewrittenQuery( $originalQuery, $suggestedQuery,
+					$context->getNamespacePrefixParser() )->build();
+		} catch ( SearchQueryParseException $e ) {
+			LoggerFactory::getInstance( 'CirrusSearch' )
+				->warning( "Cannot parse rewritten query", [ 'exception' => $e ] );
+			// Suggest the user submits the suggested query directly
+			return FallbackStatus::suggestQuery( $suggestedQuery, $suggestedQuerySnippet );
+		}
 		$searcher = $context->makeSearcher( $rewrittenQuery );
 		$status = $searcher->search( $rewrittenQuery );
 		if ( $status->isOK() && $status->getValue() instanceof CirrusSearchResultSet ) {
 			/**
-			 * @var CirrusSearchResultSet $newresults
+			 * @var CirrusSearchResultSet $newResults
 			 */
-			$newresults = $status->getValue();
-			$newresults->setRewrittenQuery( $suggestedQuery, $suggestedQuerySnippet );
-			return $newresults;
+			$newResults = $status->getValue();
+			return FallbackStatus::replaceLocalResults( $newResults, $suggestedQuery, $suggestedQuerySnippet );
 		} else {
-			return $previousSet;
+			// The suggested query returned no results, there doesn't seem to be any benefit
+			// to sugesting it to the user.
+			return FallbackStatus::noSuggestion();
 		}
 	}
 }

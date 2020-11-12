@@ -1,6 +1,6 @@
 {
 	"name": "Elastica",
-	"version": "6.0.2",
+	"version": "6.1.1",
 	"author": [
 		"Nik Everett",
 		"Chad Horohoe"
@@ -26,5 +26,5 @@
 		"MWElasticUtils": "includes/MWElasticUtils.php"
 	},
 	"load_composer_autoloader": true,
-	"manifest_version": 1
+	"manifest_version": 2
 }

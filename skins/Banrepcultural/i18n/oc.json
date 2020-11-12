@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Boulaur",
+			"Cedric31"
+		]
+	},
+	"banrepcultural.css": "/* Lo CSS plaçat aicí afectarà los utilizaires de l’abilhatge Banrepcultural */",
+	"banrepcultural.js": "/* Tot JavaScript aicí serà cargat amb las paginas accedidas pels utilizaires de l’abilhatge Banrepcultural unicament. */",
+	"banrepcultural-action-addsection": "Apondre un subjècte",
+	"banrepcultural-action-delete": "Suprimir",
+	"banrepcultural-action-move": "Renomenar",
+	"banrepcultural-action-protect": "Protegir",
+	"banrepcultural-action-undelete": "Restablir",
+	"banrepcultural-action-unprotect": "Suprimir la proteccion",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Modificar",
+	"banrepcultural-view-history": "Veire l'istoric",
+	"banrepcultural-view-view": "Legir",
+	"banrepcultural-view-viewsource": "Veire la font",
+	"banrepcultural-more-actions": "Mai"
+}

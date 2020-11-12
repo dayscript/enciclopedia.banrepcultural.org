@@ -25,7 +25,7 @@ use MediaWiki\Logger\LoggerFactory;
  */
 class MWElasticUtils {
 
-	const ONE_SEC_IN_MICROSEC = 1000000;
+	private const ONE_SEC_IN_MICROSEC = 1000000;
 
 	/**
 	 * A function that retries callback $func if it throws an exception.
@@ -153,6 +153,7 @@ class MWElasticUtils {
 	 * @param float $increaseByRatio Increase by this ratio on each iteration, up to $maxDelay
 	 * @return Generator|float[] Returns a generator. Generator yields floats between
 	 *  $minDelay and $maxDelay
+	 * @suppress PhanInfiniteLoop
 	 */
 	private static function increasingDelay( $minDelay, $maxDelay, $increaseByRatio = 1.5 ) {
 		$delay = $minDelay;
@@ -274,8 +275,8 @@ class MWElasticUtils {
 		return $response->getData()['cluster_name'];
 	}
 
-	const METASTORE_INDEX_NAME = 'mw_cirrus_metastore';
-	const ALL_INDEXES_FROZEN_NAME = 'freeze-everything';
+	private const METASTORE_INDEX_NAME = 'mw_cirrus_metastore';
+	private const ALL_INDEXES_FROZEN_NAME = 'freeze-everything';
 
 	/**
 	 * @param Client $client

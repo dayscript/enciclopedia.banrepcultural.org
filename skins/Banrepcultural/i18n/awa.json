@@ -1,0 +1,19 @@
+{
+	"@metadata": {
+		"authors": [
+			"1AnuraagPandey"
+		]
+	},
+	"banrepcultural-action-addsection": "शिर्षक जोडा जाय",
+	"banrepcultural-action-delete": "मेटावा जाय",
+	"banrepcultural-action-move": "घुस्कावा जाय",
+	"banrepcultural-action-protect": "सुरक्षित करा जाय",
+	"banrepcultural-action-undelete": "हटाइब वापस लिहा जाय",
+	"banrepcultural-action-unprotect": "सुरक्षा परिवर्तन करा जाय",
+	"banrepcultural-view-create": "बनावा जाय",
+	"banrepcultural-view-edit": "सम्पादन",
+	"banrepcultural-view-history": "इतिहास देखा जाय",
+	"banrepcultural-view-view": "पढा जाय",
+	"banrepcultural-view-viewsource": "स्रोत देखा जाय",
+	"banrepcultural-more-actions": "अउर"
+}

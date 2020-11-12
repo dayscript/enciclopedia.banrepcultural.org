@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gálaniitoluodda",
+			"Jeblad",
+			"Trondtr"
+		]
+	},
+	"banrepcultural-action-addsection": "Lasit fáttá",
+	"banrepcultural-action-delete": "Sihko",
+	"banrepcultural-action-move": "Sirdde",
+	"banrepcultural-action-protect": "Suodjal",
+	"banrepcultural-action-undelete": "Máhcat",
+	"banrepcultural-action-unprotect": "Rievdat suodjaleami",
+	"banrepcultural-view-create": "Álggat",
+	"banrepcultural-view-edit": "Rievdat",
+	"banrepcultural-view-history": "Geahča historjjá",
+	"banrepcultural-view-view": "Loga",
+	"banrepcultural-view-viewsource": "Geahča gáldokoda"
+}

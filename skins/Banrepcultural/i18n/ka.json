@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Alsandro",
+			"David1010",
+			"გიორგიმელა"
+		]
+	},
+	"skinname-banrepcultural": "ვექტორული",
+	"banrepcultural.css": "/* აქ ჩასმული CSS გამოყენებული იქნება ვექტორული გაფორმების თემაში */",
+	"banrepcultural-action-addsection": "თემის ჩამატება",
+	"banrepcultural-action-delete": "წაშლა",
+	"banrepcultural-action-move": "გადატანა",
+	"banrepcultural-action-protect": "დაცვა",
+	"banrepcultural-action-undelete": "აღდგენა",
+	"banrepcultural-action-unprotect": "დაცვის შეცვლა",
+	"banrepcultural-view-create": "შექმნა",
+	"banrepcultural-view-edit": "რედაქტირება",
+	"banrepcultural-view-history": "ისტორია",
+	"banrepcultural-view-view": "შემოწმებული სტატია",
+	"banrepcultural-view-viewsource": "წყაროს ხილვა",
+	"banrepcultural-more-actions": "მეტი"
+}

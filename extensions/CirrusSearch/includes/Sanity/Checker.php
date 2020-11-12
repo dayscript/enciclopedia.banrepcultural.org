@@ -215,7 +215,7 @@ class Checker {
 			foreach ( $fromIndex as $r ) {
 				$title = Title::makeTitleSafe( $r->namespace, $r->title );
 				if ( $title === null ) {
-					$title = Title::makeTitleSafe( NS_SPECIAL, 'Badtitle/InvalidInDBOrElastic' );
+					$title = Title::makeTitle( NS_SPECIAL, 'Badtitle/InvalidInDBOrElastic' );
 				}
 				$this->remediator->ghostPageInIndex( $docId, $title );
 			}
@@ -323,15 +323,7 @@ class Checker {
 		}
 		$dbr = $this->getDB();
 		$where = 'page_id IN (' . $dbr->makeList( $pageIds ) . ')';
-		if ( is_callable( [ WikiPage::class, 'getQueryInfo' ] ) ) {
-			$pageQuery = WikiPage::getQueryInfo();
-		} else {
-			$pageQuery = [
-				'tables' => [ 'page' ],
-				'fields' => WikiPage::selectFields(),
-				'joins' => [],
-			];
-		}
+		$pageQuery = WikiPage::getQueryInfo();
 		$res = $dbr->select(
 			$pageQuery['tables'],
 			$pageQuery['fields'],

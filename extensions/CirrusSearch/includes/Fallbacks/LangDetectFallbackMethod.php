@@ -75,7 +75,7 @@ class LangDetectFallbackMethod implements FallbackMethod, SearchMetricsProvider 
 	 * @param SearchQuery $query
 	 * @param array $params
 	 * @param InterwikiResolver $interwikiResolver
-	 * @return FallbackMethod
+	 * @return FallbackMethod|null
 	 */
 	public static function build( SearchQuery $query, array $params, InterwikiResolver $interwikiResolver ) {
 		if ( !$query->getCrossSearchStrategy()->isCrossLanguageSearchSupported() ) {
@@ -124,7 +124,6 @@ class LangDetectFallbackMethod implements FallbackMethod, SearchMetricsProvider 
 				$prefix = key( $iwPrefixAndConfig );
 				$config = $iwPrefixAndConfig[$prefix];
 				$metric = [ $config->getWikiId(), $prefix ];
-				$this->searchMetrics['wgCirrusSearchAltLanguage'] = $metric;
 				$this->detectedLangWikiConfig = $config;
 				return 0.5;
 			}
@@ -135,19 +134,19 @@ class LangDetectFallbackMethod implements FallbackMethod, SearchMetricsProvider 
 
 	/**
 	 * @param FallbackRunnerContext $context
-	 * @return CirrusSearchResultSet
+	 * @return FallbackStatus
 	 */
-	public function rewrite( FallbackRunnerContext $context ): CirrusSearchResultSet {
+	public function rewrite( FallbackRunnerContext $context ): FallbackStatus {
 		$previousSet = $context->getPreviousResultSet();
 		Assert::precondition( $this->detectedLangWikiConfig !== null,
 			'nothing has been detected, this should not even be tried.' );
 
 		if ( $this->resultsThreshold( $previousSet, $this->threshold ) ) {
-			return $previousSet;
+			return FallbackStatus::noSuggestion();
 		}
 
 		if ( !$context->costlyCallAllowed() ) {
-			return $previousSet;
+			return FallbackStatus::noSuggestion();
 		}
 
 		$crossLangQuery = SearchQueryBuilder::forCrossLanguageSearch( $this->detectedLangWikiConfig,
@@ -155,19 +154,18 @@ class LangDetectFallbackMethod implements FallbackMethod, SearchMetricsProvider 
 		$searcher = $context->makeSearcher( $crossLangQuery );
 		$status = $searcher->search( $crossLangQuery );
 		if ( !$status->isOK() ) {
-			return $previousSet;
+			return FallbackStatus::noSuggestion();
 		}
 		$crossLangResults = $status->getValue();
 		if ( !$crossLangResults instanceof CirrusSearchResultSet ) {
 			// NOTE: Can/should this happen?
-			return $previousSet;
+			return FallbackStatus::noSuggestion();
 		}
-		$this->searchMetrics['wgCirrusSearchAltLanguageNumResults'] = $crossLangResults->numRows();
 		if ( $crossLangResults->numRows() > 0 ) {
-			$previousSet->addInterwikiResults( $crossLangResults,
-				\ISearchResultSet::INLINE_RESULTS, $this->detectedLangWikiConfig->getWikiId() );
+			return FallbackStatus::addInterwikiResults( $crossLangResults,
+				$this->detectedLangWikiConfig->getWikiId() );
 		}
-		return $previousSet;
+		return FallbackStatus::noSuggestion();
 	}
 
 	public function getMetrics() {

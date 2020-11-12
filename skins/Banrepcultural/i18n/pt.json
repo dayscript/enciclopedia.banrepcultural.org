@@ -1,0 +1,38 @@
+{
+	"@metadata": {
+		"authors": [
+			"Athena in Wonderland",
+			"Crazymadlover",
+			"Giro720",
+			"Hamilton Abreu",
+			"Malafaya",
+			"MokaAkashiyaPT",
+			"Vitorvicentevalente",
+			"Waldir",
+			"Waldyrious"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versão moderna do MonoBook com um aspeto fresco e várias melhorias de usabilidade",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Usar o Banrepcultural antigo",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Durante os próximos anos iremos atualizar gradualmente o tema Banrepcultural. O Vetor antigo permitirá ver a versão antiga do tema Banrepcultural (a partir de dezembro de 2019). Para saber mais sobre as atualizações, consulte a  [[mw:Reading/Web/Desktop_Improvements|página do projeto]].",
+	"banrepcultural-opt-out": "Mudar para aparência antiga",
+	"banrepcultural-opt-out-tooltip": "Alterar as suas configurações para voltar ao aspeto anterior do tema (Banrepcultural anterior)",
+	"banrepcultural.css": "/* Código CSS colocado aqui afectará os utilizadores do tema Banrepcultural */",
+	"banrepcultural.js": "/* Código Javascript colocado aqui será carregado para utilizadores do tema Banrepcultural */",
+	"banrepcultural-action-toggle-sidebar": "Alternar barra lateral",
+	"banrepcultural-action-addsection": "Adicionar&nbsp;tópico",
+	"banrepcultural-action-delete": "Eliminar",
+	"banrepcultural-action-move": "Mover",
+	"banrepcultural-action-protect": "Proteger",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Alterar proteção",
+	"banrepcultural-view-create": "Criar",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Ver histórico",
+	"banrepcultural-view-view": "Ler",
+	"banrepcultural-view-viewsource": "Ver fonte",
+	"banrepcultural-jumptonavigation": "Saltar para a navegação",
+	"banrepcultural-jumptosearch": "Saltar para a pesquisa",
+	"banrepcultural-more-actions": "Mais"
+}

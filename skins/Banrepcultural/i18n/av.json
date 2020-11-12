@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gazimagomedov",
+			"Умар"
+		]
+	},
+	"banrepcultural-skin-desc": "MonoBook'алъул цӀияб версия цияб куцгун ва цӀиял юзабилитиялгун",
+	"banrepcultural-action-addsection": "Тема жубазе",
+	"banrepcultural-action-delete": "БацIцIине",
+	"banrepcultural-action-move": "ЦӀар хисизе",
+	"banrepcultural-action-protect": "Хиса-басияздасан цIунизе",
+	"banrepcultural-action-undelete": "БукӀараб гӀадин гьабизе",
+	"banrepcultural-action-unprotect": "ЦӀуни хисизе",
+	"banrepcultural-view-create": "Гьабизе",
+	"banrepcultural-view-edit": "Хисизабизе",
+	"banrepcultural-view-history": "Тарих балагьизе",
+	"banrepcultural-view-view": "ЦӀализе",
+	"banrepcultural-view-viewsource": "Вики-текст балагьизе",
+	"banrepcultural-more-actions": "Жеги"
+}

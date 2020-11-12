@@ -1,0 +1,33 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kghbln",
+			"Metalhead64",
+			"The Evil IP address",
+			"Umherirrender"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Stellt eine modernisierte Benutzeroberfläche bereit",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Verwende Legacy-Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Im Laufe der nächsten Jahre werden wir den Banrepcultural-Skin schrittweise aktualisieren. Legacy-Banrepcultural wird es dir ermöglichen, die alte Version von Banrepcultural (Dezember 2019) anzusehen. Um mehr über die Aktualisierungen zu erfahren, gehe zu unserer  [[mw:Reading/Web/Desktop_Improvements|Projektseite]].",
+	"banrepcultural-opt-out": "Umschalten zum bisherigen Aussehen",
+	"banrepcultural-opt-out-tooltip": "Ändere deine Einstellungen, um zum alten Aussehen der Benutzeroberfläche zurückzukehren (Legacy-Banrepcultural)",
+	"banrepcultural.css": "/* Das folgende CSS wird für Benutzer der Banrepcultural-Benutzeroberfläche geladen. */",
+	"banrepcultural.js": "/* Das folgende JavaScript wird für Benutzer der Banrepcultural-Benutzeroberfläche geladen. */",
+	"banrepcultural-action-toggle-sidebar": "Seitenleiste umschalten",
+	"banrepcultural-action-addsection": "Abschnitt hinzufügen",
+	"banrepcultural-action-delete": "Löschen",
+	"banrepcultural-action-move": "Verschieben",
+	"banrepcultural-action-protect": "Schützen",
+	"banrepcultural-action-undelete": "Wiederherstellen",
+	"banrepcultural-action-unprotect": "Seitenschutz ändern",
+	"banrepcultural-view-create": "Erstellen",
+	"banrepcultural-view-edit": "Bearbeiten",
+	"banrepcultural-view-history": "Versionsgeschichte",
+	"banrepcultural-view-view": "Lesen",
+	"banrepcultural-view-viewsource": "Quelltext anzeigen",
+	"banrepcultural-jumptonavigation": "Zur Navigation springen",
+	"banrepcultural-jumptosearch": "Zur Suche springen",
+	"banrepcultural-more-actions": "Mehr"
+}

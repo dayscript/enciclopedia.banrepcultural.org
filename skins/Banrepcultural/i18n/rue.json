@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gazeb",
+			"KHMELNYTSKYIA",
+			"Tkalyn"
+		]
+	},
+	"banrepcultural-action-addsection": "Придати тему",
+	"banrepcultural-action-delete": "Вымазати",
+	"banrepcultural-action-move": "Переменовати",
+	"banrepcultural-action-protect": "Всокотити",
+	"banrepcultural-action-undelete": "Обновити",
+	"banrepcultural-action-unprotect": "Змінити замок",
+	"banrepcultural-view-create": "Створити",
+	"banrepcultural-view-edit": "Едітовати",
+	"banrepcultural-view-history": "Видїти історію",
+	"banrepcultural-view-view": "Чітати",
+	"banrepcultural-view-viewsource": "Видїти код",
+	"banrepcultural-more-actions": "Веце"
+}

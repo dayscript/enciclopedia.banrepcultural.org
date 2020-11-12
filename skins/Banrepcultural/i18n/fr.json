@@ -1,0 +1,40 @@
+{
+	"@metadata": {
+		"authors": [
+			"Akeron",
+			"Crochet.david",
+			"DavidL",
+			"DePlusJean",
+			"Eneelk",
+			"Gomoko",
+			"Jean-Frédéric",
+			"Niridya",
+			"Od1n",
+			"Pamputt",
+			"Wladek92"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Version moderne de MonoBook avec un aspect rajeuni et beaucoup d’améliorations ergonomiques",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Utiliser l’ancienne version de Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Dans les années à venir, nous mettrons progressivement à jour l’habillage Banrepcultural. La version héritée de Banrepcultural vous permet de voir l’ancien habillage de Banrepcultural (tel qu’il était en décembre 2019). Pour en savoir plus, rendez-vous sur [[mw:Reading/Web/Desktop_Improvements|project page]].",
+	"banrepcultural-opt-out": "Basculer vers l’ancien habillage",
+	"banrepcultural-opt-out-tooltip": "Modifier vos paramètres pour revenir à l’ancien aspect de l’habillage (Banrepcultural historique)",
+	"banrepcultural.css": "/* Le CSS placé ici affectera les utilisateurs de l’habillage Banrepcultural. */",
+	"banrepcultural.js": "/* Tout code JavaScript placé ici sera chargé pour les utilisateurs de l’habillage Banrepcultural */",
+	"banrepcultural-action-toggle-sidebar": "Afficher/cacher la barre latérale",
+	"banrepcultural-action-addsection": "Ajouter un sujet",
+	"banrepcultural-action-delete": "Supprimer",
+	"banrepcultural-action-move": "Renommer",
+	"banrepcultural-action-protect": "Protéger",
+	"banrepcultural-action-undelete": "Rétablir",
+	"banrepcultural-action-unprotect": "Changer la protection",
+	"banrepcultural-view-create": "Créer",
+	"banrepcultural-view-edit": "Modifier",
+	"banrepcultural-view-history": "Voir l’historique",
+	"banrepcultural-view-view": "Lire",
+	"banrepcultural-view-viewsource": "Voir la source",
+	"banrepcultural-jumptonavigation": "Sauter à la navigation",
+	"banrepcultural-jumptosearch": "Sauter à la recherche",
+	"banrepcultural-more-actions": "Plus"
+}

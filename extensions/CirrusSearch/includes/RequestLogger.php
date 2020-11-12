@@ -3,11 +3,11 @@
 namespace CirrusSearch;
 
 use DeferredUpdates;
-use MediaWiki\Logger\LoggerFactory;
 use ISearchResultSet;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\User\UserIdentity;
-use User;
 use UIDGenerator;
+use User;
 
 /**
  * Handles logging information about requests made to various destinations,
@@ -287,6 +287,7 @@ class RequestLogger {
 		// set came from. maybe :(
 		$allHitsByTitle = [];
 		foreach ( $allHits as $hit ) {
+			'@phan-var array $hit';
 			$allHitsByTitle[$hit['page_title']] = $hit;
 		}
 		$resultHits = [];
@@ -334,8 +335,13 @@ class RequestLogger {
 			$requestEvent['params'] = [];
 			// Make sure all params are string keys and values
 			foreach ( $webRequestValues as $k => $v ) {
-				if ( is_array( $v ) ) {
-					$v = implode( ',', $v );
+				if ( !is_scalar( $v ) ) {
+					// This is potentially a multi-dimensional array. JSON is
+					// perhaps not the best format, but this gives a good
+					// guarantee about always returning a string, and
+					// faithfully represents the variety of shapes request
+					// parameters can be parsed into.
+					$v = \FormatJson::encode( $v );
 				}
 				$k = $webrequest->normalizeUnicode( $k );
 				$requestEvent['params'][(string)$k] = (string)$v;

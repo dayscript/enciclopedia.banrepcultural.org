@@ -4,6 +4,7 @@ namespace CirrusSearch\Maintenance;
 
 use CirrusSearch\CirrusIntegrationTestCase;
 use CirrusSearch\HashSearchConfig;
+use ExtensionRegistry;
 
 /**
  * @covers \CirrusSearch\Maintenance\MappingConfigBuilder
@@ -14,7 +15,9 @@ class MappingConfigBuilderTest extends CirrusIntegrationTestCase {
 		$tests = [];
 		foreach ( CirrusIntegrationTestCase::findFixtures( 'mapping/*.config' ) as $testFile ) {
 			$testName = substr( basename( $testFile ), 0, -7 );
-			$buildClass = preg_match( '/\Q-archive.config\E$/', $testFile ) ? ArchiveMappingConfigBuilder::class : MappingConfigBuilder::class;
+			$buildClass = preg_match( '/\Q-archive.config\E$/', $testFile )
+				? ArchiveMappingConfigBuilder::class
+				: MappingConfigBuilder::class;
 			$extraConfig = CirrusIntegrationTestCase::loadFixture( $testFile );
 			$expectedFile = dirname( $testFile ) . "/$testName.expected";
 			$tests[$testName] = [ $expectedFile, $extraConfig, $buildClass ];
@@ -37,6 +40,7 @@ class MappingConfigBuilderTest extends CirrusIntegrationTestCase {
 			'GetContentModels' => [],
 			'SearchIndexFields' => [],
 		] );
+		$scopedCallback = ExtensionRegistry::getInstance()->setAttributeForTest( 'Hooks', [] );
 
 		$defaultConfig = [
 			'CirrusSearchSimilarityProfile' => 'bm25_with_defaults',

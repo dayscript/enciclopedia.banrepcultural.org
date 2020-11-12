@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Arlin",
+			"Sahran",
+			"Tel'et",
+			"Uzdil"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural.css": "/* CSS placed here will affect users of the Banrepcultural skin */",
+	"banrepcultural.js": "/* Any JavaScript here will be loaded for users using the Banrepcultural skin */",
+	"banrepcultural-action-addsection": "يېڭى تېما قوش",
+	"banrepcultural-action-delete": "ئۆچۈر",
+	"banrepcultural-action-move": "يۆتكە",
+	"banrepcultural-action-protect": "قوغدا",
+	"banrepcultural-action-undelete": "ئەسلىگە قايتۇر",
+	"banrepcultural-action-unprotect": "قوغداش ئۆزگەرت",
+	"banrepcultural-view-create": "قۇر",
+	"banrepcultural-view-edit": "تەھرىرلەش",
+	"banrepcultural-view-history": "تارىخ كۆرسەت",
+	"banrepcultural-view-view": "ئوقۇ",
+	"banrepcultural-view-viewsource": "مەنبەنى كۆرسەت",
+	"banrepcultural-more-actions": "تېخىمۇ كۆپ"
+}

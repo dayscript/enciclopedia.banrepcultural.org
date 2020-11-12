@@ -1,5 +1,7 @@
 <?php
 
+use Wikimedia\IPUtils;
+
 class SpecialRemoveGlobalBlock extends FormSpecialPage {
 	/** @var string */
 	private $ip;
@@ -28,7 +30,7 @@ class SpecialRemoveGlobalBlock extends FormSpecialPage {
 	public function onSubmit( array $data ) {
 		$this->ip = trim( $data['ipaddress'] );
 
-		if ( !IP::isIPAddress( $this->ip ) ) {
+		if ( !IPUtils::isIPAddress( $this->ip ) ) {
 			return Status::newFatal( $this->msg( 'globalblocking-unblock-ipinvalid', $this->ip ) );
 		}
 
@@ -41,7 +43,13 @@ class SpecialRemoveGlobalBlock extends FormSpecialPage {
 		$dbw->delete( 'globalblocks', [ 'gb_id' => $this->id ], __METHOD__ );
 
 		$page = new LogPage( 'gblblock' );
-		$page->addEntry( 'gunblock', Title::makeTitleSafe( NS_USER, $this->ip ), $data['reason'] );
+		$page->addEntry(
+			'gunblock',
+			Title::makeTitleSafe( NS_USER, $this->ip ),
+			$data['reason'],
+			[],
+			$this->getUser()
+		);
 
 		return Status::newGood();
 	}

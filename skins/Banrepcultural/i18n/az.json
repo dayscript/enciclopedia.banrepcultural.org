@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"AZISS",
+			"Arystanbek",
+			"Gulmammad",
+			"Sortilegus",
+			"Vago",
+			"Vugar 1981",
+			"Wertuose"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural.css": "/* Burada yerləşən CSS Banrepcultural istifadəçilərinə tətbiq olunur */",
+	"banrepcultural.js": "/* Burada Banrepcultural skin istifadəçiləri üçün istənilən JavaScript yüklənəcək */",
+	"banrepcultural-action-addsection": "Mövzu əlavə et",
+	"banrepcultural-action-delete": "Sil",
+	"banrepcultural-action-move": "Adını dəyişdir",
+	"banrepcultural-action-protect": "Mühafizə et",
+	"banrepcultural-action-undelete": "Bərpa et",
+	"banrepcultural-action-unprotect": "Mühafizəni kənarlaşdır",
+	"banrepcultural-view-create": "Yarat",
+	"banrepcultural-view-edit": "Redaktə",
+	"banrepcultural-view-history": "Tarixçəyə bax",
+	"banrepcultural-view-view": "Oxu",
+	"banrepcultural-view-viewsource": "Mənbəyə bax",
+	"banrepcultural-more-actions": "Daha"
+}

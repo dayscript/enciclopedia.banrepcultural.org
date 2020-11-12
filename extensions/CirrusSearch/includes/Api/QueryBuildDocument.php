@@ -2,12 +2,13 @@
 
 namespace CirrusSearch\Api;
 
-use CirrusSearch\Updater;
+use CirrusSearch\BuildDocument\BuildDocument;
+use CirrusSearch\CirrusSearch;
 use Mediawiki\MediaWikiServices;
 use WikiPage;
 
 /**
- * Dump stored CirrusSearch document for page.
+ * Generate CirrusSearch document for page.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,20 +33,31 @@ class QueryBuildDocument extends \ApiQueryBase {
 	}
 
 	public function execute() {
-		$conn = $this->getCirrusConnection();
 		$result = $this->getResult();
-		$engine = MediaWikiServices::getInstance()
-			->getSearchEngineFactory()
+		$services = MediaWikiServices::getInstance();
+		$engine = $services->getSearchEngineFactory()
 			->create( 'cirrus' );
 
-		if ( $engine instanceof \CirrusSearch ) {
+		if ( $engine instanceof CirrusSearch ) {
+			$pages = [];
 			foreach ( $this->getPageSet()->getGoodTitles() as $pageId => $title ) {
-				$page = new WikiPage( $title );
-				$doc = Updater::buildDocument( $engine, $page, $conn, false, false, true );
-				$result->addValue(
-					[ 'query', 'pages', $pageId ],
-					'cirrusbuilddoc', $doc->getData()
-				);
+				$pages[] = new WikiPage( $title );
+			}
+
+			$builder = new BuildDocument(
+				$this->getCirrusConnection(),
+				$this->getDB(),
+				$services->getParserCache(),
+				$services->getRevisionStore()
+			);
+			$docs = $builder->initialize( $pages, BuildDocument::INDEX_EVERYTHING );
+			foreach ( $docs as $pageId => $doc ) {
+				if ( $builder->finalize( $doc ) ) {
+					$result->addValue(
+						[ 'query', 'pages', $pageId ],
+						'cirrusbuilddoc', $doc->getData()
+					);
+				}
 			}
 		} else {
 			throw new \RuntimeException( 'Could not create cirrus engine' );

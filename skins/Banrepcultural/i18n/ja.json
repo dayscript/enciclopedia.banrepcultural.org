@@ -1,0 +1,35 @@
+{
+	"@metadata": {
+		"authors": [
+			"Fryed-peach",
+			"Marine-Blue",
+			"Otokoume",
+			"Penn Station",
+			"Shirayuki",
+			"Takot",
+			"Tmv",
+			"Whym",
+			"青子守歌"
+		]
+	},
+	"skinname-banrepcultural": "ベクター",
+	"banrepcultural-skin-desc": "新しい見た目でユーザビリティが改善された、モダンバージョンのMonobook。",
+	"banrepcultural-opt-out": "以前の外観に切り替え",
+	"banrepcultural.css": "/* ここに記述したCSSはベクター外装の利用者に影響します */",
+	"banrepcultural.js": "/* ここにあるすべてのJavaScriptは、ベクター外装を使用している利用者に対して読み込まれます */",
+	"banrepcultural-action-toggle-sidebar": "サイドバーの切り替え",
+	"banrepcultural-action-addsection": "話題追加",
+	"banrepcultural-action-delete": "削除",
+	"banrepcultural-action-move": "移動",
+	"banrepcultural-action-protect": "保護",
+	"banrepcultural-action-undelete": "復元",
+	"banrepcultural-action-unprotect": "保護再設定",
+	"banrepcultural-view-create": "作成",
+	"banrepcultural-view-edit": "編集",
+	"banrepcultural-view-history": "履歴表示",
+	"banrepcultural-view-view": "閲覧",
+	"banrepcultural-view-viewsource": "ソースを閲覧",
+	"banrepcultural-jumptonavigation": "ナビゲーションに移動",
+	"banrepcultural-jumptosearch": "検索に移動",
+	"banrepcultural-more-actions": "その他"
+}

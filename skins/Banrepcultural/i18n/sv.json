@@ -1,0 +1,35 @@
+{
+	"@metadata": {
+		"authors": [
+			"Lokal Profil",
+			"Martinwiss",
+			"Najami",
+			"Skalman",
+			"Sturban",
+			"WikiPhoenix"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Modern version av MonoBook med ett nytt utseende och flera användarvänlighetsförbättringar",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Använd gamla Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Under de nästkommande åren kommer vi gradvis uppdatera utseendet Banrepcultural. Gamla Banrepcultural kommer låta dig se den gamla version av Banrepcultural (fr.o.m. december 2019). För att läsa mer om uppdateringarna, gå till vår [[mw:Reading/Web/Desktop_Improvements|projektsida]].",
+	"banrepcultural-opt-out": "Byt till gamla utseendet",
+	"banrepcultural-opt-out-tooltip": "Ändra dina inställningar för att återgå till utseendets gamla design (gamla Banrepcultural)",
+	"banrepcultural.css": "/* CSS som skrivs här kommer att påverka alla användare av utseendet Banrepcultural */",
+	"banrepcultural.js": "/* JavaScript här kommer att laddas för dem som använder utseendet Banrepcultural */",
+	"banrepcultural-action-toggle-sidebar": "Visa/dölj sidofält",
+	"banrepcultural-action-addsection": "Nytt ämne",
+	"banrepcultural-action-delete": "Radera",
+	"banrepcultural-action-move": "Flytta",
+	"banrepcultural-action-protect": "Skrivskydda",
+	"banrepcultural-action-undelete": "Återställ",
+	"banrepcultural-action-unprotect": "Ändra skydd",
+	"banrepcultural-view-create": "Skapa",
+	"banrepcultural-view-edit": "Redigera",
+	"banrepcultural-view-history": "Visa historik",
+	"banrepcultural-view-view": "Läs",
+	"banrepcultural-view-viewsource": "Visa källa",
+	"banrepcultural-jumptonavigation": "Hoppa till navigering",
+	"banrepcultural-jumptosearch": "Hoppa till sök",
+	"banrepcultural-more-actions": "Mer"
+}

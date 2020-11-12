@@ -227,18 +227,15 @@ class SearchConfig implements \Config {
 
 	/**
 	 * Get chain of elements from config array
-	 * @suppress PhanCommentParamWithoutRealParam
 	 * @param string $configName
-	 * @param string $path,... list of path elements
+	 * @param string ...$path list of path elements
 	 * @return mixed Returns value or null if not present
 	 */
-	public function getElement( $configName ) {
+	public function getElement( $configName, ...$path ) {
 		if ( !$this->has( $configName ) ) {
 			return null;
 		}
 		$data = $this->get( $configName );
-		$path = func_get_args();
-		array_shift( $path );
 		foreach ( $path as $el ) {
 			if ( !isset( $data[$el] ) ) {
 				return null;
@@ -266,7 +263,7 @@ class SearchConfig implements \Config {
 	}
 
 	/**
-	 * @return true if cross project (same language) is enabled
+	 * @return bool if cross project (same language) is enabled
 	 */
 	public function isCrossProjectSearchEnabled() {
 		if ( $this->get( 'CirrusSearchEnableCrossProjectSearch' ) ) {
@@ -276,7 +273,7 @@ class SearchConfig implements \Config {
 	}
 
 	/**
-	 * @return true if cross language (same project) is enabled
+	 * @return bool if cross language (same project) is enabled
 	 */
 	public function isCrossLanguageSearchEnabled() {
 		if ( $this->get( 'CirrusSearchEnableAltLanguage' ) ) {

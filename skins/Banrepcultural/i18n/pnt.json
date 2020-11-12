@@ -1,0 +1,19 @@
+{
+	"@metadata": {
+		"authors": [
+			"Omnipaedista",
+			"Sinopeus",
+			"ZaDiak"
+		]
+	},
+	"banrepcultural-action-delete": "Σβήσον",
+	"banrepcultural-action-move": "Ετεροχλάεμαν",
+	"banrepcultural-action-protect": "Ασπάλιγμαν",
+	"banrepcultural-action-undelete": "Κλώσιμον",
+	"banrepcultural-action-unprotect": "Άνοιγμαν",
+	"banrepcultural-view-create": "Ποίσον",
+	"banrepcultural-view-edit": "Άλλαξον",
+	"banrepcultural-view-history": "Τερέστεν ιστορίαν",
+	"banrepcultural-view-view": "Δεάβασον",
+	"banrepcultural-view-viewsource": "Τερέστεν κωδικόν"
+}

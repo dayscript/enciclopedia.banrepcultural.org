@@ -1,3 +1,5 @@
+'use strict';
+
 const restify = require( 'restify' ),
 	Promise = require( 'bluebird' );
 
@@ -21,7 +23,7 @@ class Server {
 		};
 
 		this.server.post( '/tracker', function ( req, res, next ) {
-			let data = req.body;
+			const data = req.body;
 
 			if ( globals.resolvers[ data.complete ] ) {
 				// tag completed, resolve pending
@@ -72,7 +74,7 @@ class Server {
 }
 
 ( () => {
-	var server;
+	let server;
 	process.on( 'message', ( msg ) => {
 		if ( msg.config ) {
 			if ( server ) {

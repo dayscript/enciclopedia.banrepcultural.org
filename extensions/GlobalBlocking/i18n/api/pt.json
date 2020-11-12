@@ -1,7 +1,8 @@
 {
 	"@metadata": {
 		"authors": [
-			"Hamilton Abreu"
+			"Hamilton Abreu",
+			"Luan"
 		]
 	},
 	"apihelp-globalblock-description": "Bloquear ou desbloquear globalmente um utilizador.",

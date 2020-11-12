@@ -16,7 +16,7 @@ class QueryParserFactory {
 	/**
 	 * Get the default fulltext parser.
 	 * @param SearchConfig $config the host wiki config
-	 * @param NamespacePrefixParser|null $namespacePrefix
+	 * @param NamespacePrefixParser $namespacePrefix
 	 * @param SparqlClient|null $client
 	 * @return QueryParser
 	 * @throws ParsedQueryClassifierException
@@ -31,7 +31,8 @@ class QueryParserFactory {
 		$escaper = new Escaper( $config->get( 'LanguageCode' ), $config->get( 'CirrusSearchAllowLeadingWildcard' ) );
 		$repository = new FTQueryClassifiersRepository( $config );
 		return new QueryStringRegexParser( new FullTextKeywordRegistry( $config, $namespacePrefix, $client ),
-			$escaper, $config->get( 'CirrusSearchStripQuestionMarks' ), $repository, $namespacePrefix );
+			$escaper, $config->get( 'CirrusSearchStripQuestionMarks' ), $repository, $namespacePrefix,
+			$config->get( "CirrusSearchMaxFullTextQueryLength" ) );
 	}
 
 }

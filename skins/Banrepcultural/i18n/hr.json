@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"BadDog",
+			"Bugoslav",
+			"Ex13",
+			"MaGa",
+			"Neptune, the Mystic",
+			"Tivek"
+		]
+	},
+	"banrepcultural-skin-desc": "Osuvremenjena inačica MonoBooka s obnovljenim dizajnom i mnogim poboljšanjima u upotrebljivosti",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Rabi stari (baštinjeni) izgled imena Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Tijekom nekoliko godina osvježavat će se izgled sučelja imena Banrepcultural. Baštinjeni Banrepcultural omogućit će Vam upotrebu pregleda starije inačice Banrepculturala (do mjeseca prosinca 2019.). Ako želite saznati više o tehnološkome osuvremenjivanju posjetite naše [[mw:Reading/Web/Desktop_Improvements|stranice projekta na MedijaWikiju]].",
+	"banrepcultural-opt-out": "Prebaci na stari izgled",
+	"banrepcultural-action-addsection": "Dodaj temu",
+	"banrepcultural-action-delete": "Izbriši",
+	"banrepcultural-action-move": "Premjesti",
+	"banrepcultural-action-protect": "Zaštiti",
+	"banrepcultural-action-undelete": "Vrati izbrisano",
+	"banrepcultural-action-unprotect": "Promijeni zaštitu",
+	"banrepcultural-view-create": "Stvori",
+	"banrepcultural-view-edit": "Uredi",
+	"banrepcultural-view-history": "Vidi povijest",
+	"banrepcultural-view-view": "Čitaj",
+	"banrepcultural-view-viewsource": "Vidi izvor",
+	"banrepcultural-jumptonavigation": "Prijeđi na navigaciju",
+	"banrepcultural-jumptosearch": "Prijeđi na pretraživanje",
+	"banrepcultural-more-actions": "Više"
+}

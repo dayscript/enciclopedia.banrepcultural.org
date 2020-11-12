@@ -41,7 +41,7 @@ class Util {
 	private static $defaultBoostTemplates = null;
 
 	/**
-	 * @var string Id identifying this php execution
+	 * @var string|null Id identifying this php execution
 	 */
 	private static $executionId;
 
@@ -267,7 +267,7 @@ class Util {
 	 * @return float[]
 	 */
 	public static function getDefaultBoostTemplates( SearchConfig $config = null ) {
-		if ( is_null( $config ) ) {
+		if ( $config === null ) {
 			$config = MediaWikiServices::getInstance()->getConfigFactory()->makeConfig( 'CirrusSearch' );
 		}
 
@@ -439,15 +439,17 @@ class Util {
 	}
 
 	/**
-	 * @return string The context the request is in. Either cli, api or web.
+	 * @return string The context the request is in. Either cli, api, web or misc.
 	 */
 	public static function getExecutionContext() {
-		if ( PHP_SAPI === 'cli' || defined( 'MEDIAWIKI_JOB_RUNNER' ) ) {
+		if ( PHP_SAPI === 'cli' ) {
 			return 'cli';
-		} elseif ( defined( 'MW_API' ) ) {
+		} elseif ( MW_ENTRY_POINT == 'api' ) {
 			return 'api';
-		} else {
+		} elseif ( MW_ENTRY_POINT == 'index' ) {
 			return 'web';
+		} else {
+			return 'misc';
 		}
 	}
 
@@ -469,13 +471,15 @@ class Util {
 		$normalizer = null;
 		if ( $method === 'naive' ) {
 			if ( $naive === null ) {
-				$naive = \Transliterator::createFromRules( '::NFD;::Upper;::Lower;::[:Nonspacing Mark:] Remove;::NFC;[\_\-\'\u2019\u02BC]>\u0020;' );
+				$naive = \Transliterator::createFromRules(
+					'::NFD;::Upper;::Lower;::[:Nonspacing Mark:] Remove;::NFC;[\_\-\'\u2019\u02BC]>\u0020;'
+				);
 			}
 			$normalizer = $naive;
 		} elseif ( $method === 'utr30' ) {
 			if ( $utr30 === null ) {
 				$utr30 =
-				$normalizer = \Transliterator::createFromRules( file_get_contents( __DIR__ . '/../data/utr30.txt', "r" ) );
+				$normalizer = \Transliterator::createFromRules( file_get_contents( __DIR__ . '/../data/utr30.txt' ) );
 			}
 			$normalizer = $utr30;
 		}

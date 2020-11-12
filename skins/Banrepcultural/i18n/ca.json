@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Abella",
+			"Aleator",
+			"Anskar",
+			"Calak",
+			"Fitoschido",
+			"Paucabot",
+			"Ssola",
+			"Toniher",
+			"Townie",
+			"Vriullop"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versió moderna del MonoBook amb un nou aspesctes i moltes millores en la usabilitat",
+	"banrepcultural-action-addsection": "Afegeix un tema",
+	"banrepcultural-action-delete": "Esborra",
+	"banrepcultural-action-move": "Reanomena",
+	"banrepcultural-action-protect": "Protegeix",
+	"banrepcultural-action-undelete": "Restaura",
+	"banrepcultural-action-unprotect": "Desprotegeix",
+	"banrepcultural-view-create": "Crea",
+	"banrepcultural-view-edit": "Modifica",
+	"banrepcultural-view-history": "Mostra l'historial",
+	"banrepcultural-view-view": "Mostra",
+	"banrepcultural-view-viewsource": "Mostra el codi",
+	"banrepcultural-jumptonavigation": "Salta a la navegació",
+	"banrepcultural-jumptosearch": "Salta a la cerca",
+	"banrepcultural-more-actions": "Més"
+}

@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Bhawani Gautam",
+			"RajeshPandey",
+			"बिप्लब आनन्द",
+			"राम प्रसाद जोशी",
+			"सरोज कुमार ढकाल"
+		]
+	},
+	"skinname-banrepcultural": "भेक्टर",
+	"banrepcultural.css": "/* यहाँ राखिएको CSS ले भेक्टर स्किनको प्रयोगकर्ताहरूलाई प्रभावित गर्ने छ  */",
+	"banrepcultural-action-addsection": "विषय थप्नुहोस",
+	"banrepcultural-action-delete": "हटाउने",
+	"banrepcultural-action-move": "सार्ने",
+	"banrepcultural-action-protect": "सुरक्षित गर्ने",
+	"banrepcultural-action-undelete": "हटाएको रद्द गर्ने",
+	"banrepcultural-action-unprotect": "सुरक्षा परिवर्तन गर्ने",
+	"banrepcultural-view-create": "सृजना गर्ने",
+	"banrepcultural-view-edit": "सम्पादन",
+	"banrepcultural-view-history": "इतिहास हेर्ने",
+	"banrepcultural-view-view": "पढ्ने",
+	"banrepcultural-view-viewsource": "स्रोत हेर्ने",
+	"banrepcultural-more-actions": "थप"
+}

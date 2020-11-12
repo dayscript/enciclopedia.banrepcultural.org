@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Itsmine",
+			"Justincheng12345",
+			"Nemo bis"
+		]
+	},
+	"skinname-banrepcultural": "動力",
+	"banrepcultural.css": "/* 此之 CSS 用於動力面之簿也 */",
+	"banrepcultural.js": "/* 此之JavaScript將載於用動力面之簿 */",
+	"banrepcultural-action-addsection": "入題",
+	"banrepcultural-action-delete": "刪",
+	"banrepcultural-action-move": "遷",
+	"banrepcultural-action-protect": "緘",
+	"banrepcultural-action-undelete": "覽刪",
+	"banrepcultural-action-unprotect": "啟",
+	"banrepcultural-view-create": "立",
+	"banrepcultural-view-edit": "纂",
+	"banrepcultural-view-history": "覽史",
+	"banrepcultural-view-view": "閱",
+	"banrepcultural-view-viewsource": "覽源",
+	"banrepcultural-more-actions": "餘"
+}

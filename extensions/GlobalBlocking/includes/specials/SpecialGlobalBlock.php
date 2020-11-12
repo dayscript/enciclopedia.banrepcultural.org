@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Block\DatabaseBlock;
+use Wikimedia\IPUtils;
 
 class SpecialGlobalBlock extends FormSpecialPage {
 	/**
@@ -43,11 +44,11 @@ class SpecialGlobalBlock extends FormSpecialPage {
 			$address = trim( $this->getRequest()->getText( 'wpAddress' ) );
 		}
 
-		if ( IP::isValidRange( $address ) ) {
-			$this->address = IP::sanitizeRange( $address );
+		if ( IPUtils::isValidRange( $address ) ) {
+			$this->address = IPUtils::sanitizeRange( $address );
 		} else {
 			// This catches invalid IPs too but we'll reject them at form submission.
-			$this->address = IP::sanitizeIP( $address );
+			$this->address = IPUtils::sanitizeIP( $address );
 		}
 	}
 
@@ -108,7 +109,7 @@ class SpecialGlobalBlock extends FormSpecialPage {
 			],
 			'Reason' => [
 				'type' => 'selectandother',
-				'maxlength' => 255,
+				'maxlength' => CommentStore::COMMENT_CHARACTER_LIMIT,
 				'label-message' => 'globalblocking-block-reason',
 				'id' => 'mw-globalblock-reason',
 				'options-message' => 'globalblocking-block-reason-dropdown',
@@ -145,6 +146,12 @@ class SpecialGlobalBlock extends FormSpecialPage {
 				'type' => 'check',
 				'label-message' => 'globalblocking-also-local',
 				'id' => 'mw-globalblock-local',
+			];
+			$fields['AlsoLocalTalk'] = [
+				'type' => 'check',
+				'label-message' => 'globalblocking-also-local-talk',
+				'id' => 'mw-globalblock-local-talk',
+				'hide-if' => [ '!==', 'wpAlsoLocal', '1' ],
 			];
 		}
 
@@ -233,11 +240,11 @@ class SpecialGlobalBlock extends FormSpecialPage {
 			$block = new DatabaseBlock();
 			$block->setTarget( $this->address );
 			$block->setBlocker( $user );
-			$block->mReason = $data['Reason'][0];
-			$block->mExpiry = SpecialBlock::parseExpiryInput( $data['Expiry'] );
+			$block->setReason( $data['Reason'][0] );
+			$block->setExpiry( SpecialBlock::parseExpiryInput( $data['Expiry'] ) );
 			$block->isHardblock( !$data['AnonOnly'] );
 			$block->isCreateAccountBlocked( true );
-			$block->isUsertalkEditAllowed( false ); // Consistent with the global block.
+			$block->isUsertalkEditAllowed( !$data['AlsoLocalTalk'] );
 
 			$blockSuccess = $block->insert();
 
@@ -248,8 +255,12 @@ class SpecialGlobalBlock extends FormSpecialPage {
 					$flags[] = 'anononly';
 				}
 				$flags[] = 'nocreate';
-				if ( $this->getConfig()->get( 'BlockAllowsUTEdit' ) ) {
+				if (
 					// Add this flag only if config is true for consistency with core
+					$this->getConfig()->get( 'BlockAllowsUTEdit' ) &&
+					// Only if the block really blocks talk page
+					$data['AlsoLocalTalk']
+				) {
 					$flags[] = 'nousertalk';
 				}
 

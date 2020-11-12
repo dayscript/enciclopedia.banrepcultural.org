@@ -152,7 +152,7 @@
                                 "must": [
                                     {
                                         "match": {
-                                            "template": {
+                                            "template.keyword": {
                                                 "query": "Talk:TalkTemplate"
                                             }
                                         }
@@ -233,6 +233,7 @@
             ],
             "size": 21,
             "stats": [
+                "complex_query",
                 "filter_only",
                 "full_text",
                 "hastemplate"

@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Amire80",
+			"Guycn2",
+			"Rotemliss"
+		]
+	},
+	"skinname-banrepcultural": "וקטור",
+	"banrepcultural-skin-desc": "גרסה מודרנית של העיצוב \"מונובוק\" עם מראה רענן ושיפורי שמישות רבים",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "להשתמש בעיצוב וקטור הישן",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "בשנים הקרובות נעדכן בהדרגה את עיצוב וקטור. עיצוב וקטור הישן יאפשר לך לראות את הגרסה הישנה של וקטור (כפי שהיא הייתה בדצמבר 2019). למידע נוסף על העדכונים, ר' את [[mw:Reading/Web/Desktop_Improvements|דף הפרויקט שלנו]].",
+	"banrepcultural-opt-out": "מעבר למראה הישן",
+	"banrepcultural-opt-out-tooltip": "שינוי ההעדפות שלך וחזרה למראה הישן של העיצוב (וקטור ישן)",
+	"banrepcultural.css": "/* הסגנונות הנכתבים כאן ישפיעו על העיצוב \"וקטור\" בלבד */",
+	"banrepcultural.js": "/* כל הסקריפטים הנכתבים כאן ייטענו עבור מי שמשתמש בעיצוב \"וקטור\" בלבד */",
+	"banrepcultural-action-toggle-sidebar": "שינוי מצב סרגל צד",
+	"banrepcultural-action-addsection": "פסקה חדשה",
+	"banrepcultural-action-delete": "מחיקה",
+	"banrepcultural-action-move": "העברה",
+	"banrepcultural-action-protect": "הגנה",
+	"banrepcultural-action-undelete": "שחזור",
+	"banrepcultural-action-unprotect": "שינוי הגנה",
+	"banrepcultural-view-create": "יצירה",
+	"banrepcultural-view-edit": "עריכה",
+	"banrepcultural-view-history": "גרסאות קודמות",
+	"banrepcultural-view-view": "קריאה",
+	"banrepcultural-view-viewsource": "הצגת מקור",
+	"banrepcultural-jumptonavigation": "קפיצה לניווט",
+	"banrepcultural-jumptosearch": "קפיצה לחיפוש",
+	"banrepcultural-more-actions": "עוד"
+}

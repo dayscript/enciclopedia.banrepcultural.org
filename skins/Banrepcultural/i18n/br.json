@@ -1,0 +1,26 @@
+{
+	"@metadata": {
+		"authors": [
+			"Fulup",
+			"Y-M D"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Stumm modern MonoBook freskaet e dres hag enni meur a wellaenn implijout",
+	"banrepcultural-opt-out": "Distreiñ d'an tres kozh",
+	"banrepcultural-opt-out-tooltip": "Kemmañ hoc'h arventennoù evit distreiñ da dres kozh ar gwiskadur (Banrepcultural istorel)",
+	"banrepcultural.css": "/* Talvezout a raio ar CSS lakaet amañ evit implijerien ar gwiskadur Vektor */",
+	"banrepcultural.js": "/* Kement JavaScript amañ a vo karget evit an implijerien a ra gant ar gwiskadur Vektor */",
+	"banrepcultural-action-addsection": "Rannbennad nevez",
+	"banrepcultural-action-delete": "Diverkañ",
+	"banrepcultural-action-move": "Adenvel",
+	"banrepcultural-action-protect": "Gwareziñ",
+	"banrepcultural-action-undelete": "Diziverkañ",
+	"banrepcultural-action-unprotect": "Cheñch gwarez",
+	"banrepcultural-view-create": "Krouiñ",
+	"banrepcultural-view-edit": "Kemmañ",
+	"banrepcultural-view-history": "Gwelet an istor",
+	"banrepcultural-view-view": "Lenn",
+	"banrepcultural-view-viewsource": "Sellet ouzh tarzh an destenn",
+	"banrepcultural-more-actions": "Muioc'h"
+}

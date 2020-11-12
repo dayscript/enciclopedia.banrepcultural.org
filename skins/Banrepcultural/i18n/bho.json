@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ganesh",
+			"Nepaboy",
+			"SatyamMishra"
+		]
+	},
+	"banrepcultural-action-addsection": "बिसय जोड़ीं",
+	"banrepcultural-action-delete": "मिटाईं",
+	"banrepcultural-action-move": "स्थानांतरण",
+	"banrepcultural-action-protect": "सुरक्षित करीं",
+	"banrepcultural-action-undelete": "मत मिटाईं",
+	"banrepcultural-action-unprotect": "सुरक्षा बदलीं",
+	"banrepcultural-view-create": "बनाईं",
+	"banrepcultural-view-edit": "संपादन",
+	"banrepcultural-view-history": "इतिहास देखीं",
+	"banrepcultural-view-view": "पढ़ीं",
+	"banrepcultural-view-viewsource": "स्रोत देखीं",
+	"banrepcultural-more-actions": "अधिका"
+}

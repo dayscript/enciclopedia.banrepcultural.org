@@ -6,12 +6,12 @@ use CirrusSearch\CrossSearchStrategy;
 use CirrusSearch\Extra\Query\SourceRegex;
 use CirrusSearch\Parser\AST\KeywordFeatureNode;
 use CirrusSearch\Query\Builder\QueryBuildingContext;
-use CirrusSearch\Search\Fetch\HighlightedField;
 use CirrusSearch\Search\Fetch\FetchPhaseConfigBuilder;
+use CirrusSearch\Search\Fetch\HighlightedField;
 use CirrusSearch\Search\Fetch\HighlightFieldGenerator;
-use CirrusSearch\SearchConfig;
 use CirrusSearch\Search\Filters;
 use CirrusSearch\Search\SearchContext;
+use CirrusSearch\SearchConfig;
 use CirrusSearch\WarningCollector;
 use Elastica\Query\AbstractQuery;
 use Wikimedia\Assert\Assert;
@@ -147,7 +147,7 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 	 * @param string $key
 	 * @param string $value
 	 * @param string $quotedValue
-	 * @param string $negated
+	 * @param bool $negated
 	 * @param string $delimiter
 	 * @param string $suffix
 	 * @return array
@@ -158,6 +158,7 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 			if ( !$this->enabled ) {
 				return [ null, false ];
 			}
+			'@phan-var array $parsedValue';
 			$pattern = $parsedValue['pattern'];
 			$insensitive = $parsedValue['insensitive'];
 
@@ -180,6 +181,7 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 			if ( !$this->enabled ) {
 				return null;
 			}
+			'@phan-var array $parsedValue';
 			$pattern = $parsedValue['pattern'];
 			$insensitive = $parsedValue['insensitive'];
 			return $this->buildRegexQuery( $pattern, $insensitive );
@@ -195,8 +197,9 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 		$parsedValue = $node->getParsedValue();
 		if ( $this->isRegexQuery( $parsedValue ) ) {
 			if ( !$this->enabled ) {
-				return null;
+				return [];
 			}
+			'@phan-var array $parsedValue';
 			$pattern = $parsedValue['pattern'];
 			$insensitive = $parsedValue['insensitive'];
 			return $this->doGetRegexHLFields( $context->getHighlightFieldGenerator(), $pattern, $insensitive );
@@ -269,8 +272,8 @@ abstract class BaseRegexFeature extends SimpleKeywordFeature implements FilterQu
 			$filter = new SourceRegex( $pattern, $field, $field . '.trigram' );
 			// set some defaults
 			$filter->setMaxDeterminizedStates( $this->maxDeterminizedStates );
-			if ( isset( $this->regexPlugin['max_ngrams_extracted'] ) ) {
-				$filter->setMaxNgramsExtracted( $this->regexPlugin['max_ngrams_extracted'] );
+			if ( isset( $this->regexPlugin['max_ngrams_extracted'] ) && is_numeric( $this->regexPlugin['max_ngrams_extracted'] ) ) {
+				$filter->setMaxNgramsExtracted( (int)$this->regexPlugin['max_ngrams_extracted'] );
 			}
 			if ( isset( $this->regexPlugin['max_ngram_clauses'] ) && is_numeric( $this->regexPlugin['max_ngram_clauses'] ) ) {
 				$filter->setMaxNgramClauses( (int)$this->regexPlugin['max_ngram_clauses'] );

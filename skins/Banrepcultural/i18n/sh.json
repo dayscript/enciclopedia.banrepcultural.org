@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"BadDog",
+			"Conquistador",
+			"OC Ripper",
+			"Srdjan m"
+		]
+	},
+	"banrepcultural-action-addsection": "Dodaj temu",
+	"banrepcultural-action-delete": "Brisanje",
+	"banrepcultural-action-move": "Premjesti",
+	"banrepcultural-action-protect": "Zaštiti",
+	"banrepcultural-action-undelete": "Vrati obrisano",
+	"banrepcultural-action-unprotect": "Promijeni zaštitu",
+	"banrepcultural-view-create": "Napravi",
+	"banrepcultural-view-edit": "Uredi",
+	"banrepcultural-view-history": "Historija/Историја",
+	"banrepcultural-view-view": "Čitaj",
+	"banrepcultural-view-viewsource": "Vidi izvor (source)",
+	"banrepcultural-more-actions": "Više"
+}

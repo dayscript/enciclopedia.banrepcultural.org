@@ -3,10 +3,10 @@
 namespace CirrusSearch;
 
 use CirrusSearch\Search\SearchMetricsProvider;
+use ISearchResultSet;
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\User\UserIdentity;
 use RequestContext;
-use ISearchResultSet;
 use Status;
 use Wikimedia\Assert\Assert;
 
@@ -81,7 +81,7 @@ abstract class ElasticsearchIntermediary {
 	 */
 	protected function __construct( Connection $connection, UserIdentity $user = null, $slowSeconds = null, $extraBackendLatency = 0 ) {
 		$this->connection = $connection;
-		if ( is_null( $user ) ) {
+		if ( $user === null ) {
 			$user = RequestContext::getMain()->getUser();
 		}
 		$this->user = $user ?? RequestContext::getMain()->getUser();
@@ -273,6 +273,7 @@ abstract class ElasticsearchIntermediary {
 	/**
 	 * Log the completion of a request to Elasticsearch.
 	 *
+	 * @param Connection $connection
 	 * @return RequestLog|null The log for the finished request, or null if no
 	 * request was started.
 	 */

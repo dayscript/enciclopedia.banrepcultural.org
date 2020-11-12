@@ -2,10 +2,11 @@
 
 namespace CirrusSearch\Search;
 
-use SearchEngine;
-use SearchIndexFieldDefinition;
-use SearchIndexField;
+use CirrusSearch\CirrusSearch;
 use CirrusSearch\SearchConfig;
+use SearchEngine;
+use SearchIndexField;
+use SearchIndexFieldDefinition;
 
 /**
  * Basic ElasticSearch index field
@@ -66,7 +67,7 @@ abstract class CirrusIndexField extends SearchIndexFieldDefinition {
 	 * @return array
 	 */
 	public function getMapping( SearchEngine $engine ) {
-		if ( !( $engine instanceof \CirrusSearch ) ) {
+		if ( !( $engine instanceof CirrusSearch ) ) {
 			throw new \LogicException( "Cannot map CirrusSearch fields for another engine." );
 		}
 
@@ -125,6 +126,22 @@ abstract class CirrusIndexField extends SearchIndexFieldDefinition {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Set the hint named $hint
+	 *
+	 * @param \Elastica\Param $doc
+	 * @param string $hint name of the hint
+	 * @param mixed $value the hint value
+	 */
+	public static function setHint( \Elastica\Param $doc, $hint, $value ) {
+		$params = [];
+		if ( $doc->hasParam( self::DOC_HINT_PARAM ) ) {
+			$params = $doc->getParam( self::DOC_HINT_PARAM );
+		}
+		$params[$hint] = $value;
+		$doc->setParam( self::DOC_HINT_PARAM, $params );
 	}
 
 	/**

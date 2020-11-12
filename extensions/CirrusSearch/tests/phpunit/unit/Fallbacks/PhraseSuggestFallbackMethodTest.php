@@ -7,6 +7,7 @@ use CirrusSearch\HashSearchConfig;
 use CirrusSearch\Search\CirrusSearchResultSet;
 use CirrusSearch\Search\SearchQueryBuilder;
 use CirrusSearch\Test\DummySearchResultSet;
+use HtmlArmor;
 
 /**
  * @covers \CirrusSearch\Fallbacks\PhraseSuggestFallbackMethod
@@ -50,8 +51,9 @@ class PhraseSuggestFallbackMethodTest extends BaseFallbackMethodTest {
 			->build();
 
 		$rewrittenResults = $rewritten ? DummySearchResultSet::fakeTotalHits( $this->newTitleHelper(), 1 ) : null;
-		$rewrittenQuery = $rewritten ? SearchQueryBuilder::forRewrittenQuery( $query, $suggestion, $this->namespacePrefixParser() )
-			->build() : null;
+		$rewrittenQuery = $rewritten
+			? SearchQueryBuilder::forRewrittenQuery( $query, $suggestion, $this->namespacePrefixParser() )->build()
+			: null;
 		$searcherFactory = $this->getSearcherFactoryMock( $rewrittenQuery, $rewrittenResults );
 		$fallback = PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] );
 		if ( $expectedApproxScore > 0.0 ) {
@@ -60,14 +62,24 @@ class PhraseSuggestFallbackMethodTest extends BaseFallbackMethodTest {
 		$context = new FallbackRunnerContextImpl( $initialResults, $searcherFactory, $this->namespacePrefixParser() );
 		$this->assertEquals( $expectedApproxScore, $fallback->successApproximation( $context ) );
 		if ( $expectedApproxScore > 0 ) {
-			$actualNewResults = $fallback->rewrite( $context );
+			$status = $fallback->rewrite( $context );
+			$actualNewResults = $status->apply( $initialResults );
 			if ( $rewrittenResults === null ) {
+				$this->assertEquals(
+					$suggestion === null ? FallbackStatus::NO_ACTION : FallbackStatus::ACTION_SUGGEST_QUERY,
+					$status->getAction() );
 				$this->assertSame( $initialResults, $actualNewResults );
 				$this->assertNull( $actualNewResults->getQueryAfterRewrite() );
 				$this->assertNull( $actualNewResults->getQueryAfterRewriteSnippet() );
+				$this->assertSame( $suggestion, $actualNewResults->getSuggestionQuery() );
+				$this->assertEquals( new HtmlArmor( $suggestionSnippet ),
+					$actualNewResults->getSuggestionSnippet() );
 			} else {
-				$this->assertEquals( $initialResults->getSuggestionQuery(), $rewrittenResults->getQueryAfterRewrite() );
-				$this->assertEquals( $initialResults->getSuggestionSnippet(), $rewrittenResults->getQueryAfterRewriteSnippet() );
+				$this->assertSame( FallbackStatus::ACTION_REPLACE_LOCAL_RESULTS, $status->getAction
+				() );
+				$this->assertSame( $suggestion, $rewrittenResults->getQueryAfterRewrite() );
+				$this->assertEquals( new HtmlArmor( $suggestionSnippet ),
+					$rewrittenResults->getQueryAfterRewriteSnippet() );
 				$this->assertSame( $rewrittenResults, $actualNewResults );
 			}
 		}
@@ -95,8 +107,20 @@ class PhraseSuggestFallbackMethodTest extends BaseFallbackMethodTest {
 	/**
 	 * @dataProvider provideTestSuggestQueries
 	 */
-	public function testSuggestQuery( $expectedFile, $query, $namespaces, $offset, $withDYMSuggestion, $profile, $config ) {
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( $this->newHashSearchConfig( $config ), $query, $this->namespacePrefixParser() )
+	public function testSuggestQuery(
+		$expectedFile,
+		$query,
+		$namespaces,
+		$offset,
+		$withDYMSuggestion,
+		$profile,
+		$config
+	) {
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				$this->newHashSearchConfig( $config ),
+				$query,
+				$this->namespacePrefixParser()
+			)
 			->setInitialNamespaces( $namespaces )
 			->setOffset( $offset )
 			->setWithDYMSuggestion( $withDYMSuggestion )
@@ -115,30 +139,47 @@ class PhraseSuggestFallbackMethodTest extends BaseFallbackMethodTest {
 	}
 
 	public function testBuild() {
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( new HashSearchConfig( [] ), 'foo bar', $this->namespacePrefixParser() )
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				new HashSearchConfig( [] ),
+				'foo bar',
+				$this->namespacePrefixParser()
+			)
 			->setWithDYMSuggestion( false )
 			->build();
 		$this->assertNull( PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] ) );
 
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( new HashSearchConfig( [] ), 'foo bar', $this->namespacePrefixParser() )
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				new HashSearchConfig( [] ),
+				'foo bar',
+				$this->namespacePrefixParser()
+			)
 			->setWithDYMSuggestion( true )
 			->build();
 		$this->assertNull( PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] ) );
 
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => false ] ), 'foo bar',
-				$this->namespacePrefixParser() )
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => false ] ),
+				'foo bar',
+				$this->namespacePrefixParser()
+			)
 			->setWithDYMSuggestion( true )
 			->build();
 		$this->assertNull( PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] ) );
 
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => true ] ), 'foo bar',
-				$this->namespacePrefixParser() )
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => true ] ),
+				'foo bar',
+				$this->namespacePrefixParser()
+			)
 			->setWithDYMSuggestion( true )
 			->build();
 		$this->assertNotNull( PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] ) );
 
-		$query = SearchQueryBuilder::newFTSearchQueryBuilder( new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => true ] ), 'foo bar',
-				$this->namespacePrefixParser() )
+		$query = SearchQueryBuilder::newFTSearchQueryBuilder(
+				new HashSearchConfig( [ 'CirrusSearchEnablePhraseSuggest' => true ] ),
+				'foo bar',
+				$this->namespacePrefixParser()
+			)
 			->setWithDYMSuggestion( false )
 			->build();
 		$this->assertNull( PhraseSuggestFallbackMethod::build( $query, [ 'profile' => 'default' ] ) );
@@ -161,18 +202,18 @@ class PhraseSuggestFallbackMethodTest extends BaseFallbackMethodTest {
 
 		$rset = DummySearchResultSet::fakeTotalHits( $this->newTitleHelper(), 10 );
 		$rset->setSuggestionQuery( "test", "test" );
-		$factory = $this->getMock( SearcherFactory::class );
+		$factory = $this->createMock( SearcherFactory::class );
 		$factory->expects( $this->never() )->method( 'makeSearcher' );
 		$context = new FallbackRunnerContextImpl( $rset, $factory, $this->namespacePrefixParser() );
 		$method->rewrite( $context );
 		$this->assertTrue( $context->costlyCallAllowed() );
 
 		$rset = DummySearchResultSet::fakeTotalHits( $this->newTitleHelper(), 10 );
-		$factory = $this->getMock( SearcherFactory::class );
+		$factory = $this->createMock( SearcherFactory::class );
 		$factory->expects( $this->never() )->method( 'makeSearcher' );
 		$context = new FallbackRunnerContextImpl( $rset, $factory, $this->namespacePrefixParser() );
 		$this->assertTrue( $context->costlyCallAllowed() );
 		$rset->setRewrittenQuery( "test", "test" );
-		$this->assertSame( $rset, $method->rewrite( $context ) );
+		$this->assertEquals( FallbackStatus::NO_ACTION, $method->rewrite( $context )->getAction() );
 	}
 }

@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"Banjo",
+			"Elisardojm",
+			"Toliño",
+			"Vivaelcelta"
+		]
+	},
+	"banrepcultural-skin-desc": "Versión moderna da aparencia MonoBook, cun aspecto actualizado e moitas melloras na usabilidade",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Usar Banrepcultural Legacy",
+	"banrepcultural.css": "/* O CSS que se coloque aquí afectará a quen use a aparencia Banrepcultural */",
+	"banrepcultural.js": "/* Calquera JavaScript que haxa aquí será cargado para os usuarios que usen a aparencia Banrepcultural */",
+	"banrepcultural-action-addsection": "Nova sección",
+	"banrepcultural-action-delete": "Borrar",
+	"banrepcultural-action-move": "Mover",
+	"banrepcultural-action-protect": "Protexer",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Cambiar a protección",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Ver o historial",
+	"banrepcultural-view-view": "Ler",
+	"banrepcultural-view-viewsource": "Ver o código fonte",
+	"banrepcultural-jumptonavigation": "Saltar ata a navegación",
+	"banrepcultural-jumptosearch": "Saltar á procura",
+	"banrepcultural-more-actions": "Máis"
+}

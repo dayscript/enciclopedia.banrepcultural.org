@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Arystanbek",
+			"Daniyar",
+			"GaiJin",
+			"Kaztrans"
+		]
+	},
+	"banrepcultural-action-addsection": "Тақырып қосу",
+	"banrepcultural-action-delete": "Жою",
+	"banrepcultural-action-move": "Атауын өзгерту",
+	"banrepcultural-action-protect": "Қорғау",
+	"banrepcultural-action-undelete": "Жоюды болдырмау",
+	"banrepcultural-action-unprotect": "Қорғанысын өзгерту",
+	"banrepcultural-view-create": "Бастау",
+	"banrepcultural-view-edit": "Өңдеу",
+	"banrepcultural-view-history": "Өңделу тарихы",
+	"banrepcultural-view-view": "Оқу",
+	"banrepcultural-view-viewsource": "Қайнарын қарау",
+	"banrepcultural-more-actions": "Тағы"
+}

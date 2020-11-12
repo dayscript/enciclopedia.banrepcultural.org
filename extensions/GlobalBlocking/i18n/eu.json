@@ -4,12 +4,12 @@
 			"An13sa",
 			"Joxemai",
 			"Kobazulo",
-			"Xabier Armendaritz",
-			"Subi"
+			"Subi",
+			"Xabier Armendaritz"
 		]
 	},
 	"globalblocking-block-reason": "Arrazoia:",
-	"globalblocking-block-expiry": "Iraungipena:",
+	"globalblocking-block-expiry": "Blokeoaren iraupena:",
 	"globalblocking-ipaddress": "IP helbidea:",
 	"globalblocking-search-legend": "Blokeo global bat bilatu",
 	"globalblocking-search-ip": "IP helbidea:",

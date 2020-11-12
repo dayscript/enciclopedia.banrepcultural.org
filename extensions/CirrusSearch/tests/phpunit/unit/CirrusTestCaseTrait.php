@@ -234,26 +234,22 @@ trait CirrusTestCaseTrait {
 			CirrusDebugOptions::defaultOptions(), $this->namespacePrefixParser(), new EmptyInterwikiResolver() );
 	}
 
-	public function newTitleHelper( SearchConfig $config = null, InterwikiResolver $iwResolver = null ): TitleHelper {
+	public function sanitizeLinkFragment( string $id ): string {
+		return str_replace( ' ', '_', $id );
+	}
+
+	public function newTitleHelper( $hostWikiID = null, InterwikiResolver $iwResolver = null ): TitleHelper {
 		return new class(
-			$config ?: $this->newHashSearchConfig( [] ),
+			$hostWikiID,
 			$iwResolver ?: new EmptyInterwikiResolver(),
 			function ( $v ) {
-				// legacy mode
-				static $replace = [
-					'%3A' => ':',
-					'%' => '.'
-				];
-
-				$id = urlencode( str_replace( ' ', '_', $v ) );
-				$id = strtr( $id, $replace );
-				return $id;
+				return $this->sanitizeLinkFragment( $v );
 			}
 		) extends TitleHelper {
-			public function __construct( SearchConfig $config = null,
+			public function __construct( $hostWikiId,
 				InterwikiResolver $interwikiResolver = null, callable $linkSanitizer = null
 			) {
-				parent::__construct( $config, $interwikiResolver, $linkSanitizer );
+				parent::__construct( $hostWikiId, $interwikiResolver, $linkSanitizer );
 			}
 
 			public function getNamespaceText( Title $title ) {
@@ -285,7 +281,7 @@ trait CirrusTestCaseTrait {
 	}
 
 	public function newManualInterwikiResolver( SearchConfig $config ): InterwikiResolver {
-		return new CirrusConfigInterwikiResolver( $config, null, null, new \EmptyBagOStuff(),
+		return new CirrusConfigInterwikiResolver( $config, $this->createMock( \MultiHttpClient::class ), null, new \EmptyBagOStuff(),
 			$this->createMock( InterwikiLookup::class ) );
 	}
 

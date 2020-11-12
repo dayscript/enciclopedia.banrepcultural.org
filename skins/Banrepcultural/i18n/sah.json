@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"HalanTul"
+		]
+	},
+	"banrepcultural-skin-desc": "Аныгы, саҥардыллыбыт, тупсарыллыбыт MonoBook",
+	"banrepcultural-action-addsection": "Тиэмэ эбии",
+	"banrepcultural-action-delete": "Сот",
+	"banrepcultural-action-move": "Аатын уларыт",
+	"banrepcultural-action-protect": "Уларыйбат гын",
+	"banrepcultural-action-undelete": "Төннөр",
+	"banrepcultural-action-unprotect": "Көмүскэлин уларыт",
+	"banrepcultural-view-create": "Ай",
+	"banrepcultural-view-edit": "Уларыт",
+	"banrepcultural-view-history": "Устуоруйатын көрүү",
+	"banrepcultural-view-view": "Ааҕыы",
+	"banrepcultural-view-viewsource": "Бэлиэлэрин көрүү",
+	"banrepcultural-more-actions": "Эбии"
+}

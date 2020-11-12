@@ -15,18 +15,18 @@ final class FullTextResultsType extends BaseResultsType {
 	private $searchContainedSyntax;
 
 	/**
-	 * @var FetchPhaseConfigBuilder $fetchPhaseBuilder
+	 * @var FetchPhaseConfigBuilder
 	 */
 	private $fetchPhaseBuilder;
 	/**
-	 * @var TitleHelper|null
+	 * @var TitleHelper
 	 */
 	private $titleHelper;
 
 	/**
 	 * @param FetchPhaseConfigBuilder $fetchPhaseBuilder
 	 * @param bool $searchContainedSyntax
-	 * @param TitleHelper|null $titleHelper
+	 * @param TitleHelper $titleHelper
 	 */
 	public function __construct(
 		FetchPhaseConfigBuilder $fetchPhaseBuilder,

@@ -145,7 +145,7 @@ class UtilIntegrationTest extends CirrusIntegrationTestCase {
 		// seem to be trivial.
 		$cur = Util::getDefaultBoostTemplates( $config );
 		reset( $cur );
-		$this->assertContains(
+		$this->assertStringContainsString(
 			' in ' . $services->getContentLanguage()->getCode(), key( $cur )
 		);
 
@@ -181,7 +181,7 @@ class UtilIntegrationTest extends CirrusIntegrationTestCase {
 		$mcInstance->setValue( $value );
 	}
 
-	public function tearDown() {
+	public function tearDown() : void {
 		if ( method_exists( \MessageCache::class, 'destroyInstance' ) ) {
 			// reset cache so that our mock won't pollute other tests (in 1.33
 			// this is handled automatically by service reset)
@@ -233,7 +233,7 @@ class UtilIntegrationTest extends CirrusIntegrationTestCase {
 		];
 	}
 
-		/**
+	/**
 	 * Create test hash config for a wiki.
 	 * @param string $wiki
 	 * @param mixed[] $moreData additional config

@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Anakmalaysia",
+			"Aurora",
+			"Pizza1016"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versi MonoBook yang moden dengan rupa yang segar dan banyak pembaikan kepada kegunaan.",
+	"banrepcultural.css": "/* CSS yang terletak di sini akan mempengaruhi pengguna kulit Banrepcultural */",
+	"banrepcultural.js": "/ * Sebarang JavaScript di sini akan dimuatkan untuk pengguna-pengguna yang menggunakan kulit Banrepcultural * /",
+	"banrepcultural-action-addsection": "Buka topik",
+	"banrepcultural-action-delete": "Hapus",
+	"banrepcultural-action-move": "Pindah",
+	"banrepcultural-action-protect": "Lindung",
+	"banrepcultural-action-undelete": "Nyahhapus",
+	"banrepcultural-action-unprotect": "Ubah perlindungan",
+	"banrepcultural-view-create": "Cipta",
+	"banrepcultural-view-edit": "Sunting",
+	"banrepcultural-view-history": "Lihat sejarah",
+	"banrepcultural-view-view": "Baca",
+	"banrepcultural-view-viewsource": "Lihat sumber",
+	"banrepcultural-more-actions": "Lain"
+}

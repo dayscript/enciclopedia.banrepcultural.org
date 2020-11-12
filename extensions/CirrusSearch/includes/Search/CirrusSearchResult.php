@@ -3,6 +3,7 @@
 namespace CirrusSearch\Search;
 
 use File;
+use MediaWiki\MediaWikiServices;
 use SearchResult;
 use SearchResultTrait;
 use Title;
@@ -12,6 +13,7 @@ use Title;
  */
 abstract class CirrusSearchResult extends SearchResult {
 	use SearchResultTrait;
+
 	/**
 	 * @var Title
 	 */
@@ -29,7 +31,8 @@ abstract class CirrusSearchResult extends SearchResult {
 	public function __construct( Title $title ) {
 		$this->title = $title;
 		if ( $this->getTitle()->getNamespace() == NS_FILE ) {
-			$this->file = wfFindFile( $this->title );
+			$this->file = MediaWikiServices::getInstance()->getRepoGroup()
+				->findFile( $this->title );
 		}
 	}
 

@@ -22,21 +22,31 @@
 return [
 	'phrase_suggest_and_language_detection' => [
 		'methods' => [
-			[
+			'phrase-default' => [
 				'class' => \CirrusSearch\Fallbacks\PhraseSuggestFallbackMethod::class,
 				'params' => [
 					'profile' => 'default',
 				]
 			],
-			[
+			'langdetect' => [
 				'class' => \CirrusSearch\Fallbacks\LangDetectFallbackMethod::class,
 				'params' => []
 			],
 		]
 	],
+	'phrase_suggest' => [
+		'methods' => [
+			'phrase-default' => [
+				'class' => \CirrusSearch\Fallbacks\PhraseSuggestFallbackMethod::class,
+				'params' => [
+					'profile' => 'default',
+				]
+			],
+		]
+	],
 	'phrase_suggest_strict' => [
 		'methods' => [
-			[
+			'phrase-strict' => [
 				'class' => \CirrusSearch\Fallbacks\PhraseSuggestFallbackMethod::class,
 				'params' => [
 					'profile' => 'strict',
@@ -46,7 +56,7 @@ return [
 	],
 	'phrase_suggest_glentM0_and_langdetect' => [
 		'methods' => [
-			[
+			'glent-m0run' => [
 				'class' => \CirrusSearch\Fallbacks\IndexLookupFallbackMethod::class,
 				'params' => [
 					'profile' => 'glent',
@@ -55,13 +65,13 @@ return [
 					]
 				]
 			],
-			[
+			'phrase-default' => [
 				'class' => \CirrusSearch\Fallbacks\PhraseSuggestFallbackMethod::class,
 				'params' => [
 					'profile' => 'default',
 				]
 			],
-			[
+			'langdetect' => [
 				'class' => \CirrusSearch\Fallbacks\LangDetectFallbackMethod::class,
 				'params' => []
 			],

@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Denö",
+			"Ilja.mos",
+			"Mashoi7"
+		]
+	},
+	"banrepcultural-action-addsection": "Ližiä aihe",
+	"banrepcultural-action-delete": "Ota iäre",
+	"banrepcultural-action-move": "Siirrä",
+	"banrepcultural-action-protect": "Suojua",
+	"banrepcultural-action-unprotect": "Vaihta suojavustu",
+	"banrepcultural-view-create": "Luaji",
+	"banrepcultural-view-edit": "Kohendele",
+	"banrepcultural-view-history": "Kačo histourii",
+	"banrepcultural-view-view": "Luve",
+	"banrepcultural-view-viewsource": "Kačo algukoodu",
+	"banrepcultural-more-actions": "Vie"
+}

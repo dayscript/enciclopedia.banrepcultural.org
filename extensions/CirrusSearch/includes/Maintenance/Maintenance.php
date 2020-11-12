@@ -5,8 +5,8 @@ namespace CirrusSearch\Maintenance;
 use CirrusSearch\Connection;
 use CirrusSearch\MetaStore\MetaStoreIndex;
 use CirrusSearch\SearchConfig;
-use MediaWiki\MediaWikiServices;
 use CirrusSearch\UserTesting;
+use MediaWiki\MediaWikiServices;
 
 // Maintenance class is loaded before autoload, so we need to pull the interface
 require_once __DIR__ . '/Printer.php';
@@ -203,9 +203,7 @@ abstract class Maintenance extends \Maintenance implements Printer {
 		$wgCirrusSearchLogElasticRequests = false;
 		// Disable statsd data collection.
 		$stats = MediaWikiServices::getInstance()->getStatsdDataFactory();
-		if ( $stats ) {
-			$stats->setEnabled( false );
-		}
+		$stats->setEnabled( false );
 	}
 
 	/**

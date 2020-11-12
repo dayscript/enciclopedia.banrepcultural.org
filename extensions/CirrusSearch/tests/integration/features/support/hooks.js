@@ -1,3 +1,5 @@
+'use strict';
+
 const { After, Before } = require( 'cucumber' );
 const Promise = require( 'bluebird' );
 const MWBot = require( 'mwbot' );
@@ -14,7 +16,7 @@ const BeforeOnce = function ( options, fn ) {
 			try {
 				yield fn.call( this );
 			} catch ( err ) {
-				console.log( `Failed initializing tag ${ options.tags }: `, err );
+				console.log( `Failed initializing tag ${options.tags}: `, err );
 				yield this.tags.reject( options.tags );
 				return;
 			}
@@ -30,21 +32,21 @@ const BeforeOnce = function ( options, fn ) {
 const articleText = ( fileName ) => fs.readFileSync( articlePath + fileName ).toString();
 
 const waitForBatch = Promise.coroutine( function* ( wiki, batchJobs ) {
-	let stepHelpers = this.stepHelpers.onWiki( wiki );
-	let queue = [];
+	const stepHelpers = this.stepHelpers.onWiki( wiki );
+	const queue = [];
 	if ( Array.isArray( batchJobs ) ) {
-		for ( let job of batchJobs ) {
+		for ( const job of batchJobs ) {
 			queue.push( [ job[ 0 ], job[ 1 ] ] );
 		}
 	} else {
-		for ( let operation in batchJobs ) {
-			let operationJobs = batchJobs[ operation ];
+		for ( const operation in batchJobs ) {
+			const operationJobs = batchJobs[ operation ];
 			if ( Array.isArray( operationJobs ) ) {
-				for ( let title of operationJobs ) {
+				for ( const title of operationJobs ) {
 					queue.push( [ operation, title ] );
 				}
 			} else {
-				for ( let title in operationJobs ) {
+				for ( const title in operationJobs ) {
 					queue.push( [ operation, title ] );
 				}
 			}
@@ -56,17 +58,17 @@ const waitForBatch = Promise.coroutine( function* ( wiki, batchJobs ) {
 
 const flattenJobs = ( batchJobs ) => {
 	if ( !Array.isArray( batchJobs ) ) {
-		let flatJobs = [];
-		for ( let op in batchJobs ) {
-			let data = batchJobs[ op ];
-			let jobData = [ op ];
+		const flatJobs = [];
+		for ( const op in batchJobs ) {
+			const data = batchJobs[ op ];
+			const jobData = [ op ];
 			if ( Array.isArray( data ) ) {
-				for ( let title of data ) {
+				for ( const title of data ) {
 					flatJobs.push( jobData.concat( Array.isArray( title ) ? title : [ title ] ) );
 				}
 			} else {
-				for ( let title in data ) {
-					let d = data[ title ];
+				for ( const title in data ) {
+					const d = data[ title ];
 					flatJobs.push( jobData.concat( [ title ] )
 						.concat( Array.isArray( d ) ? d : [ d ] ) );
 				}
@@ -81,7 +83,7 @@ const flattenJobs = ( batchJobs ) => {
 // to start checking things. Hopefully they run in the same order...
 const runBatch = Promise.coroutine( function* ( world, wiki, batchJobs ) {
 	wiki = wiki || world.config.wikis.default;
-	let client = yield world.onWiki( wiki );
+	const client = yield world.onWiki( wiki );
 	batchJobs = flattenJobs( batchJobs );
 	// TODO: If the batch operation fails the waitForBatch will never complete,
 	// it will just stick around forever ...
@@ -206,7 +208,7 @@ BeforeOnce( { tags: '@boost_template' }, runBatchFn( {
 } ) );
 
 BeforeOnce( { tags: '@did_you_mean', timeout: 240000 }, function () {
-	let edits = {
+	const edits = {
 		'Popular Culture': 'popular culture',
 		'Nobel Prize': 'nobel prize',
 		'Noble Gasses': 'noble gasses',
@@ -282,7 +284,7 @@ BeforeOnce( { tags: '@filesearch' }, Promise.coroutine( function* () {
 BeforeOnce( { tags: '@redirect_loop' }, Promise.coroutine( function* () {
 	// These can't go through the normal runBatch because, as redirects that never
 	// end up at an article, they don't actually make it into elasticsearch.
-	let client = yield this.onWiki();
+	const client = yield this.onWiki();
 	yield client.batch( {
 		edit: {
 			'Redirect Loop': '#REDIRECT [[Redirect Loop 1]]',
@@ -414,6 +416,10 @@ BeforeOnce( { tags: '@hastemplate' }, runBatchFn( {
 	edit: {
 		MainNamespaceTemplate: 'MainNamespaceTemplate',
 		HasMainNSTemplate: '{{:MainNamespaceTemplate}}',
+		CaseCheckTemplate: 'CaseCheckTemplate',
+		HasCaseCheckTemplate: '{{Template:CaseCheckTemplate}}',
+		casechecktemplate: 'casechecktemplate',
+		Hascasechecktemplate: '{{Template:casechecktemplate}}',
 		'Talk:TalkTemplate': 'Talk:TalkTemplate',
 		HasTTemplate: '{{Talk:TalkTemplate}}'
 	}
@@ -655,7 +661,7 @@ BeforeOnce( { tags: '@geo' }, runBatchFn( {
 } ) );
 
 After( { tags: '@frozen' }, Promise.coroutine( function* () {
-	let client = yield this.onWiki();
+	const client = yield this.onWiki();
 	yield client.request( {
 		action: 'cirrus-freeze-writes',
 		thaw: 1
@@ -695,7 +701,7 @@ BeforeOnce( { tags: '@suggest', timeout: 120000 }, Promise.coroutine( function* 
 		}
 	} );
 
-	let client = yield this.onWiki();
+	const client = yield this.onWiki();
 	yield client.request( {
 		action: 'cirrus-suggest-index'
 	} );

@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Calak",
+			"Mainframe98",
+			"Romaine",
+			"SPQRobin",
+			"Siebrand",
+			"Sjoerddebruin",
+			"Troefkaart"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Moderne versie van MonoBook met een fris uiterlijk en verbeteringen op het gebied van gebruiksvriendelijkheid",
+	"banrepcultural-opt-out": "Naar oude vormgeving omschakelen",
+	"banrepcultural.css": "/* CSS die hier wordt geplaatst heeft alleen invloed op het uiterlijk Banrepcultural */",
+	"banrepcultural.js": "/* JavaScript die hier wordt geplaatst heeft alleen invloed op gebruikers die het uiterlijk Banrepcultural gebruiken */",
+	"banrepcultural-action-addsection": "Kopje toevoegen",
+	"banrepcultural-action-delete": "Verwijderen",
+	"banrepcultural-action-move": "Hernoemen",
+	"banrepcultural-action-protect": "Beveiligen",
+	"banrepcultural-action-undelete": "Terugplaatsen",
+	"banrepcultural-action-unprotect": "Beveiliging wijzigen",
+	"banrepcultural-view-create": "Aanmaken",
+	"banrepcultural-view-edit": "Bewerken",
+	"banrepcultural-view-history": "Geschiedenis weergeven",
+	"banrepcultural-view-view": "Lezen",
+	"banrepcultural-view-viewsource": "Brontekst bekijken",
+	"banrepcultural-jumptonavigation": "Naar navigatie springen",
+	"banrepcultural-jumptosearch": "Naar zoeken springen",
+	"banrepcultural-more-actions": "Meer"
+}

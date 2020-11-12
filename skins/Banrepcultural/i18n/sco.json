@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Aursani",
+			"Avicennasis",
+			"John Reid",
+			"Macofe",
+			"Omnipaedista"
+		]
+	},
+	"banrepcultural-skin-desc": "Modern version o MonoBook wi ae fresh luik n monie uisabeelitie impruivments",
+	"banrepcultural-action-addsection": "Eik topic",
+	"banrepcultural-action-delete": "Delyte",
+	"banrepcultural-action-move": "Muiv",
+	"banrepcultural-action-protect": "Fend",
+	"banrepcultural-action-undelete": "Ondelyte",
+	"banrepcultural-action-unprotect": "Chynge protection",
+	"banrepcultural-view-create": "Ceaut",
+	"banrepcultural-view-edit": "Eedit",
+	"banrepcultural-view-history": "See histerie",
+	"banrepcultural-view-view": "Read",
+	"banrepcultural-view-viewsource": "See Soorce",
+	"banrepcultural-more-actions": "Mair"
+}

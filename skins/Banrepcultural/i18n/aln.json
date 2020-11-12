@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Bresta"
+		]
+	},
+	"banrepcultural.css": "/* CSSi i vednosun këtu ka me i prekë shfrytëzuesit e dukjes Banrepcultural */",
+	"banrepcultural.js": "/* Çdo JavaScript këtu ka me u ngarkue për shfrytëzuesit që përdorin dukjen Banrepcultural */",
+	"banrepcultural-action-addsection": "Shto temë",
+	"banrepcultural-action-delete": "Fshij",
+	"banrepcultural-action-move": "Zhvendos",
+	"banrepcultural-action-protect": "Mbroj",
+	"banrepcultural-action-undelete": "Kthe fshimjen mbrapsht",
+	"banrepcultural-action-unprotect": "Hiq mbrojtjen",
+	"banrepcultural-view-create": "Krijo",
+	"banrepcultural-view-edit": "Redakto",
+	"banrepcultural-view-history": "Shih historinë",
+	"banrepcultural-view-view": "Lexo",
+	"banrepcultural-view-viewsource": "Shih kodin"
+}

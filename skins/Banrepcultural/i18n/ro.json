@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"AdiJapan",
+			"Danutz",
+			"Firilacroco",
+			"ImGelu",
+			"Minisarm",
+			"Strainu"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versiunea modernă pentru MonoBook cu o înfățișare reîmprospătată și multe îmbunătățiri de uzabilitate",
+	"banrepcultural.css": "/* CSS plasate aici vor afecta utilizatorii stilului Banrepcultural */",
+	"banrepcultural-action-addsection": "Mesaj nou",
+	"banrepcultural-action-delete": "Ștergere",
+	"banrepcultural-action-move": "Redenumire",
+	"banrepcultural-action-protect": "Protejare",
+	"banrepcultural-action-undelete": "Recuperare",
+	"banrepcultural-action-unprotect": "Modificare protecție",
+	"banrepcultural-view-create": "Creare",
+	"banrepcultural-view-edit": "Modificare",
+	"banrepcultural-view-history": "Istoric",
+	"banrepcultural-view-view": "Lectură",
+	"banrepcultural-view-viewsource": "Sursă pagină",
+	"banrepcultural-more-actions": "Mai mult"
+}

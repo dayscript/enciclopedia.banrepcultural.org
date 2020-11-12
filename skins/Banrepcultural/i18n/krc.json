@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ernác",
+			"Iltever",
+			"Къарачайлы"
+		]
+	},
+	"skinname-banrepcultural": "Вектор",
+	"banrepcultural-action-addsection": "Джангы тема къош",
+	"banrepcultural-action-delete": "Кетер",
+	"banrepcultural-action-move": "Атын ауушдур",
+	"banrepcultural-action-protect": "Джакъла",
+	"banrepcultural-action-undelete": "Къайтар",
+	"banrepcultural-action-unprotect": "Джакълауну тюрлендир",
+	"banrepcultural-view-create": "Къура",
+	"banrepcultural-view-edit": "Тюрлендир",
+	"banrepcultural-view-history": "Тарихи",
+	"banrepcultural-view-view": "Окъу",
+	"banrepcultural-view-viewsource": "Кодха къара",
+	"banrepcultural-more-actions": "Энтда"
+}

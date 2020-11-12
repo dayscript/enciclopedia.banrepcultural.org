@@ -1,0 +1,31 @@
+{
+	"@metadata": {
+		"authors": [
+			"Bjankuloski06",
+			"Brest"
+		]
+	},
+	"skinname-banrepcultural": "Векторско",
+	"banrepcultural-skin-desc": "Современа верзија на рувото „МоноБук“ со свеж изглед и многу подобрувања на употребливоста",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Користи Векторско по старо",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Во текот на следните некмолку години постепено ќе го надградуваме рувото Векторско. Неговата употреба по старо ќе ви овозможува да ја гледате старата верзија (по податок од декември 2019 г.). За да дознаете повеќе за надградбите, појдете на нашата [[mw:Reading/Web/Desktop_Improvements|проектна страница]].",
+	"banrepcultural-opt-out": "Смени на стариот изглед",
+	"banrepcultural-opt-out-tooltip": "Сменете си ги нагодувањата за да се вратите на стариот изглед на рувото (поранешното Векторско)",
+	"banrepcultural.css": "/* Тука поставениот CSS се однесува на корисниците на рувото „Векторско“ */",
+	"banrepcultural.js": "/* Тука поставениот JavaScript  ќе им се вчитува на корисниците што го користат рувото „Векторско“ */",
+	"banrepcultural-action-toggle-sidebar": "Префрлање на страничник",
+	"banrepcultural-action-addsection": "Додај тема",
+	"banrepcultural-action-delete": "Избриши",
+	"banrepcultural-action-move": "Премести",
+	"banrepcultural-action-protect": "Заштити",
+	"banrepcultural-action-undelete": "Врати",
+	"banrepcultural-action-unprotect": "Измени заштита",
+	"banrepcultural-view-create": "Создај",
+	"banrepcultural-view-edit": "Уреди",
+	"banrepcultural-view-history": "Историја",
+	"banrepcultural-view-view": "Читај",
+	"banrepcultural-view-viewsource": "Извор",
+	"banrepcultural-jumptonavigation": "Прејди на прегледникот",
+	"banrepcultural-jumptosearch": "Прејди на пребарувањето",
+	"banrepcultural-more-actions": "Повеќе"
+}

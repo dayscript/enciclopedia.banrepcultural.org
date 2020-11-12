@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Don Alessandro",
+			"Frhdkazan"
+		]
+	},
+	"skinname-banrepcultural": "Sızımlı",
+	"banrepcultural-action-addsection": "Yaña tema östäw",
+	"banrepcultural-action-delete": "Beterü",
+	"banrepcultural-action-move": "Küçerü",
+	"banrepcultural-action-protect": "Yaqlaw",
+	"banrepcultural-action-undelete": "Qaytaru",
+	"banrepcultural-action-unprotect": "Yaqlawnı beterü",
+	"banrepcultural-view-create": "Tözü",
+	"banrepcultural-view-edit": "Üzgärtü",
+	"banrepcultural-view-history": "Tarixın qaraw",
+	"banrepcultural-view-view": "Uqu",
+	"banrepcultural-view-viewsource": "Çığanağın qaraw",
+	"banrepcultural-more-actions": "Başqalar"
+}

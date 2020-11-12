@@ -1,0 +1,29 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ker",
+			"Pikne",
+			"WikedKentaur"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "MonoBooki uuem versioon värskema väljanägemise ja mitme kasutajasõbralikuma täiendusega",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Kasuta vana Vektorit",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Tulevatel aastatel uuendame järk-järgult Vektori-kujundust. Vana Vektor võimaldab kuvada kujunduse vana versiooni (seisuga detsember 2019). Lisateavet uuenduste kohta leiad [[mw:Reading/Web/Desktop_Improvements|projekti lehelt]].",
+	"banrepcultural.css": "/* Siin asuv kaskaadilaadistik laaditakse kõigi Vektori-kujunduse kasutajate jaoks. */",
+	"banrepcultural.js": "/* Siin asuv JavaScript laaditakse kõigi Vektori-kujunduse kasutajate jaoks. */",
+	"banrepcultural-action-addsection": "Lisa teema",
+	"banrepcultural-action-delete": "Kustuta",
+	"banrepcultural-action-move": "Teisalda",
+	"banrepcultural-action-protect": "Kaitse",
+	"banrepcultural-action-undelete": "Taasta",
+	"banrepcultural-action-unprotect": "Muuda kaitset",
+	"banrepcultural-view-create": "Loo",
+	"banrepcultural-view-edit": "Muuda",
+	"banrepcultural-view-history": "Näita ajalugu",
+	"banrepcultural-view-view": "Vaata",
+	"banrepcultural-view-viewsource": "Vaata lähteteksti",
+	"banrepcultural-jumptonavigation": "Mine navigeerimisribale",
+	"banrepcultural-jumptosearch": "Mine otsikasti",
+	"banrepcultural-more-actions": "Veel"
+}

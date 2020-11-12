@@ -54,7 +54,7 @@ class MultiSearchRequestLog extends SearchRequestLog {
 
 		// in case of failures from Elastica
 		if ( isset( $responseData['message'] ) ) {
-			$vars['message'] = $responseData['message'];
+			$vars['error_message'] = $responseData['message'];
 		}
 
 		return $vars;
@@ -121,6 +121,7 @@ class MultiSearchRequestLog extends SearchRequestLog {
 		$query = json_decode( $requestData[1], true );
 
 		return [
+			// @phan-suppress-next-line PhanTypeArraySuspiciousNullable
 			'index' => implode( ',', $meta['index'] ),
 		] + parent::extractRequestVariables( $query );
 	}

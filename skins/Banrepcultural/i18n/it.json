@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"Beta16",
+			"Darth Kule",
+			"Elitre",
+			"FRacco",
+			"Gianfranco",
+			"Melos",
+			"Pietrodn",
+			"Scompo"
+		]
+	},
+	"banrepcultural-skin-desc": "Versione moderna del MonoBook con un aspetto rinnovato e molti miglioramenti dell'usabilità",
+	"banrepcultural-opt-out-tooltip": "Cambia le tue impostazioni per ritornare alla visualizzazione della skin precedente (legacy Banrepcultural)",
+	"banrepcultural.css": "/* Gli stili CSS inseriti qui si applicano agli utenti che usano il tema Banrepcultural */",
+	"banrepcultural.js": "/* Il codice JavaScript inserito qui viene caricato dagli utenti che usano il tema Banrepcultural */",
+	"banrepcultural-action-addsection": "Aggiungi discussione",
+	"banrepcultural-action-delete": "Cancella",
+	"banrepcultural-action-move": "Sposta",
+	"banrepcultural-action-protect": "Proteggi",
+	"banrepcultural-action-undelete": "Ripristina",
+	"banrepcultural-action-unprotect": "Cambia la protezione",
+	"banrepcultural-view-create": "Crea",
+	"banrepcultural-view-edit": "Modifica",
+	"banrepcultural-view-history": "Cronologia",
+	"banrepcultural-view-view": "Leggi",
+	"banrepcultural-view-viewsource": "Visualizza wikitesto",
+	"banrepcultural-more-actions": "Altro"
+}

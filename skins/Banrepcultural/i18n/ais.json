@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Benel",
+			"Bunukwiki",
+			"Tokoabibi"
+		]
+	},
+	"banrepcultural-skin-desc": "ayzaay a MonoBook, izaw baluhayay a nuhekalan atu yadah pisaungayay a sakapahay.",
+	"banrepcultural-action-addsection": "micunus sasakamuen",
+	"banrepcultural-action-delete": "misipu",
+	"banrepcultural-action-move": "milimad",
+	"banrepcultural-action-protect": "midiput",
+	"banrepcultural-action-undelete": "palawpes tu masipuay",
+	"banrepcultural-action-unprotect": "misumad tu midiputay",
+	"banrepcultural-view-create": "patizeng",
+	"banrepcultural-view-edit": "mikawaway-kalumyiti",
+	"banrepcultural-view-history": "ciwsace nazipa’an",
+	"banrepcultural-view-view": "miasip",
+	"banrepcultural-view-viewsource": "ciwsace yuensma-kodo",
+	"banrepcultural-more-actions": "yadah"
+}

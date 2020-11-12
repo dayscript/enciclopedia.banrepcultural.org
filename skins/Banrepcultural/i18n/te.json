@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Chaduvari",
+			"Kiranmayee",
+			"Praveen Illa",
+			"Ravichandra",
+			"Veeven"
+		]
+	},
+	"skinname-banrepcultural": "వెక్టర్",
+	"banrepcultural-action-addsection": "విషయాన్ని చేర్చు",
+	"banrepcultural-action-delete": "తొలగించు",
+	"banrepcultural-action-move": "తరలించు",
+	"banrepcultural-action-protect": "సంరక్షించు",
+	"banrepcultural-action-undelete": "తొలగింపును రద్దుచెయ్యి",
+	"banrepcultural-action-unprotect": "సంరక్షణను మార్చు",
+	"banrepcultural-view-create": "సృష్టించు",
+	"banrepcultural-view-edit": "సవరించు",
+	"banrepcultural-view-history": "చరిత్రను చూడండి",
+	"banrepcultural-view-view": "చదువు",
+	"banrepcultural-view-viewsource": "మూలాన్ని చూపించు",
+	"banrepcultural-more-actions": "మరిన్ని"
+}

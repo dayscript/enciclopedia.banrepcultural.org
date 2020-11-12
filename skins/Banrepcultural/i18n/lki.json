@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Arash71",
+			"Hosseinblue",
+			"Lakzon"
+		]
+	},
+	"banrepcultural-skin-desc": "نسخه مدرن منوبوک با نگاه تازه و بهبود قابلیت استفاده",
+	"banrepcultural-action-addsection": "افزودن بۀخش",
+	"banrepcultural-action-delete": "حۀذف کردن/پاک کردن",
+	"banrepcultural-action-move": "جاوواز کرِدِن",
+	"banrepcultural-action-protect": "پروژۀ",
+	"banrepcultural-action-undelete": "گلآدائن حةذف/واگردانی حذف",
+	"banrepcultural-action-unprotect": "گؤەڕانن/تغییر سطح حفاظت",
+	"banrepcultural-view-create": "دؤِرس کردن/سازین",
+	"banrepcultural-view-edit": "دەسکاری",
+	"banrepcultural-view-history": "سئرکردن تاریخچۀ-ویرگار",
+	"banrepcultural-view-view": "خووەنن",
+	"banrepcultural-view-viewsource": "بنچەک(منبع) بۊن(سەیرکە)",
+	"banrepcultural-more-actions": "ویشتر/فرۀتر"
+}

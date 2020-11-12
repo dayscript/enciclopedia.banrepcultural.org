@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Marozols",
+			"Papuass"
+		]
+	},
+	"banrepcultural-action-addsection": "Jauna sadaļa",
+	"banrepcultural-action-delete": "Dzēst",
+	"banrepcultural-action-move": "Pārvietot",
+	"banrepcultural-action-protect": "Aizsargāt",
+	"banrepcultural-action-undelete": "Atjaunot",
+	"banrepcultural-action-unprotect": "Mainīt aizsardzību",
+	"banrepcultural-view-create": "Izveidot",
+	"banrepcultural-view-edit": "Labot",
+	"banrepcultural-view-history": "Hronoloģija",
+	"banrepcultural-view-view": "Skatīt",
+	"banrepcultural-view-viewsource": "Aplūkot kodu",
+	"banrepcultural-more-actions": "Vairāk"
+}

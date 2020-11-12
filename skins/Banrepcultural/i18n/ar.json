@@ -1,0 +1,37 @@
+{
+	"@metadata": {
+		"authors": [
+			"Abanima",
+			"Calak",
+			"Khaled",
+			"Meno25",
+			"Mido",
+			"OsamaK",
+			"أحمد",
+			"ديفيد",
+			"زكريا",
+			"علاء"
+		]
+	},
+	"skinname-banrepcultural": "فكتور",
+	"banrepcultural-skin-desc": "نسخة حديثة من مونوبوك بمظهر جديد وتحسينات لسهولة الاستخدام",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "استخدم Legacy Banrepcultural",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "على مدار السنوات القليلة القادمة، سنقوم بتحديث واجهة Banrepcultural بشكل تدريجي. سيسمح لك Legacy Banrepcultural بمشاهدة الإصدار القديم من Banrepcultural (اعتبارا من ديسمبر 2019). لمعرفة المزيد حول التحديثات، انتقل إلى [[mw:Reading/Web/Desktop_Improvements|صفحة المشروع]].",
+	"banrepcultural-opt-out": "التبديل إلى الشكل القديم",
+	"banrepcultural.css": "/* الأنماط المتراصة CSS المعروضة هنا ستؤثر على مستخدمي واجهة فكتور */",
+	"banrepcultural.js": "/* أي جافاسكريبت هنا سيتم تحميلها للمستخدمين الذين يستعملون واجهة فكتور */",
+	"banrepcultural-action-addsection": "أضف موضوعا",
+	"banrepcultural-action-delete": "احذف",
+	"banrepcultural-action-move": "انقل",
+	"banrepcultural-action-protect": "احم",
+	"banrepcultural-action-undelete": "ألغ الحذف",
+	"banrepcultural-action-unprotect": "غير الحماية",
+	"banrepcultural-view-create": "أنشئ",
+	"banrepcultural-view-edit": "عدل",
+	"banrepcultural-view-history": "تاريخ",
+	"banrepcultural-view-view": "اقرأ",
+	"banrepcultural-view-viewsource": "عرض المصدر",
+	"banrepcultural-jumptonavigation": "اذهب إلى التنقل",
+	"banrepcultural-jumptosearch": "اذهب إلى البحث",
+	"banrepcultural-more-actions": "المزيد"
+}

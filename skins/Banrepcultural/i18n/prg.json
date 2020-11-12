@@ -1,0 +1,17 @@
+{
+	"@metadata": {
+		"authors": [
+			"Nertiks",
+			"Peteris"
+		]
+	},
+	"banrepcultural-action-delete": "Āupausinais",
+	"banrepcultural-action-move": "Prapīdais",
+	"banrepcultural-action-protect": "Kūnsteis",
+	"banrepcultural-action-unprotect": "Etkūnteis",
+	"banrepcultural-view-create": "Teīkeis",
+	"banrepcultural-view-edit": "Redigīs",
+	"banrepcultural-view-history": "Enwaidinnais istōrijan",
+	"banrepcultural-view-view": "Skaitāis",
+	"banrepcultural-view-viewsource": "Enwaidinnais appun"
+}

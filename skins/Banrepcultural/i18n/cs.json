@@ -1,0 +1,31 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dvorapa",
+			"Matěj Suchánek",
+			"Mormegil",
+			"Patriccck"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Moderní verze vzhledu Kniha s novějším vzhledem a vylepšenou použitelností",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Použít starý Vektor",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "V následujících letech budeme postupně aktualizovat vzhled Vektor. Starý Vektor vám umožní používat starou verzi Vektoru z prosince 2019. Více o aktualizacích se dozvíte na naší [[mw:Reading/Web/Desktop_Improvements|projektové stránce]].",
+	"banrepcultural-opt-out": "Přepnout na starý vzhled",
+	"banrepcultural.css": "/* Veškeré zde uvedené CSS bude načítáno uživatelům vzhledu „Vektor“ */",
+	"banrepcultural.js": "/* Veškerý zde uvedený JavaScript bude načítán uživatelům vzhledu „Vektor“ */",
+	"banrepcultural-action-addsection": "Přidat téma",
+	"banrepcultural-action-delete": "Smazat",
+	"banrepcultural-action-move": "Přesunout",
+	"banrepcultural-action-protect": "Zamknout",
+	"banrepcultural-action-undelete": "Obnovit",
+	"banrepcultural-action-unprotect": "Změnit zámek",
+	"banrepcultural-view-create": "Založit",
+	"banrepcultural-view-edit": "Editovat",
+	"banrepcultural-view-history": "Zobrazit historii",
+	"banrepcultural-view-view": "Číst",
+	"banrepcultural-view-viewsource": "Zobrazit zdrojový kód",
+	"banrepcultural-jumptonavigation": "Skočit na navigaci",
+	"banrepcultural-jumptosearch": "Skočit na vyhledávání",
+	"banrepcultural-more-actions": "Další"
+}

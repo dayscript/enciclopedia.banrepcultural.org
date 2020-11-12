@@ -13,6 +13,9 @@ really been settled.
  &$config - multi-dimensional configuration array for analysis of various languages and fields
  $builder - AnalysisConfigBuilder object handling the building (since 1.31)
 
+'CirrusSearchSimilarityConfig': Allows to customize and add new similarities to the index settings.
+ &$similarity - multi-dimensional configuration array for the similarities.
+
 'CirrusSearchMappingConfig': Allows configuration of the mapping of fields
  &$config - multi-dimensional configuration array that contains Elasticsearch document configuration.
    The 'page' index contains configuration for Elasticsearch documents representing pages.
@@ -25,14 +28,6 @@ really been settled.
  $title - Title object for the page being parsed.
  $content - Content object for the page.
  $parserOutput - ParserOutput for the page, if exists, or null.
-
-'CirrusSearchBuildDocumentLinks': Allows extensions to process incoming and outgoing links for the document.
- $doc - \Elastica\Document object representing the page. Extensions can add links to it.
- $title - Title object for the page being parsed.
- $connection - \CirrusSearch\Connection object representing connection to ElasticSearch server.
-
-'CirrusSearchBuildDocumentFinishBatch': Called when a batch of pages has been indexed.
- $pages - list of WikiPage objects which have been indexed.
 
 'CirrusSearchAddQueryFeatures': Allows extensions to add query parser features
  &$config - SearchConfig object which holds current search configuration

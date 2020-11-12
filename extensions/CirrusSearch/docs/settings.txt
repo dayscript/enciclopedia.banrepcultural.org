@@ -1100,7 +1100,7 @@ NOTE: Experimental.
 Default:
     $wgCirrusSearchCompletionDefaultScore = 'quality';
 
-Set the default scoring function to be used by maintenance/updateSuggesterIndex.php.
+Set the default scoring function to be used by maintenance/UpdateSuggesterIndex.php.
 See: includes/BuildDocument/SuggestScoring.php for more details about scoring functions.
 
 NOTE: if you change the scoring method you'll have to rebuild the suggester index.
@@ -1118,7 +1118,7 @@ namespace. PrefixSearch will be used in all other cases.
 Valid values, all unknown values map to 'no':
 * yes   - Use completion suggester as the default
 * no    - Don't use completion suggester
-* build - Allow building the index from updateSuggesterIndex.php
+* build - Allow building the index from UpdateSuggesterIndex.php
 
 ; $wgCirrusSearchCompletionSuggesterSubphrases
 
@@ -1564,17 +1564,6 @@ Default:
 Maximum overall category count for deep category query. Note that ElasticSearch
 has limit of 1024 boolean clauses by default, so this limit should be well under
 Elastic limits.
-
-; $wgCirrusSearchInstantIndexNew
-
-Default:
-    $wgCirrusSearchInstantIndexNew = false;
-
-Whether to try to index newly created article immediately. This is useful for wikis
-which use searches - e.g. completion search - a lot for main functionality, e.g. Wikidata,
-and thus want item to appear in the index as soon as possible, even at the cost of page data
-not being fully updated yet.
-Set to true to index all pages on wiki, or array of namespaces to index specific namespaces.
 
 ; $wgCirrusSearchNamespaceResolutionMethod
 

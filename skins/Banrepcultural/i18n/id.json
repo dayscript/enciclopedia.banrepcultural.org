@@ -1,0 +1,30 @@
+{
+	"@metadata": {
+		"authors": [
+			"Arifin.wijaya",
+			"Bennylin",
+			"Farras",
+			"Iwan Novirion",
+			"Rex",
+			"William Surya Permana"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Versi modern dari MonoBook dengan tampilan segar dan banyak perbaikan kegunaan",
+	"banrepcultural.css": "/* CSS yang ada di sini akan diterapkan pada kulit Vektor. */",
+	"banrepcultural.js": "/* Semua JavaScript di sini akan dimuatkan untuk para pengguna yang menggunakan kulit Banrepcultural */",
+	"banrepcultural-action-addsection": "Bagian baru",
+	"banrepcultural-action-delete": "Hapus",
+	"banrepcultural-action-move": "Pindahkan",
+	"banrepcultural-action-protect": "Lindungi",
+	"banrepcultural-action-undelete": "Pembatalan penghapusan",
+	"banrepcultural-action-unprotect": "Ubah perlindungan",
+	"banrepcultural-view-create": "Buat",
+	"banrepcultural-view-edit": "Sunting",
+	"banrepcultural-view-history": "Versi terdahulu",
+	"banrepcultural-view-view": "Baca",
+	"banrepcultural-view-viewsource": "Lihat sumber",
+	"banrepcultural-jumptonavigation": "Loncat ke navigasi",
+	"banrepcultural-jumptosearch": "Loncat ke pencarian",
+	"banrepcultural-more-actions": "Lainnya"
+}

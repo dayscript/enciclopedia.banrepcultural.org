@@ -2,14 +2,13 @@
 
 namespace CirrusSearch;
 
-use SearchIndexField;
-use CirrusSearch;
-
 use MediaWiki\MediaWikiServices;
+use SearchIndexField;
 
 /**
  * @group CirrusSearch
- * @covers \SearchIndexField
+ * FIXME: what is this class actually testing? Can't cover interfaces.
+ * @coversNothing
  */
 class IndexFieldsTest extends CirrusIntegrationTestCase {
 

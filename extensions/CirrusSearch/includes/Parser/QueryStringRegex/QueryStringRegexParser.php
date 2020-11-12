@@ -57,6 +57,8 @@ class QueryStringRegexParser implements QueryParser {
 	 */
 	const WHITESPACE_REGEX = '/\G[\pZ\pC]+/u';
 
+	const QUERY_LEN_HARD_LIMIT = 2048;
+
 	/**
 	 * see T66350
 	 */
@@ -67,6 +69,14 @@ class QueryStringRegexParser implements QueryParser {
 	 *
 	 */
 	const EXPLICIT_BOOLEAN_OPERATOR = '/\G(?:(?<AND>AND|&&)|(?<OR>OR|\|\|)|(?<NOT>NOT))(?![^\pZ\pC"])/u';
+
+	/**
+	 * Keywords which do not count when measuring the length of the the query
+	 */
+	const UNLIMITED_KEYWORDS = [
+		'incategory' => true, // T111694
+		'articletopic' => true // T242560
+	];
 
 	/**
 	 * @var \CirrusSearch\Parser\KeywordRegistry
@@ -125,13 +135,13 @@ class QueryStringRegexParser implements QueryParser {
 
 	/**
 	 * Token set after calling nextToken
-	 * @var Token
+	 * @var Token|null
 	 */
 	private $token;
 
 	/**
 	 * Last token seen (set within nextToken)
-	 * @var Token
+	 * @var Token|null
 	 */
 	private $lookBehind;
 
@@ -169,11 +179,17 @@ class QueryStringRegexParser implements QueryParser {
 	const DEFAULT_OCCUR = BooleanClause::MUST;
 
 	/**
+	 * @var int
+	 */
+	private $maxQueryLen;
+
+	/**
 	 * @param \CirrusSearch\Parser\KeywordRegistry $keywordRegistry
 	 * @param Escaper $escaper
 	 * @param string $qmarkStripLevel level of question mark stripping to apply
 	 * @param ParsedQueryClassifiersRepository $classifierRepository
-	 * @param NamespacePrefixParser|null $namespacePrefixParser
+	 * @param NamespacePrefixParser $namespacePrefixParser
+	 * @param int|null $maxQueryLen maximum length of the query in chars
 	 * @see Util::stripQuestionMarks() for acceptable $qmarkStripLevel values
 	 */
 	public function __construct(
@@ -181,7 +197,8 @@ class QueryStringRegexParser implements QueryParser {
 		Escaper $escaper,
 		$qmarkStripLevel,
 		ParsedQueryClassifiersRepository $classifierRepository,
-		NamespacePrefixParser $namespacePrefixParser
+		NamespacePrefixParser $namespacePrefixParser,
+		?int $maxQueryLen
 	) {
 		$this->keywordRegistry = $keywordRegistry;
 		$this->escaper = $escaper;
@@ -191,6 +208,7 @@ class QueryStringRegexParser implements QueryParser {
 		$this->questionMarkStripLevel = $qmarkStripLevel;
 		$this->classifierRepository = $classifierRepository;
 		$this->namespacePrefixParser = $namespacePrefixParser;
+		$this->maxQueryLen = $maxQueryLen ?: 300;
 	}
 
 	/**
@@ -243,9 +261,15 @@ class QueryStringRegexParser implements QueryParser {
 	/**
 	 * @param string $query
 	 * @return \CirrusSearch\Parser\AST\ParsedQuery
+	 * @throws SearchQueryParseException
 	 */
-	public function parse( $query ) {
+	public function parse( string $query ): ParsedQuery {
 		$this->reInit( $query );
+		$queryLen = mb_strlen( $query );
+		if ( $queryLen > self::QUERY_LEN_HARD_LIMIT ) {
+			throw new SearchQueryParseException( 'cirrussearch-query-too-long',
+				$queryLen, self::QUERY_LEN_HARD_LIMIT );
+		}
 		$this->cleanup();
 		$this->parseNsHeader();
 		$this->token = new Token( $this->query );
@@ -297,6 +321,8 @@ class QueryStringRegexParser implements QueryParser {
 			}
 		} );
 		reset( $this->preTaggedNodes );
+
+		$this->checkQueryLen();
 		$root = $this->expression();
 		$additionalNamespaces = $this->extractRequiredNamespaces( $root );
 		return new ParsedQuery( $root, $this->query, $this->rawQuery, $this->queryCleanups,
@@ -331,6 +357,7 @@ class QueryStringRegexParser implements QueryParser {
 	 * - NOT NOT: MUST_NOT:NOT
 	 * - NOT AND FOO: MUST_NOT:AND MUST:FOO
 	 * - NOT !FOO: MUST:FOO
+	 * @return ParsedNode
 	 */
 	private function expression() {
 		$clauses = [];
@@ -546,6 +573,7 @@ class QueryStringRegexParser implements QueryParser {
 				$node = $node->getChild();
 			} else {
 				$node = new NegatedNode( $this->lookBehind->getStart(), $node->getEndOffset(),
+					// @phan-suppress-next-line PhanTypeMismatchArgumentNullable $node not null after getType
 					$node, $this->lookBehind->getImage() );
 			}
 		} else {
@@ -741,6 +769,7 @@ class QueryStringRegexParser implements QueryParser {
 				}
 
 				Assert::parameter( $node->getKeyword() instanceof PrefixFeature, '$node', 'must be parsed from PrefixFeature' );
+				// @phan-suppress-next-line PhanTypeArraySuspiciousNullable
 				$additional = $node->getParsedValue()[PrefixFeature::PARSED_NAMESPACES];
 				if ( $additional === 'all' ) {
 					$this->total = 'all';
@@ -780,5 +809,36 @@ class QueryStringRegexParser implements QueryParser {
 			}
 			$this->offset = $queryOffset;
 		}
+	}
+
+	/**
+	 * Check the length of the query and throws SearchQueryParseException
+	 * if it's more than what we allow.
+	 *
+	 * @throws SearchQueryParseException
+	 */
+	private function checkQueryLen(): void {
+		Assert::precondition( $this->query !== null, "Query must be set" );
+		$maxLen = $this->maxQueryLen;
+		// don't limit incategory
+		foreach ( $this->preTaggedNodes as $n ) {
+			if ( $n instanceof KeywordFeatureNode && $this->unlimitedKeywords( $n->getKey() ) ) {
+				$maxLen += mb_strlen( substr( $this->query, $n->getStartOffset(), $n->getEndOffset() ) );
+			}
+		}
+		$queryLen = mb_strlen( $this->query );
+		if ( $queryLen > $maxLen ) {
+			throw new SearchQueryParseException( 'cirrussearch-query-too-long',
+				$queryLen, $maxLen );
+		}
+	}
+
+	/**
+	 * @param string $keyword
+	 * @return bool true if this keyword name should not be taken into account
+	 * when calculating the query length
+	 */
+	private function unlimitedKeywords( string $keyword ): bool {
+		return self::UNLIMITED_KEYWORDS[$keyword] ?? false;
 	}
 }

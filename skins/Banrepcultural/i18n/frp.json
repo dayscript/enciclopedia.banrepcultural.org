@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"ChrisPtDe"
+		]
+	},
+	"skinname-banrepcultural": "Vèctor",
+	"banrepcultural.css": "/* Lo code CSS betâ ique afècterat los usanciérs de l’habelyâjo « Vèctor ». */",
+	"banrepcultural.js": "/* Tot code JavaScript betâ ique serat chargiê per los usanciérs de l’habelyâjo « Vèctor ». */",
+	"banrepcultural-action-addsection": "Apondre na chousa",
+	"banrepcultural-action-delete": "Suprimar",
+	"banrepcultural-action-move": "Dèplaciér",
+	"banrepcultural-action-protect": "Protègiér",
+	"banrepcultural-action-undelete": "Refâre",
+	"banrepcultural-action-unprotect": "Changiér la protèccion",
+	"banrepcultural-view-create": "Fâre",
+	"banrepcultural-view-edit": "Changiér",
+	"banrepcultural-view-history": "Vêre l’historico",
+	"banrepcultural-view-view": "Liére",
+	"banrepcultural-view-viewsource": "Vêre lo tèxto sôrsa",
+	"banrepcultural-more-actions": "Més"
+}

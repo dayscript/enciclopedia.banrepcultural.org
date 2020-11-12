@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Mestos",
+			"Palmtree222",
+			"Pyscowicz"
+		]
+	},
+	"banrepcultural-action-addsection": "Lissää aihe",
+	"banrepcultural-action-delete": "Ota poies",
+	"banrepcultural-action-move": "Siirä",
+	"banrepcultural-action-protect": "Suojaa",
+	"banrepcultural-action-undelete": "Pane takashiin",
+	"banrepcultural-action-unprotect": "Muuta suojaa",
+	"banrepcultural-view-create": "Luo",
+	"banrepcultural-view-edit": "Mookkaa",
+	"banrepcultural-view-history": "Näytä histuuria",
+	"banrepcultural-view-view": "Lue",
+	"banrepcultural-view-viewsource": "Näytä lähekooti",
+	"banrepcultural-more-actions": "Lissää"
+}

@@ -1,0 +1,19 @@
+{
+	"@metadata": {
+		"authors": [
+			"Lloffiwr"
+		]
+	},
+	"banrepcultural-action-addsection": "Ychwanegu adran",
+	"banrepcultural-action-delete": "Dileu",
+	"banrepcultural-action-move": "Symud",
+	"banrepcultural-action-protect": "Diogelu",
+	"banrepcultural-action-undelete": "Adfer",
+	"banrepcultural-action-unprotect": "Newid y diogelwch",
+	"banrepcultural-view-create": "Dechrau",
+	"banrepcultural-view-edit": "Golygu",
+	"banrepcultural-view-history": "Gweld yr hanes",
+	"banrepcultural-view-view": "Darllen",
+	"banrepcultural-view-viewsource": "Dangos côd y dudalen",
+	"banrepcultural-more-actions": "Rhagor"
+}

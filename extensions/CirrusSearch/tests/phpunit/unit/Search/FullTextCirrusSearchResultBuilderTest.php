@@ -29,11 +29,11 @@ class FullTextCirrusSearchResultBuilderTest extends CirrusTestCase {
 	 */
 	private $fulltextResultBuilder;
 	/**
-	 * @var TitleHelper $titleHelper
+	 * @var TitleHelper
 	 */
 	private $titleHelper;
 
-	public function setUp() {
+	public function setUp() : void {
 		parent::setUp();
 		$config = $this->newHashSearchConfig( [
 			'CirrusSearchWikiToNameMap' => [
@@ -336,7 +336,7 @@ class FullTextCirrusSearchResultBuilderTest extends CirrusTestCase {
 				[
 					'sectionSnippet' => 'The ' . Searcher::HIGHLIGHT_PRE . 'matched' . Searcher::HIGHLIGHT_POST . ' &lt;section',
 					'sectionTitle' => Title::makeTitle( NS_TEMPLATE, 'Main Page' )
-						->createFragmentTarget( \Sanitizer::escapeIdForLink( 'The matched <section' ) )
+						->createFragmentTarget( $this->sanitizeLinkFragment( 'The matched <section' ) )
 				]
 			],
 			'categorySnippet' => [

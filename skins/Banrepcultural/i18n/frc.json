@@ -1,0 +1,16 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ebe123",
+			"Hangmanwa7id"
+		]
+	},
+	"banrepcultural-action-delete": "Supprimer",
+	"banrepcultural-action-move": "Renommer",
+	"banrepcultural-action-protect": "Protéger",
+	"banrepcultural-view-create": "Créer",
+	"banrepcultural-view-edit": "Changer",
+	"banrepcultural-view-view": "Lire",
+	"banrepcultural-view-viewsource": "Regarder la source",
+	"banrepcultural-more-actions": "Plus"
+}

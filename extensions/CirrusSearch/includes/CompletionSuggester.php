@@ -7,13 +7,13 @@ use CirrusSearch\Query\CompSuggestQueryBuilder;
 use CirrusSearch\Query\PrefixSearchQueryBuilder;
 use CirrusSearch\Search\CompletionResultsCollector;
 use CirrusSearch\Search\FancyTitleResultsType;
+use CirrusSearch\Search\SearchContext;
 use CirrusSearch\Search\SearchRequestBuilder;
 use Elastica\Exception\ExceptionInterface;
 use Elastica\Index;
-use Elastica\ResultSet;
 use Elastica\Multi\Search as MultiSearch;
 use Elastica\Query;
-use CirrusSearch\Search\SearchContext;
+use Elastica\ResultSet;
 use Elastica\Search;
 use MediaWiki\MediaWikiServices;
 use SearchSuggestionSet;
@@ -118,12 +118,12 @@ class CompletionSuggester extends ElasticsearchIntermediary {
 	private $searchContext;
 
 	/**
-	 * @var CompSuggestQueryBuilder $compSuggestBuilder (final)
+	 * @var CompSuggestQueryBuilder (final)
 	 */
 	private $compSuggestBuilder;
 
 	/**
-	 * @var PrefixSearchQueryBuilder $prefixSearchQueryBuilder (final)
+	 * @var PrefixSearchQueryBuilder (final)
 	 */
 	private $prefixSearchQueryBuilder;
 
@@ -144,7 +144,7 @@ class CompletionSuggester extends ElasticsearchIntermediary {
 	 */
 	public function __construct( Connection $conn, $limit, $offset = 0, SearchConfig $config = null, array $namespaces = null,
 		User $user = null, $index = false, $profileName = null ) {
-		if ( is_null( $config ) ) {
+		if ( $config === null ) {
 			// @todo connection has an embedded config ... reuse that? somehow should
 			// at least ensure they are the same.
 			$config = MediaWikiServices::getInstance()
@@ -293,7 +293,6 @@ class CompletionSuggester extends ElasticsearchIntermediary {
 		$namespaces = $this->prefixSearchRequestBuilder->getSearchContext()->getNamespaces();
 		foreach ( $prefixResults->getResults() as $res ) {
 			$pageId = $this->config->makePageId( $res->getId() );
-			/** @phan-suppress-next-line PhanUndeclaredMethod transformOneElasticResult exists (FancyTitleResultsType asserted) */
 			$title = FancyTitleResultsType::chooseBestTitleOrRedirect( $rType->transformOneElasticResult( $res, $namespaces ) );
 			if ( $title === false ) {
 				continue;
@@ -369,7 +368,7 @@ class CompletionSuggester extends ElasticsearchIntermediary {
 	/**
 	 * @param string $description
 	 * @param string $queryType
-	 * @param string[] $extra
+	 * @param array $extra
 	 * @return CompletionRequestLog
 	 */
 	protected function newLog( $description, $queryType, array $extra = [] ) {

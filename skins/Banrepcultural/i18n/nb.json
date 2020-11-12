@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"Danmichaelo",
+			"Event",
+			"Jon Harald Søby",
+			"Nghtwlkr"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Moderne versjon av MonoBook med et friskt utseende og mange bruksforbedringer",
+	"banrepcultural.css": "/* CSS i denne fila vil gjelde alle som bruker drakta Banrepcultural */",
+	"banrepcultural.js": "/* Javascript i denne fila vil gjelde for brukere av drakta Banrepcultural */",
+	"banrepcultural-action-addsection": "Nytt emne",
+	"banrepcultural-action-delete": "Slett",
+	"banrepcultural-action-move": "Flytt",
+	"banrepcultural-action-protect": "Beskytt",
+	"banrepcultural-action-undelete": "Gjenopprett",
+	"banrepcultural-action-unprotect": "Endre beskyttelse",
+	"banrepcultural-view-create": "Opprett",
+	"banrepcultural-view-edit": "Rediger",
+	"banrepcultural-view-history": "Vis historikk",
+	"banrepcultural-view-view": "Les",
+	"banrepcultural-view-viewsource": "Vis kilden",
+	"banrepcultural-jumptonavigation": "Hopp til navigering",
+	"banrepcultural-jumptosearch": "Hopp til søk",
+	"banrepcultural-more-actions": "Mer"
+}

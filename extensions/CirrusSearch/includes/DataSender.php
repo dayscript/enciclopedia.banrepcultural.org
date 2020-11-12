@@ -2,11 +2,13 @@
 
 namespace CirrusSearch;
 
+use CirrusSearch\BuildDocument\BuildDocument;
 use CirrusSearch\MetaStore\MetaStoreIndex;
 use CirrusSearch\Search\CirrusIndexField;
 use Elastica\Bulk\Action\AbstractDocument;
 use Elastica\Exception\Bulk\ResponseException;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
 use Status;
 use Title;
 use Wikimedia\Assert\Assert;
@@ -76,8 +78,6 @@ class DataSender extends ElasticsearchIntermediary {
 	 * @param string $reason Why writes are being paused
 	 */
 	public function freezeIndexes( $reason ) {
-		global $wgCirrusSearchUpdateConflictRetryCount;
-
 		$this->log->info( "Freezing writes to all indices" );
 		$doc = new \Elastica\Document( self::ALL_INDEXES_FROZEN_NAME, [
 			'host' => gethostname(),
@@ -85,7 +85,7 @@ class DataSender extends ElasticsearchIntermediary {
 			'reason' => strval( $reason ),
 		] );
 		$doc->setDocAsUpsert( true );
-		$doc->setRetryOnConflict( $wgCirrusSearchUpdateConflictRetryCount );
+		$doc->setRetryOnConflict( $this->retryOnConflict() );
 
 		$type = MetaStoreIndex::getElasticaType( $this->connection );
 		$type->addDocument( $doc );
@@ -153,10 +153,31 @@ class DataSender extends ElasticsearchIntermediary {
 		}
 		$documents = $docsCopy;
 
+		// Perform final stage of document building. This only
+		// applies to `page` documents, docs built by something
+		// other than BuildDocument will pass through unchanged.
+		$services = MediaWikiServices::getInstance();
+		$builder = new BuildDocument(
+			$this->connection,
+			$services->getDBLoadBalancer()->getConnection( DB_REPLICA ),
+			$services->getParserCache(),
+			$services->getRevisionStore()
+		);
+		foreach ( $documents as $i => $doc ) {
+			if ( !$builder->finalize( $doc ) ) {
+				// Something has changed while this was hanging out in the job
+				// queue and should no longer be written to elastic.
+				unset( $documents[$i] );
+			}
+		}
+		if ( !$documents ) {
+			// All documents noop'd
+			return Status::newGood();
+		}
+
 		/**
-		 * Does this go here? Probably not. But we need job parameters
-		 * to serialize to json compatible types, and document is a
-		 * significantly simpler object to define a round trip with.
+		 * Transform the finalized documents into noop scripts if possible
+		 * to reduce update load.
 		 */
 		if ( $this->searchConfig->getElement( 'CirrusSearchWikimediaExtraPlugin', 'super_detect_noop' ) ) {
 			foreach ( $documents as $i => $doc ) {
@@ -166,8 +187,11 @@ class DataSender extends ElasticsearchIntermediary {
 				}
 			}
 		}
-		// Hints need to be retained until after building noop script
+
 		foreach ( $documents as $doc ) {
+			$doc->setRetryOnConflict( $this->retryOnConflict() );
+			// Hints need to be retained until after finalizing
+			// the documents and building the noop scripts.
 			CirrusIndexField::resetHints( $doc );
 		}
 
@@ -228,6 +252,7 @@ class DataSender extends ElasticsearchIntermediary {
 		if ( $exception === null && ( $justDocumentMissing || $validResponse ) ) {
 			$this->success();
 			if ( $validResponse ) {
+				// @phan-suppress-next-line PhanTypeMismatchArgumentNullable responseset is not null
 				$this->reportUpdateMetrics( $responseSet, $indexType, count( $documents ) );
 			}
 			return Status::newGood();
@@ -275,7 +300,7 @@ class DataSender extends ElasticsearchIntermediary {
 				$updateStats[$opRes] = 1;
 			}
 		}
-		$stats = \MediaWiki\MediaWikiServices::getInstance()->getStatsdDataFactory();
+		$stats = MediaWikiServices::getInstance()->getStatsdDataFactory();
 		$cluster = $this->connection->getClusterName();
 		$metricsPrefix = "CirrusSearch.$cluster.updates";
 		foreach ( $updateStats as $what => $num ) {
@@ -345,7 +370,7 @@ class DataSender extends ElasticsearchIntermediary {
 	/**
 	 * @param string $localSite The wikiId to add/remove from local_sites_with_dupe
 	 * @param string $indexName The name of the index to perform updates to
-	 * @param array $otherActions A list of arrays each containing the id within elasticsearch
+	 * @param array[] $otherActions A list of arrays each containing the id within elasticsearch
 	 *   ('docId') and the article namespace ('ns') and DB key ('dbKey') at the within $localSite
 	 * @param int $batchSize number of docs to update in a single bulk
 	 * @return Status
@@ -358,6 +383,7 @@ class DataSender extends ElasticsearchIntermediary {
 		$client = $this->connection->getClient();
 		$status = Status::newGood();
 		foreach ( array_chunk( $otherActions, $batchSize ) as $updates ) {
+			'@phan-var array[] $updates';
 			$bulk = new \Elastica\Bulk( $client );
 			$titles = [];
 			foreach ( $updates as $update ) {
@@ -421,7 +447,7 @@ class DataSender extends ElasticsearchIntermediary {
 	 */
 	protected function decideRequiredSetAction( Title $title ) {
 		$page = new WikiPage( $title );
-		$page->loadPageData( 'fromdbmaster' );
+		$page->loadPageData( WikiPage::READ_LATEST );
 		if ( $page->exists() ) {
 			return 'add';
 		} else {
@@ -457,7 +483,7 @@ class DataSender extends ElasticsearchIntermediary {
 				}
 			} else {
 				// es 2.x cluster
-				if ( $error['type'] !== 'document_missing_exception' ) {
+				if ( $error !== null && $error['type'] !== 'document_missing_exception' ) {
 					$justDocumentMissing = false;
 					continue;
 				}
@@ -528,5 +554,14 @@ class DataSender extends ElasticsearchIntermediary {
 		}
 
 		return $script;
+	}
+
+	/**
+	 * @return int Number of times to instruct Elasticsearch to retry updates that fail on
+	 *  version conflicts.
+	 */
+	private function retryOnConflict(): int {
+		return $this->searchConfig->get(
+			'CirrusSearchUpdateConflictRetryCount' );
 	}
 }

@@ -23,6 +23,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+use Wikimedia\IPUtils;
 use Wikimedia\Rdbms\IDatabase;
 
 /**
@@ -89,7 +90,7 @@ class ApiQueryGlobalBlocks extends ApiQueryBase {
 		if ( isset( $params['addresses'] ) ) {
 			$addresses = [];
 			foreach ( (array)$params['addresses'] as $address ) {
-				if ( !IP::isIPAddress( $address ) ) {
+				if ( !IPUtils::isIPAddress( $address ) ) {
 					$this->dieWithError(
 						[ 'globalblocking-apierror-badip', wfEscapeWikiText( $address ) ],
 						'param_addresses'
@@ -100,29 +101,30 @@ class ApiQueryGlobalBlocks extends ApiQueryBase {
 			$this->addWhereFld( 'gb_address', $addresses );
 		}
 		if ( isset( $params['ip'] ) ) {
-			if ( IP::isIPv4( $params['ip'] ) ) {
+			if ( IPUtils::isIPv4( $params['ip'] ) ) {
 				$type = 'IPv4';
 				$cidrLimit = 16; // @todo Make this configurable
 				$prefixLen = 0;
-			} elseif ( IP::isIPv6( $params['ip'] ) ) {
+			} elseif ( IPUtils::isIPv6( $params['ip'] ) ) {
 				$type = 'IPv6';
 				$cidrLimit = 16; // @todo Make this configurable
-				$prefixLen = 3; // IP::toHex output is prefixed with "v6-"
+				$prefixLen = 3; // IPUtils::toHex output is prefixed with "v6-"
 			} else {
 				$this->dieWithError( 'apierror-badip', 'param_ip' );
+				throw new LogicException();
 			}
 
 			# Check range validity, if it's a CIDR
-			list( $ip, $range ) = IP::parseCIDR( $params['ip'] );
+			list( $ip, $range ) = IPUtils::parseCIDR( $params['ip'] );
 			if ( $ip !== false && $range !== false && $range < $cidrLimit ) {
 				$this->dieWithError( [ 'apierror-cidrtoobroad', $type, $cidrLimit ] );
 			}
 
-			# Let IP::parseRange handle calculating $upper, instead of duplicating the logic here.
-			list( $lower, $upper ) = IP::parseRange( $params['ip'] );
+			# Let IPUtils::parseRange handle calculating $upper, instead of duplicating the logic here.
+			list( $lower, $upper ) = IPUtils::parseRange( $params['ip'] );
 
 			# Extract the common prefix to any rangeblock affecting this IP/CIDR
-			$prefix = substr( $lower, 0, $prefixLen + floor( $cidrLimit / 4 ) );
+			$prefix = substr( $lower, 0, $prefixLen + $cidrLimit / 4 );
 
 			# Fairly hard to make a malicious SQL statement out of hex characters,
 			# but it is good practice to add quotes
@@ -170,8 +172,8 @@ class ApiQueryGlobalBlocks extends ApiQueryBase {
 				$block['reason'] = $row->gb_reason;
 			}
 			if ( $fld_range ) {
-				$block['rangestart'] = IP::hexToQuad( $row->gb_range_start );
-				$block['rangeend'] = IP::hexToQuad( $row->gb_range_end );
+				$block['rangestart'] = IPUtils::hexToQuad( $row->gb_range_start );
+				$block['rangeend'] = IPUtils::hexToQuad( $row->gb_range_end );
 			}
 			$data[] = $block;
 		}

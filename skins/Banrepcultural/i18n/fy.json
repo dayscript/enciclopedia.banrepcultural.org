@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kening Aldgilles",
+			"PiefPafPier",
+			"Robin van der Vliet",
+			"Robin0van0der0vliet",
+			"SK-luuut"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Moderne ferzje fan MonoBoek mei in fris oansjoch en protte noflike ferbetterings",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "De âlde bewende Vektor brûke",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Yn 'e kommende pear jier geane wy de Vektor-foarmjouwing stadichoan bywurkje. Mei 'de âlde bewende Vektor' kinne jo it oansjoch fan de âlde ferzje fan Vektor (fan desimber 2019) behâlde. Gean nei ús [[mw:Reading/Web/Desktop_Improvements|projektside]] at jo mear witte wolle oer de oanpassings.",
+	"banrepcultural-opt-out": "Alde oansjoch weromsette",
+	"banrepcultural.css": "/* Al it CSS hjirre sil foar brûkers fan de Banrepcultural-foarmjouwing laden wurde */",
+	"banrepcultural.js": "/* Al it JavaScript hjirre sil foar brûkers fan de Banrepcultural-foarmjouwing laden wurde */",
+	"banrepcultural-action-addsection": "Nij mêd",
+	"banrepcultural-action-delete": "Wiskje",
+	"banrepcultural-action-move": "Omneame",
+	"banrepcultural-action-protect": "Skoattelje",
+	"banrepcultural-action-undelete": "Wer teplak sette",
+	"banrepcultural-action-unprotect": "Befeiliging wizigje",
+	"banrepcultural-view-create": "Oanmeitsje",
+	"banrepcultural-view-edit": "Bewurkje",
+	"banrepcultural-view-history": "Skiednis besjen",
+	"banrepcultural-view-view": "Lêze",
+	"banrepcultural-view-viewsource": "Boarne besjen",
+	"banrepcultural-jumptonavigation": "Springe nei navigaasje",
+	"banrepcultural-jumptosearch": "Springe nei sykjen",
+	"banrepcultural-more-actions": "Mear"
+}

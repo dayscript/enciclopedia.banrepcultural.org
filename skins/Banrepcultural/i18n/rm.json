@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gion-andri",
+			"Terfili"
+		]
+	},
+	"banrepcultural-action-addsection": "Agiuntar chapitel",
+	"banrepcultural-action-delete": "Stizzar",
+	"banrepcultural-action-move": "Spustar",
+	"banrepcultural-action-protect": "Bloccar",
+	"banrepcultural-action-undelete": "Restituir",
+	"banrepcultural-action-unprotect": "Midar la protecziun",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Modifitgar",
+	"banrepcultural-view-history": "Cronologia",
+	"banrepcultural-view-view": "Leger",
+	"banrepcultural-view-viewsource": "Mussar il code",
+	"banrepcultural-more-actions": "dapli"
+}

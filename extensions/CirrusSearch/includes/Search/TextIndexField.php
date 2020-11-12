@@ -2,11 +2,12 @@
 
 namespace CirrusSearch\Search;
 
+use CirrusSearch\CirrusSearch;
 use CirrusSearch\Maintenance\MappingConfigBuilder;
 use CirrusSearch\Profile\SearchProfileService;
-use SearchIndexField;
 use CirrusSearch\SearchConfig;
 use SearchEngine;
+use SearchIndexField;
 
 /**
  * Index field representing keyword.
@@ -87,11 +88,12 @@ class TextIndexField extends CirrusIndexField {
 	 * @return int
 	 */
 	protected function getTextOptions( $mappingFlags ) {
-		if ( !is_null( $this->textOptions ) ) {
+		if ( $this->textOptions !== null ) {
 			return $this->textOptions;
 		}
 		$options = self::ENABLE_NORMS | self::SPEED_UP_HIGHLIGHTING;
-		if ( $mappingFlags & MappingConfigBuilder::PHRASE_SUGGEST_USE_TEXT &&
+		if ( $this->config->get( 'CirrusSearchEnablePhraseSuggest' ) &&
+			$mappingFlags & MappingConfigBuilder::PHRASE_SUGGEST_USE_TEXT &&
 			!$this->checkFlag( SearchIndexField::FLAG_SCORING )
 		) {
 			// SCORING fields are not copied since this info is already in other fields
@@ -109,16 +111,18 @@ class TextIndexField extends CirrusIndexField {
 	 * @return array
 	 */
 	public function getMapping( SearchEngine $engine ) {
-		if ( !( $engine instanceof \CirrusSearch ) ) {
+		if ( !( $engine instanceof CirrusSearch ) ) {
 			throw new \LogicException( "Cannot map CirrusSearch fields for another engine." );
 		}
 		$this->initFlags();
 		/**
-		 * @var \CirrusSearch $engine
+		 * @var CirrusSearch $engine
 		 */
 		$field = parent::getMapping( $engine );
 
-		if ( $this->checkFlag( self::COPY_TO_SUGGEST ) ) {
+		if ( $this->config->get( 'CirrusSearchEnablePhraseSuggest' ) &&
+			 $this->checkFlag( self::COPY_TO_SUGGEST )
+		) {
 			$field[ 'copy_to' ] = [ 'suggest' ];
 		}
 
@@ -175,7 +179,6 @@ class TextIndexField extends CirrusIndexField {
 		if ( $disableNorms ) {
 			$disableNorms = [ 'norms' => false ];
 			$field = array_merge( $field, $disableNorms );
-			/* @phan-suppress-next-line PhanTypeMismatchArgumentInternal, PhanTypeMismatchDimFetch */
 			$field[ 'fields' ][ 'plain' ] = array_merge( $field[ 'fields' ][ 'plain' ], $disableNorms );
 		}
 		foreach ( $extra as $extraField ) {
@@ -255,7 +258,7 @@ class TextIndexField extends CirrusIndexField {
 				$fieldSimilarity = $similarity['fields']["$field.$analyzer"];
 			}
 		}
-		if ( is_null( $fieldSimilarity ) ) {
+		if ( $fieldSimilarity === null ) {
 			throw new \RuntimeException( "Invalid similarity profile, unable to infer the similarity for " .
 				"the field $field, (defining a __default__ field might solve the issue" );
 		}

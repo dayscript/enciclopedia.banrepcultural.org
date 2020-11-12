@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Esbardu",
+			"Xuacu"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Versión moderna de MonoBook, con un aspeutu frescu y munchos ameyoramientos d'usabilidá",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Utilizar versión anticuada de Banrepcultural",
+	"banrepcultural.css": "/* Los CSS allugaos equí afeutarán a los usuarios del aspeutu Banrepcultural */",
+	"banrepcultural.js": "/* Cualesquier JavaScript que tea equí se cargará pa los usuarios del aspeutu Banrepcultural */",
+	"banrepcultural-action-addsection": "Amestar seición",
+	"banrepcultural-action-delete": "Desaniciar",
+	"banrepcultural-action-move": "Treslladar",
+	"banrepcultural-action-protect": "Protexer",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Camudar la proteición",
+	"banrepcultural-view-create": "Crear",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Ver historial",
+	"banrepcultural-view-view": "Lleer",
+	"banrepcultural-view-viewsource": "Ver fonte",
+	"banrepcultural-jumptonavigation": "Saltar a navegación",
+	"banrepcultural-jumptosearch": "Saltar a la gueta",
+	"banrepcultural-more-actions": "Más"
+}

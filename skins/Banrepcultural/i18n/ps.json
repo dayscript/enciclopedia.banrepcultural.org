@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Ahmed-Najib-Biabani-Ibrahimkhel"
+		]
+	},
+	"skinname-banrepcultural": "وېکټور",
+	"banrepcultural.css": "/* د CSS هره بڼه چې دلته ځای پر ځای کېږي هغه به د وېکټور د پوښ ټولو کارنانو لپاره کار کوي */",
+	"banrepcultural.js": "/* د جاوا هر يو سکرېپټ چې دلته ځای پر ځای کېږي هغه به د وېکټور د پوښ ټولو کارنانو لپاره کار کوي */",
+	"banrepcultural-action-addsection": "سرليک ورگډول",
+	"banrepcultural-action-delete": "ړنگول",
+	"banrepcultural-action-move": "لېږدول",
+	"banrepcultural-action-protect": "ژغورل",
+	"banrepcultural-action-undelete": "ناړنگول",
+	"banrepcultural-action-unprotect": "ژغورنه بدلول",
+	"banrepcultural-view-create": "جوړول",
+	"banrepcultural-view-edit": "سمول",
+	"banrepcultural-view-history": "پېښليک کتل",
+	"banrepcultural-view-view": "لوستل",
+	"banrepcultural-view-viewsource": "سرچينه کتل",
+	"banrepcultural-more-actions": "نور"
+}

@@ -6,6 +6,7 @@ use CirrusSearch\CirrusDebugOptions;
 use CirrusSearch\ExternalIndex;
 use CirrusSearch\Fallbacks\FallbackRunner;
 use CirrusSearch\OtherIndexesUpdater;
+use CirrusSearch\Parser\BasicQueryClassifier;
 use CirrusSearch\Profile\SearchProfileService;
 use CirrusSearch\Query\Builder\FilterBuilder;
 use CirrusSearch\Search\Fetch\FetchPhaseConfigBuilder;
@@ -77,8 +78,8 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $resultsPossible = true;
 
 	/**
-	 * @var string[] List of features in the user suplied query string. Features are
-	 *  held in the array key, value is always true.
+	 * @var int[] List of features in the user suplied query string. Features are
+	 *  held in the array key, value is how "complex" the feature is.
 	 */
 	private $syntaxUsed = [];
 
@@ -142,7 +143,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $cleanedSearchTerm;
 
 	/**
-	 * @var Escaper $escaper
+	 * @var Escaper
 	 */
 	private $escaper;
 
@@ -192,7 +193,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	private $aggs = [];
 
 	/**
-	 * @var CirrusDebugOptions $debugOptions
+	 * @var CirrusDebugOptions
 	 */
 	private $debugOptions;
 
@@ -361,14 +362,18 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	}
 
 	/**
-	 * @return bool true if a special keyword was used in the query
+	 * @return bool true if a special keyword or syntax was used in the query
 	 */
 	public function isSpecialKeywordUsed() {
 		// full_text is not considered a special keyword
+		// TODO: investigate using BasicQueryClassifier::SIMPLE_BAG_OF_WORDS instead
 		return !empty( array_diff_key( $this->syntaxUsed, [
 			'full_text' => true,
 			'full_text_simple_match' => true,
 			'full_text_querystring' => true,
+			BasicQueryClassifier::SIMPLE_BAG_OF_WORDS => true,
+			BasicQueryClassifier::SIMPLE_PHRASE => true,
+			BasicQueryClassifier::BAG_OF_WORDS_WITH_PHRASE => true,
 		] ) );
 	}
 
@@ -392,7 +397,7 @@ class SearchContext implements WarningCollector, FilterBuilder {
 	 */
 	public function addSyntaxUsed( $feature, $weight = null ) {
 		$this->isDirty = true;
-		if ( is_null( $weight ) ) {
+		if ( $weight === null ) {
 			if ( isset( self::$syntaxWeights[$feature] ) ) {
 				$weight = self::$syntaxWeights[$feature];
 			} else {
@@ -664,11 +669,9 @@ class SearchContext implements WarningCollector, FilterBuilder {
 
 	/**
 	 * @param string $message i18n message key
-	 * @param string|null $param1
-	 * @param string|null $param2
-	 * @param string|null $param3
+	 * @param mixed ...$params
 	 */
-	public function addWarning( $message, $param1 = null, $param2 = null, $param3 = null ) {
+	public function addWarning( $message, ...$params ) {
 		$this->isDirty = true;
 		$this->warnings[] = array_filter( func_get_args(), function ( $v ) {
 			return $v !== null;
@@ -826,12 +829,26 @@ class SearchContext implements WarningCollector, FilterBuilder {
 		$searchContext->limitSearchToLocalWiki = !$query->getCrossSearchStrategy()->isExtraIndicesSearchSupported();
 
 		$searchContext->rescoreProfile = $query->getForcedProfile( SearchProfileService::RESCORE );
+
 		$profileContext = $query->getSearchConfig()
 			->getProfileService()
 			->getDispatchService()
 			->bestRoute( $query )
 			->getProfileContext();
 		$searchContext->setProfileContext( $profileContext );
+		$parsedQuery = $query->getParsedQuery();
+		$basicQueryClasses = [
+			BasicQueryClassifier::SIMPLE_BAG_OF_WORDS,
+			BasicQueryClassifier::SIMPLE_PHRASE,
+			BasicQueryClassifier::BAG_OF_WORDS_WITH_PHRASE,
+			BasicQueryClassifier::COMPLEX_QUERY,
+		];
+
+		foreach ( $basicQueryClasses as $klass ) {
+			if ( $parsedQuery->isQueryOfClass( $klass ) ) {
+				$searchContext->syntaxUsed[$klass] = 1;
+			}
+		}
 		// TODO: Clarify what happens when user forces a profile, should we disable the dispatch service?
 		$searchContext->fulltextQueryBuilderProfile = $query->getForcedProfile( SearchProfileService::FT_QUERY_BUILDER );
 		$searchContext->profileContextParams = $query->getProfileContextParameters();

@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sfic",
+			"Siddhartha Ghai",
+			"आलोक",
+			"रोहित रावत"
+		]
+	},
+	"skinname-banrepcultural": "वेक्टर",
+	"banrepcultural-skin-desc": "मोनोबूक का आधुनिक संस्करण, जो ताजा रूप में और उपयोग में सुधार के साथ है।",
+	"banrepcultural.css": "/* सीएसएस यहाँ डालने से वेक्टर त्वचा चुने लोगों को प्रभावित करेगा */",
+	"banrepcultural-action-addsection": "विषय जोड़ें",
+	"banrepcultural-action-delete": "हटाएँ",
+	"banrepcultural-action-move": "स्थानांतरण करें",
+	"banrepcultural-action-protect": "सुरक्षित करें",
+	"banrepcultural-action-undelete": "हटाना वापस लें",
+	"banrepcultural-action-unprotect": "सुरक्षा बदलें",
+	"banrepcultural-view-create": "बनाएँ",
+	"banrepcultural-view-edit": "सम्पादन",
+	"banrepcultural-view-history": "इतिहास देखें",
+	"banrepcultural-view-view": "पढ़ें",
+	"banrepcultural-view-viewsource": "स्रोत देखें",
+	"banrepcultural-more-actions": "अधिक"
+}

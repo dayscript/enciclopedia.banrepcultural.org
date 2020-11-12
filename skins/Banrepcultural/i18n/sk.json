@@ -1,0 +1,28 @@
+{
+	"@metadata": {
+		"authors": [
+			"Helix84",
+			"KuboF",
+			"Mikulas1",
+			"Robert Važan",
+			"Rudko",
+			"Sudo77(new)"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "Moderná verzia MonoBooku so sviežim vzhľadom a vylepšenou použiteľnosťou",
+	"banrepcultural.css": "/* Tu umiestnené CSS bude ovplyvňovať používateľov štýlu Banrepcultural */",
+	"banrepcultural.js": "/* Tu sa nachádzajúci JavaScript sa načíta používateľom vzhľadu Banrepcultural */",
+	"banrepcultural-action-addsection": "Pridať tému",
+	"banrepcultural-action-delete": "Zmazať",
+	"banrepcultural-action-move": "Presunúť",
+	"banrepcultural-action-protect": "Zamknúť",
+	"banrepcultural-action-undelete": "Obnoviť",
+	"banrepcultural-action-unprotect": "Zmeniť stav ochrany",
+	"banrepcultural-view-create": "Vytvoriť",
+	"banrepcultural-view-edit": "Upraviť",
+	"banrepcultural-view-history": "Zobraziť históriu",
+	"banrepcultural-view-view": "Čítať",
+	"banrepcultural-view-viewsource": "Zobraziť kód",
+	"banrepcultural-more-actions": "Viac"
+}

@@ -43,6 +43,7 @@ class DefaultSearchQueryDispatchService implements SearchQueryDispatchService {
 			if ( $score === 1.0 ) {
 				if ( $bestScore === 1.0 ) {
 					throw new SearchProfileException( "Two competing contexts " .
+						// @phan-suppress-next-line PhanNonClassMethodCall $best always set when reaching this line
 						"{$route->getProfileContext()} and {$best->getProfileContext()} " .
 						" produced the max score" );
 				}

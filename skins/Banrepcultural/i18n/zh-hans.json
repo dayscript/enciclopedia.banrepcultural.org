@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"500000000006城",
+			"Cwek",
+			"Hydra",
+			"Liangent",
+			"Liuxinyu970226",
+			"Xiaomingyan"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural-skin-desc": "提供清新的外观和许多可用性改进的现代版MonoBook",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "使用旧的矢量",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "在接下来的几年中，我们将逐步更新Banrepcultural外观。 旧版Banrepcultural将允许您查看Banrepcultural的旧版本（截至2019年12月）。 要了解有关更新的更多信息，请转到我们的[[mw:Reading/Web/Desktop_Improvements|project page]]",
+	"banrepcultural.css": "/* 这里放置的CSS将影响使用Banrepcultural皮肤的用户 */",
+	"banrepcultural.js": "/* 这里的任何JavaScript将为使用Banrepcultural皮肤的用户加载 */",
+	"banrepcultural-action-addsection": "添加话题",
+	"banrepcultural-action-delete": "删除",
+	"banrepcultural-action-move": "移动",
+	"banrepcultural-action-protect": "保护",
+	"banrepcultural-action-undelete": "还原",
+	"banrepcultural-action-unprotect": "更改保护",
+	"banrepcultural-view-create": "创建",
+	"banrepcultural-view-edit": "编辑",
+	"banrepcultural-view-history": "查看历史",
+	"banrepcultural-view-view": "阅读",
+	"banrepcultural-view-viewsource": "查看源代码",
+	"banrepcultural-jumptonavigation": "跳到导航",
+	"banrepcultural-jumptosearch": "跳到搜索",
+	"banrepcultural-more-actions": "更多"
+}

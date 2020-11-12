@@ -1,0 +1,22 @@
+{
+	"@metadata": {
+		"authors": [
+			"Asoxor",
+			"Calak",
+			"Sarchia"
+		]
+	},
+	"skinname-banrepcultural": "ڤێکتۆر",
+	"banrepcultural-action-addsection": "بابەت دابنێ",
+	"banrepcultural-action-delete": "سڕینەوە",
+	"banrepcultural-action-move": "گواستنەوە",
+	"banrepcultural-action-protect": "پاراستن",
+	"banrepcultural-action-undelete": "سڕینەوە بگەڕێنەوە",
+	"banrepcultural-action-unprotect": "پاراستن بگۆڕە",
+	"banrepcultural-view-create": "دروستکردن",
+	"banrepcultural-view-edit": "دەستکاری",
+	"banrepcultural-view-history": "مێژوو",
+	"banrepcultural-view-view": "خوێندنەوە",
+	"banrepcultural-view-viewsource": "سەرچاوەکەی ببینە",
+	"banrepcultural-more-actions": "زیاتر"
+}

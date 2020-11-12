@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kernoweger",
+			"Kw-Moon",
+			"Nrowe"
+		]
+	},
+	"banrepcultural-action-addsection": "Keworra testen",
+	"banrepcultural-action-delete": "Dilea",
+	"banrepcultural-action-move": "Gwaya",
+	"banrepcultural-action-protect": "Difres",
+	"banrepcultural-action-undelete": "Disdhilea",
+	"banrepcultural-action-unprotect": "Chanjya difresans",
+	"banrepcultural-view-create": "Gwruthyl",
+	"banrepcultural-view-edit": "Chanjya",
+	"banrepcultural-view-history": "Gweles an istori",
+	"banrepcultural-view-view": "Redya",
+	"banrepcultural-view-viewsource": "Gweles an bennfenten",
+	"banrepcultural-more-actions": "Moy"
+}

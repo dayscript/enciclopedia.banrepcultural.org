@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Servien",
+			"Slomox",
+			"Zylbath"
+		]
+	},
+	"banrepcultural-action-addsection": "Thema tofögen",
+	"banrepcultural-action-delete": "Wegdoon",
+	"banrepcultural-action-move": "Schuven",
+	"banrepcultural-action-protect": "Schulen",
+	"banrepcultural-action-undelete": "Wedderhalen",
+	"banrepcultural-action-unprotect": "Siedenschuul ännern",
+	"banrepcultural-view-create": "Opstellen",
+	"banrepcultural-view-edit": "Ännern",
+	"banrepcultural-view-history": "Historie bekieken",
+	"banrepcultural-view-view": "Lesen",
+	"banrepcultural-view-viewsource": "Borntext bekieken",
+	"banrepcultural-more-actions": "Mehr"
+}

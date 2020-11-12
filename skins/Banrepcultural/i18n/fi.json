@@ -1,0 +1,36 @@
+{
+	"@metadata": {
+		"authors": [
+			"01miki10",
+			"Crt",
+			"Nedergard",
+			"Nike",
+			"Pxos",
+			"Pyscowicz",
+			"SuperPete"
+		]
+	},
+	"skinname-banrepcultural": "Vektori",
+	"banrepcultural-skin-desc": "Uudistettu versio MonoBookista raikkaalla ulkoasulla ja useilla käytettävyysparannuksilla",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Käytä vanhaa Vektoria",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Seuraavien muutaman vuoden aikana päivitämme Vektori-ulkoasua vaiheittain. Vanha Vektori mahdollistaa Vektorin vanhan (joulukuu 2019) version käyttämisen. Saadaksesi lisätietoa päivityksistä katso [[mw:Reading/Web/Desktop_Improvements|projektisivumme]].",
+	"banrepcultural-opt-out": "Vaihda vanhaan ulkoasuun",
+	"banrepcultural-opt-out-tooltip": "Muuta asetuksiasi palataksesi ulkoasun vanhaan versioon (vanha Vektori)",
+	"banrepcultural.css": "/* Tämä sivu sisältää Vektori-ulkoasua muuttavia tyylejä. */",
+	"banrepcultural.js": "/* Tämän sivun JavaScript-koodi liitetään Vektori-tyyliin */",
+	"banrepcultural-action-toggle-sidebar": "Näytä/piilota sivupalkki",
+	"banrepcultural-action-addsection": "Lisää aihe",
+	"banrepcultural-action-delete": "Poista",
+	"banrepcultural-action-move": "Siirrä",
+	"banrepcultural-action-protect": "Suojaa",
+	"banrepcultural-action-undelete": "Palauta",
+	"banrepcultural-action-unprotect": "Muuta suojausta",
+	"banrepcultural-view-create": "Luo",
+	"banrepcultural-view-edit": "Muokkaa",
+	"banrepcultural-view-history": "Näytä historia",
+	"banrepcultural-view-view": "Lue",
+	"banrepcultural-view-viewsource": "Näytä lähdekoodi",
+	"banrepcultural-jumptonavigation": "Siirry navigaatioon",
+	"banrepcultural-jumptosearch": "Siirry hakuun",
+	"banrepcultural-more-actions": "Muut"
+}

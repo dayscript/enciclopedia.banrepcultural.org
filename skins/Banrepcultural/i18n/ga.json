@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Kscanne",
+			"Kwekubo",
+			"Moydow",
+			"Tem"
+		]
+	},
+	"skinname-banrepcultural": "Veicteoir",
+	"banrepcultural-action-addsection": "Cuir topaic leis",
+	"banrepcultural-action-delete": "Scrios",
+	"banrepcultural-action-move": "Athainmnigh",
+	"banrepcultural-action-protect": "Glasáil",
+	"banrepcultural-action-undelete": "Díscrios",
+	"banrepcultural-action-unprotect": "Díghlasáil",
+	"banrepcultural-view-create": "Cruthaigh",
+	"banrepcultural-view-edit": "Cuir in eagar",
+	"banrepcultural-view-history": "Féach ar stair",
+	"banrepcultural-view-view": "Léigh",
+	"banrepcultural-view-viewsource": "Féach ar fhoinse",
+	"banrepcultural-more-actions": "Tuilleadh"
+}

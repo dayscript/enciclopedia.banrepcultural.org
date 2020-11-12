@@ -6,10 +6,12 @@
 
 /* eslint-env node, es6 */
 
+'use strict';
+
 const path = require( 'path' );
 
 module.exports = function ( grunt ) {
-	var WebdriverIOconfigFile;
+	let WebdriverIOconfigFile;
 
 	grunt.loadNpmTasks( 'grunt-banana-checker' );
 	grunt.loadNpmTasks( 'grunt-eslint' );
@@ -27,12 +29,11 @@ module.exports = function ( grunt ) {
 	grunt.initConfig( {
 		eslint: {
 			options: {
-				reportUnusedDisableDirectives: true,
 				extensions: [ '.js', '.json' ],
 				cache: true
 			},
 			all: [
-				'**/*.js{,on}',
+				'**/*.{js,json}',
 				'!{vendor,node_modules}/**'
 			]
 		},
@@ -44,8 +45,7 @@ module.exports = function ( grunt ) {
 		},
 		stylelint: {
 			all: [
-				'**/*.css',
-				'**/*.less',
+				'**/*.{css,less}',
 				'!node_modules/**',
 				'!tests/integration/articles/**',
 				'!vendor/**'
@@ -59,11 +59,11 @@ module.exports = function ( grunt ) {
 					tagExpression: ( () => grunt.option( 'tags' ) )()
 				},
 				maxInstances: ( () => {
-					let max = grunt.option( 'maxInstances' );
+					const max = grunt.option( 'maxInstances' );
 					return max ? parseInt( max, 10 ) : 1;
 				} )(),
 				spec: ( () => {
-					let spec = grunt.option( 'spec' );
+					const spec = grunt.option( 'spec' );
 					if ( !spec ) {
 						return undefined;
 					}

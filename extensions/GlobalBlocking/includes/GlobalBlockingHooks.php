@@ -7,6 +7,7 @@
  */
 
 use MediaWiki\Block\DatabaseBlock;
+use Wikimedia\IPUtils;
 
 class GlobalBlockingHooks {
 	/**
@@ -34,6 +35,11 @@ class GlobalBlockingHooks {
 				$updater->addExtensionTable(
 					'globalblocks',
 					"$base/sql/globalblocks.sql"
+				);
+				$updater->modifyExtensionField(
+					'globalblocks',
+					'gb_range_start',
+					"$base/sql/patch-range-extend.sql"
 				);
 				$updater->modifyExtensionField(
 					'globalblocks',
@@ -118,9 +124,12 @@ class GlobalBlockingHooks {
 	 * @return bool
 	 */
 	public static function onSpecialPasswordResetOnSubmit( &$users, $data, &$error ) {
-		global $wgUser, $wgRequest;
+		$requestContext = RequestContext::getMain();
 
-		if ( GlobalBlocking::getUserBlockErrors( $wgUser, $wgRequest->getIP() ) ) {
+		if ( GlobalBlocking::getUserBlockErrors(
+			$requestContext->getUser(),
+			$requestContext->getRequest()->getIP()
+		) ) {
 			$error = 'globalblocking-blocked-nopassreset';
 			return false;
 		}
@@ -136,7 +145,7 @@ class GlobalBlockingHooks {
 	 */
 	public static function onOtherBlockLogLink( &$msg, $ip ) {
 		// Fast return if it is a username. IP addresses can be blocked only.
-		if ( !IP::isIPAddress( $ip ) ) {
+		if ( !IPUtils::isIPAddress( $ip ) ) {
 			return true;
 		}
 
@@ -166,7 +175,7 @@ class GlobalBlockingHooks {
 		$userId, User $user, SpecialPage $sp
 	) {
 		$name = $user->getName();
-		if ( !IP::isIPAddress( $name ) ) {
+		if ( !IPUtils::isIPAddress( $name ) ) {
 			return true;
 		}
 

@@ -1,5 +1,7 @@
 <?php
 
+use Wikimedia\IPUtils;
+
 class SpecialGlobalBlockStatus extends FormSpecialPage {
 	private $mAddress, $mCurrentStatus, $mWhitelistStatus;
 
@@ -31,7 +33,7 @@ class SpecialGlobalBlockStatus extends FormSpecialPage {
 	private function loadParameters() {
 		$request = $this->getRequest();
 		$ip = trim( $request->getText( 'address' ) );
-		$this->mAddress = ( $ip !== '' || $request->wasPosted() ) ? IP::sanitizeRange( $ip ) : '';
+		$this->mAddress = ( $ip !== '' || $request->wasPosted() ) ? IPUtils::sanitizeRange( $ip ) : '';
 		$this->mWhitelistStatus = $request->getCheck( 'wpWhitelistStatus' );
 		$id = GlobalBlocking::getGlobalBlockId( $ip );
 
@@ -108,10 +110,8 @@ class SpecialGlobalBlockStatus extends FormSpecialPage {
 			if ( GlobalBlocking::getWhitelistInfoByIP( $this->mAddress ) !== false ) {
 				// Check if there is already an entry with the same ip (and another id)
 				$dbw->delete( 'global_block_whitelist', [ 'gbw_address' => $ip ], __METHOD__ );
-				$dbw->replace( 'global_block_whitelist', [ 'gbw_id' ], $row, __METHOD__ );
-			} else {
-				$dbw->replace( 'global_block_whitelist', [ 'gbw_id' ], $row, __METHOD__ );
 			}
+			$dbw->replace( 'global_block_whitelist', 'gbw_id', $row, __METHOD__ );
 
 			$this->addLogEntry( 'whitelist', $ip, $data['Reason'] );
 			$successMsg = 'globalblocking-whitelist-whitelisted';

@@ -4,21 +4,23 @@ namespace CirrusSearch;
 
 use CirrusSearch\Query\FullTextQueryStringQueryBuilder;
 use CirrusSearch\Search\CirrusSearchResultSet;
-use CirrusSearch\Test\SearchConfigUsageDecorator;
 use CirrusSearch\Search\SearchQueryBuilder;
 use CirrusSearch\Test\DummyConnection;
+use CirrusSearch\Test\SearchConfigUsageDecorator;
 use Elastica\Query;
 use Elastica\Response;
+use HtmlArmor;
 use MediaWiki\MediaWikiServices;
 use Title;
 
 /**
  * @covers \CirrusSearch\Searcher
  * @group CirrusSearch
+ * @group Standalone
  */
 class SearcherTest extends CirrusIntegrationTestCase {
 
-	public function setUp() {
+	public function setUp() : void {
 		parent::setUp();
 		MediaWikiServices::getInstance()->getConfigFactory()->register( 'CirrusSearch',
 			function () {
@@ -27,7 +29,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 		);
 	}
 
-	public function tearDown() {
+	public function tearDown() : void {
 		MediaWikiServices::getInstance()
 			->resetServiceForTesting( 'ConfigFactory' );
 		parent::tearDown();
@@ -115,7 +117,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 		$linkCache->addGoodLinkObj( 12345, Title::newFromText( 'Some page' ) );
 		$linkCache->addGoodLinkObj( 23456, Title::newFromText( 'Other page' ) );
 
-		$engine = new \CirrusSearch( null, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
+		$engine = new CirrusSearch( null, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
 		// Set some default namespaces, otherwise installed extensions will change
 		// the generated query
 		$engine->setNamespaces( [
@@ -278,7 +280,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 			$termMain = $query;
 		}
 
-		$engine = new \CirrusSearch( null, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
+		$engine = new CirrusSearch( null, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
 		$engine->setLimitOffset( 20, 0 );
 		$engine->setNamespaces( [ $ns ] );
 		$elasticQuery = $engine->searchArchiveTitle( $termMain )->getValue();
@@ -294,13 +296,13 @@ class SearcherTest extends CirrusIntegrationTestCase {
 	}
 
 	public function testImpossibleQueryResults() {
-		$engine = new \CirrusSearch();
+		$engine = new CirrusSearch();
 		// query is invalid, filesize:> needs an integer
 		$status = $engine->searchText( 'filesize:>q' );
 		$this->assertTrue( $status->isOK(), 'search didnt fail' );
 		$this->assertFalse( $status->isGood(), 'but it has warnings' );
 		$this->assertTrue( $status->getValue()->searchContainedSyntax(), 'it used special syntax' );
-		$this->assertEquals( 0, $status->getValue()->numRows(), 'and returned no results' );
+		$this->assertSame( 0, $status->getValue()->numRows(), 'and returned no results' );
 	}
 
 	public function testApplyDebugOptions() {
@@ -379,7 +381,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 	 * @dataProvider provideTestSuggestQueries()
 	 */
 	public function testPhraseSuggest( $expectedFile, $query, $namespaces, $offset, $withDym, $config ) {
-		$engine = new \CirrusSearch( new HashSearchConfig( $config + [
+		$engine = new CirrusSearch( new HashSearchConfig( $config + [
 					'CirrusSearchPhraseSuggestReverseField' => [ 'use' => false ],
 				], [ HashSearchConfig::FLAG_INHERIT ] ),
 				CirrusDebugOptions::forDumpingQueriesInUnitTests() );
@@ -447,7 +449,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 			'CirrusSearchEnablePhraseSuggest' => true,
 			'CirrusSearchPhraseSuggestReverseField' => [ 'use' => false ],
 		], [ HashSearchConfig::FLAG_INHERIT ] );
-		$engine = new \CirrusSearch( $config );
+		$engine = new CirrusSearch( $config );
 		$engine->setFeatureData( 'rewrite', true );
 		$engine->setShowSuggestion( true );
 		/**
@@ -455,7 +457,7 @@ class SearcherTest extends CirrusIntegrationTestCase {
 		 */
 		$resultSet = $engine->searchText( $query )->getValue();
 
-		$engine = new \CirrusSearch( $config, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
+		$engine = new CirrusSearch( $config, CirrusDebugOptions::forDumpingQueriesInUnitTests() );
 		$engine->setFeatureData( 'rewrite', true );
 		$engine->setShowSuggestion( true );
 		$query = json_decode( $engine->searchText( $query )->getValue(), JSON_OBJECT_AS_ARRAY );
@@ -465,20 +467,17 @@ class SearcherTest extends CirrusIntegrationTestCase {
 			$this->assertEquals( $response['suggest']['suggest'][0]['text'],
 				$query[Searcher::MAINSEARCH_MSEARCH_KEY]['query']['suggest']['text'] );
 
-			$suggestionSnippet = strtr( htmlspecialchars( $suggestionSnippet ), [
-				Searcher::HIGHLIGHT_PRE_MARKER => Searcher::SUGGESTION_HIGHLIGHT_PRE,
-				Searcher::HIGHLIGHT_POST_MARKER => Searcher::SUGGESTION_HIGHLIGHT_POST,
-			] );
-
 			if ( $resultSet->getTotalHits() === 123456 ) {
 				$this->assertEquals( $suggestion, $resultSet->getQueryAfterRewrite() );
 
-				$this->assertEquals( $suggestionSnippet, $resultSet->getQueryAfterRewriteSnippet() );
+				$this->assertEquals( $suggestionSnippet,
+					HtmlArmor::getHtml( $resultSet->getQueryAfterRewriteSnippet() ) );
 			} else {
 				$this->assertNull( $resultSet->getQueryAfterRewrite() );
 				$this->assertNull( $resultSet->getQueryAfterRewriteSnippet() );
 				$this->assertEquals( $suggestion, $resultSet->getSuggestionQuery() );
-				$this->assertEquals( $suggestionSnippet, $resultSet->getSuggestionSnippet() );
+				$this->assertEquals( $suggestionSnippet,
+					HtmlArmor::getHtml( $resultSet->getSuggestionSnippet() ) );
 			}
 		} else {
 			$this->assertArrayNotHasKey( 'suggest', $query[Searcher::MAINSEARCH_MSEARCH_KEY] );

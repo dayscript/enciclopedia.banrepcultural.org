@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Abdulla",
+			"Arystanbek",
+			"Casual",
+			"CoderSI",
+			"Nataev",
+			"Sociologist"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-action-addsection": "Mavzu qoʻshish",
+	"banrepcultural-action-delete": "O‘chirish",
+	"banrepcultural-action-move": "Ko‘chirish",
+	"banrepcultural-action-protect": "Himoyalash",
+	"banrepcultural-action-undelete": "Tiklash",
+	"banrepcultural-action-unprotect": "Himoyani oʻzgartirish",
+	"banrepcultural-view-create": "Yaratish",
+	"banrepcultural-view-edit": "Tahrirlash",
+	"banrepcultural-view-history": "Tarix",
+	"banrepcultural-view-view": "Mutolaa",
+	"banrepcultural-view-viewsource": "Manbasini koʻrish",
+	"banrepcultural-more-actions": "Yana"
+}

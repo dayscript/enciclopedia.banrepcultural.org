@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Adam-Yourist",
+			"Amire80",
+			"ElizaMag",
+			"Sapral Mikail",
+			"Умар"
+		]
+	},
+	"skinname-banrepcultural": "Вéктора",
+	"banrepcultural-action-addsection": "Тема тӀатоха",
+	"banrepcultural-action-delete": "ДӀаяккха",
+	"banrepcultural-action-move": "ЦӀи хувца",
+	"banrepcultural-action-protect": "Лорае",
+	"banrepcultural-action-undelete": "Хьаметтаоттаде",
+	"banrepcultural-action-unprotect": "Лораяр хувца",
+	"banrepcultural-view-create": "Хьакхолла",
+	"banrepcultural-view-edit": "Тоаде",
+	"banrepcultural-view-history": "Хувцамаш",
+	"banrepcultural-view-view": "Де́ша",
+	"banrepcultural-view-viewsource": "Хьалххе бӀаргтохара разметкага хьажар",
+	"banrepcultural-more-actions": "Кхы а"
+}

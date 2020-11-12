@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Derslek",
+			"Don Alessandro",
+			"Rinatus",
+			"Ильнар",
+			"Рашат Якупов"
+		]
+	},
+	"skinname-banrepcultural": "Сызымлы",
+	"banrepcultural-skin-desc": "Хәзерге заманга туры килгән MonoBook күренеше, яңа бизәлеш һәм яңа мөмкинлекләр",
+	"banrepcultural-action-addsection": "Яңа тема өстәү",
+	"banrepcultural-action-delete": "Бетерү",
+	"banrepcultural-action-move": "Күчерү",
+	"banrepcultural-action-protect": "Яклау",
+	"banrepcultural-action-undelete": "Кайтару",
+	"banrepcultural-action-unprotect": "Яклауны үзгәртү",
+	"banrepcultural-view-create": "Төзү",
+	"banrepcultural-view-edit": "Үзгәртү",
+	"banrepcultural-view-history": "Тарихын карау",
+	"banrepcultural-view-view": "Уку",
+	"banrepcultural-view-viewsource": "Чыганагын карау",
+	"banrepcultural-jumptonavigation": "Навигациягә күчү",
+	"banrepcultural-jumptosearch": "Эзләүгә күчү",
+	"banrepcultural-more-actions": "Тагын"
+}

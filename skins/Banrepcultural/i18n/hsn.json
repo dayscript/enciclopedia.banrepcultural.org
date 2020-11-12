@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"SolidBlock",
+			"YulouCN"
+		]
+	},
+	"banrepcultural-skin-desc": "给杂清新的样子再加上好多吧多可用性的新MonoBook",
+	"banrepcultural-action-addsection": "搞杂话题",
+	"banrepcultural-action-delete": "消嘎",
+	"banrepcultural-action-move": "移走",
+	"banrepcultural-action-protect": "免修",
+	"banrepcultural-action-undelete": "还原",
+	"banrepcultural-action-unprotect": "换杂保护",
+	"banrepcultural-view-create": "弄噶",
+	"banrepcultural-view-edit": "增改",
+	"banrepcultural-view-history": "履歷",
+	"banrepcultural-view-view": "讀",
+	"banrepcultural-view-viewsource": "望下代碼",
+	"banrepcultural-more-actions": "更多"
+}

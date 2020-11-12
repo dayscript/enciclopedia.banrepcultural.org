@@ -2,9 +2,12 @@
 
 namespace CirrusSearch\Search;
 
-use LinkBatch;
+use BaseSearchResultSet;
+use HtmlArmor;
 use ISearchResultSet;
+use LinkBatch;
 use SearchResult;
+use SearchResultSetTrait;
 use Title;
 use Wikimedia\Assert\Assert;
 
@@ -28,8 +31,8 @@ use Wikimedia\Assert\Assert;
  * http://www.gnu.org/copyleft/gpl.html
  * @deprecated use a subclass of BaseCirrusSearchResultSet
  */
-class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
-	use \SearchResultSetTrait;
+class ResultSet extends BaseSearchResultSet implements CirrusSearchResultSet {
+	use SearchResultSetTrait;
 
 	/**
 	 * @var \Elastica\ResultSet
@@ -42,7 +45,7 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 	private $suggestionQuery;
 
 	/**
-	 * @var string|null
+	 * @var HtmlArmor|string|null
 	 */
 	private $suggestionSnippet;
 
@@ -57,9 +60,8 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 	private $rewrittenQuery;
 
 	/**
-	 * @var string|null
+	 * @var HtmlArmor|string|null
 	 */
-
 	private $rewrittenQuerySnippet;
 	/**
 	 * @var SearchResult[]
@@ -105,11 +107,11 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 
 	/**
 	 * @param string $suggestionQuery
-	 * @param string $suggestionSnippet
+	 * @param HtmlArmor|string|null $suggestionSnippet
 	 */
-	public function setSuggestionQuery( $suggestionQuery, $suggestionSnippet ) {
+	public function setSuggestionQuery( string $suggestionQuery, $suggestionSnippet = null ) {
 		$this->suggestionQuery = $suggestionQuery;
-		$this->suggestionSnippet = $suggestionSnippet;
+		$this->suggestionSnippet = $suggestionSnippet ?? $suggestionQuery;
 	}
 
 	/**
@@ -167,7 +169,7 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 	}
 
 	/**
-	 * @return string
+	 * @return HtmlArmor|string|null Null is only returned if suggestion query is also null
 	 */
 	public function getSuggestionSnippet() {
 		return $this->suggestionSnippet;
@@ -224,11 +226,11 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 
 	/**
 	 * @param string $newQuery
-	 * @param string|null $newQuerySnippet
+	 * @param HtmlArmor|string|null $newQuerySnippet
 	 */
-	public function setRewrittenQuery( $newQuery, $newQuerySnippet = null ) {
+	public function setRewrittenQuery( string $newQuery, $newQuerySnippet = null ) {
 		$this->rewrittenQuery = $newQuery;
-		$this->rewrittenQuerySnippet = $newQuerySnippet ?: htmlspecialchars( $newQuery );
+		$this->rewrittenQuerySnippet = $newQuerySnippet ?? $newQuery;
 	}
 
 	/**
@@ -246,7 +248,7 @@ class ResultSet extends \BaseSearchResultSet implements CirrusSearchResultSet {
 	}
 
 	/**
-	 * @return string|null
+	 * @return HtmlArmor|string|null
 	 */
 	public function getQueryAfterRewriteSnippet() {
 		return $this->rewrittenQuerySnippet;

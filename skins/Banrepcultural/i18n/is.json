@@ -1,0 +1,27 @@
+{
+	"@metadata": {
+		"authors": [
+			"Friðrik Bragi Dýrfjörð",
+			"Maxí",
+			"Snævar",
+			"Sveinn í Felli",
+			"Ævar Arnfjörð Bjarmason"
+		]
+	},
+	"skinname-banrepcultural": "Vektor",
+	"banrepcultural-skin-desc": "Nútímaútgáfa af MonoBook með fersku útliti og mörgum endurbótum á notagildi",
+	"banrepcultural.css": "/* Allt CSS sem sett er hér mun  hafa áhrif á alla notendur Vektor-skinnsins. */",
+	"banrepcultural.js": "/* Allt JavaScript sem sett er hér mun hafa áhrif á notendur Vektor-skinnsins. */",
+	"banrepcultural-action-addsection": "Bæta við umræðu",
+	"banrepcultural-action-delete": "Eyða",
+	"banrepcultural-action-move": "Færa",
+	"banrepcultural-action-protect": "Vernda",
+	"banrepcultural-action-undelete": "Hætta við eyðingu",
+	"banrepcultural-action-unprotect": "Breyta verndunarstigi",
+	"banrepcultural-view-create": "Skapa",
+	"banrepcultural-view-edit": "Breyta",
+	"banrepcultural-view-history": "Breytingaskrá",
+	"banrepcultural-view-view": "Lesa",
+	"banrepcultural-view-viewsource": "Sýna frumkóða",
+	"banrepcultural-more-actions": "Meira"
+}

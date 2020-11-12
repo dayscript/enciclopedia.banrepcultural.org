@@ -1,0 +1,25 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sasan700",
+			"Исмаил Садуев",
+			"Умар"
+		]
+	},
+	"skinname-banrepcultural": "Векторан",
+	"banrepcultural-skin-desc": "ХӀокху хенан MonoBook-ан верси кечдинчу карладахаршца а, дуккха а тодаршца юзабилити чохь",
+	"banrepcultural-action-addsection": "Тема тӀетоха",
+	"banrepcultural-action-delete": "ДӀаяккхар",
+	"banrepcultural-action-move": "ЦӀе хийцар",
+	"banrepcultural-action-protect": "Ларъяр",
+	"banrepcultural-action-undelete": "МеттахӀоттае",
+	"banrepcultural-action-unprotect": "Ларъяр хийцар",
+	"banrepcultural-view-create": "Кхоллар",
+	"banrepcultural-view-edit": "Нисъе бӀаьра",
+	"banrepcultural-view-history": "АгӀонан хийцамаш",
+	"banrepcultural-view-view": "Ешар",
+	"banrepcultural-view-viewsource": "Билглонашка хьажа",
+	"banrepcultural-jumptonavigation": "Навигацин тӀегӀо",
+	"banrepcultural-jumptosearch": "Лахарна тӀегӀо",
+	"banrepcultural-more-actions": "Кхин"
+}

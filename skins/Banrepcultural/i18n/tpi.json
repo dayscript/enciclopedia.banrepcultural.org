@@ -1,0 +1,16 @@
+{
+	"@metadata": {
+		"authors": [
+			"Iketsi",
+			"Wantok"
+		]
+	},
+	"banrepcultural-action-delete": "Rausim",
+	"banrepcultural-action-move": "Surikim",
+	"banrepcultural-action-protect": "Tambuim",
+	"banrepcultural-view-create": "Kirapim",
+	"banrepcultural-view-edit": "Senisim",
+	"banrepcultural-view-history": "Ol senis",
+	"banrepcultural-view-view": "Rit",
+	"banrepcultural-view-viewsource": "Lukim as tok"
+}

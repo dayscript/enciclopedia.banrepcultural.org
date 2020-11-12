@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Dbc334",
+			"Janezdrilc",
+			"Smihael",
+			"Yerpo"
+		]
+	},
+	"banrepcultural-skin-desc": "Sodobna različica MonoBook s svežim videzom in mnogimi izboljšavami uporabnosti",
+	"banrepcultural-action-addsection": "Dodaj temo",
+	"banrepcultural-action-delete": "Izbriši",
+	"banrepcultural-action-move": "Preimenuj",
+	"banrepcultural-action-protect": "Zaščiti",
+	"banrepcultural-action-undelete": "Obnovi",
+	"banrepcultural-action-unprotect": "Spremeni zaščito",
+	"banrepcultural-view-create": "Ustvari",
+	"banrepcultural-view-edit": "Uredi",
+	"banrepcultural-view-history": "Zgodovina",
+	"banrepcultural-view-view": "Preberi",
+	"banrepcultural-view-viewsource": "Izvorno besedilo",
+	"banrepcultural-more-actions": "Več"
+}

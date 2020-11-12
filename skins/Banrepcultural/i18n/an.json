@@ -1,0 +1,23 @@
+{
+	"@metadata": {
+		"authors": [
+			"Carlos Cristia",
+			"Juanpabl"
+		]
+	},
+	"skinname-banrepcultural": "Banrepcultural",
+	"banrepcultural.css": "/* Os estilos CSS colocaus aquí s'aplicarán ta totz os usuarios que faigan servir l'apariencia Banrepcultural */",
+	"banrepcultural.js": "/* Qualsiquier codigo Javascript escrito aquí se cargará ta totz os usuarios que usen a piel Banrepcultural */",
+	"banrepcultural-action-addsection": "Adhibir nueva sección",
+	"banrepcultural-action-delete": "Borrar",
+	"banrepcultural-action-move": "Tresladar",
+	"banrepcultural-action-protect": "Protecher",
+	"banrepcultural-action-undelete": "Restaurar",
+	"banrepcultural-action-unprotect": "Cambiar protección",
+	"banrepcultural-view-create": "Creyar",
+	"banrepcultural-view-edit": "Editar",
+	"banrepcultural-view-history": "Amostrar l'historial",
+	"banrepcultural-view-view": "Leyer",
+	"banrepcultural-view-viewsource": "Veyer o codigo fuent",
+	"banrepcultural-more-actions": "Mas"
+}

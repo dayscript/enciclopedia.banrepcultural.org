@@ -1,13 +1,13 @@
 {
 	"@metadata": {
 		"authors": [
+			"Ainali",
 			"Bengt B",
+			"Bengtsson96",
 			"Jopparn",
 			"Lokal Profil",
-			"WikiPhoenix",
-			"Ainali",
-			"Bengtsson96",
-			"Skalman"
+			"Skalman",
+			"WikiPhoenix"
 		]
 	},
 	"cirrussearch-desc": "Elasticsearch-driven sökning för MediaWiki",
@@ -53,7 +53,7 @@
 	"cirrussearch-completion-profile-normal-pref-desc": "Ingen korrigering av stavfel. Löser stängda omdirigeringar.",
 	"cirrussearch-completion-profile-normal-subphrases-pref-name": "Omdirigeringsläge med matchade underfraser (avancerat)",
 	"cirrussearch-completion-profile-normal-subphrases-pref-desc": "Ingen korrigering av stavfel. Löser stängda omdirigeringar. Matchande underfraser i titlar.",
-	"cirrussearch-completion-profile-classic-pref-name": "Klassisk prefixsök",
+	"cirrussearch-completion-profile-classic-pref-name": "Klassisk prefixsökning",
 	"cirrussearch-completion-profile-classic-pref-desc": "Ingen korrigering av stavfel. Matchar början av titlar.",
 	"cirrussearch-timed-out": "Sökningen överskred tidsgränsen, endast delvisa resultat finns tillgängliga.",
 	"cirrussearch-regex-timed-out": "Sökningen med reguljära uttryck överskred tidsgränsen, alla resultat kan inte visas. Försök förenkla ditt reguljära uttryck för att få samtliga resultat.",
@@ -64,6 +64,7 @@
 	"cirrussearch-feature-deepcat-endpoint": "$wgCirrusSearchCategoryEndpoint bör ändras till en giltig SPARQL-endpoint för att använda djup kategorisökning.",
 	"cirrussearch-feature-deepcat-exception": "Djup kategorisökning med SPARQL-fråga misslyckades",
 	"cirrussearch-feature-deepcat-toomany": "Frågan för djup kategori returnerade för många svar",
+	"cirrussearch-feature-deepcat-invalid-title": "Den angivna kategorin är ogiltig.",
 	"cirrussearch-incategory-feature-no-valid-categories": "Inga giltiga kategorier tillhandahölls i \"$1\".",
 	"cirrussearch-mlt-feature-no-valid-titles": "Inga giltiga titlar tillhandahölls för \"$1\".",
 	"cirrussearch-mlt-not-configured": "Funktionen \"$1\" är felkonfigurerad. Be en administratör att åtgärda $wgCirrusSearchMoreLikeThisFields",
@@ -77,5 +78,6 @@
 	"cirrussearch-keyword-prefix-ns-mismatch": "Namnrymden som hittas i söktermen <code>prefix:</code> är inte kompatibel med den begärda namnrymden. Du kan åtgärda detta genom att lägga till <code>all:</code> som ett prefix i din fråga.",
 	"cirrussearch-autoselect-profile": "Låt sökmotorn bestämma den bästa profilen att använda.",
 	"cirrussearch-offset-too-large": "Kunde inte hämta resultat. Upp till $1 sökresultat stöds, men resultat från $2 efterfrågades.",
-	"cirrussearch-offset-not-allowed-with-random-sort": "Ignorerar begäran att paginera slumpvist sorterade resultat."
+	"cirrussearch-offset-not-allowed-with-random-sort": "Ignorerar begäran att paginera slumpvist sorterade resultat.",
+	"cirrussearch-articletopic-invalid-topic": "{{PLURAL:$2|Okänt ämne|Okända ämnen}} för <kbd>articletopic:</kbd> nyckelordet: $1"
 }

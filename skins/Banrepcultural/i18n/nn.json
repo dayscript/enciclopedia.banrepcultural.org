@@ -1,0 +1,20 @@
+{
+	"@metadata": {
+		"authors": [
+			"Gunnernett",
+			"Njardarlogar"
+		]
+	},
+	"banrepcultural-action-addsection": "Nytt emne",
+	"banrepcultural-action-delete": "Slett",
+	"banrepcultural-action-move": "Flytt",
+	"banrepcultural-action-protect": "Vern",
+	"banrepcultural-action-undelete": "Gjenopprett",
+	"banrepcultural-action-unprotect": "Endra vern",
+	"banrepcultural-view-create": "Opprett",
+	"banrepcultural-view-edit": "Endre",
+	"banrepcultural-view-history": "Sjå historikken",
+	"banrepcultural-view-view": "Les",
+	"banrepcultural-view-viewsource": "Sjå kjelda",
+	"banrepcultural-more-actions": "Meir"
+}

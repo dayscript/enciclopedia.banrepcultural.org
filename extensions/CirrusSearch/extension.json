@@ -11,7 +11,7 @@
 	"license-name": "GPL-2.0-or-later",
 	"type": "other",
 	"requires": {
-		"MediaWiki": ">= 1.34.0",
+		"MediaWiki": ">= 1.35.0",
 		"extensions": {
 			"Elastica": ">= 6.0.1"
 		}
@@ -50,31 +50,19 @@
 			"i18n/api"
 		]
 	},
-	"AutoloadClasses": {
-		"CirrusSearch": "includes/CirrusSearch.php",
-		"CirrusSearch\\CirrusSearch": "includes/CirrusSearch.php",
-		"CirrusSearch\\CheckIndexes": "maintenance/checkIndexes.php",
-		"CirrusSearch\\CirrusIsSetup": "maintenance/cirrusNeedsToBeBuilt.php",
+	"TestAutoloadClasses": {
 		"CirrusSearch\\CirrusIntegrationTestCase": "tests/phpunit/integration/CirrusIntegrationTestCase.php",
 		"CirrusSearch\\CirrusTestCase": "tests/phpunit/unit/CirrusTestCase.php",
 		"CirrusSearch\\CirrusTestCaseTrait": "tests/phpunit/unit/CirrusTestCaseTrait.php",
-		"CirrusSearch\\Maintenance\\Metastore": "maintenance/metastore.php",
-		"CirrusSearch\\Maintenance\\RunSearch": "maintenance/runSearch.php",
-		"CirrusSearch\\Maintenance\\SaneitizeJobs": "maintenance/saneitizeJobs.php",
-		"CirrusSearch\\Maintenance\\IndexNamespaces": "maintenance/indexNamespaces.php",
-		"CirrusSearch\\Maintenance\\UpdateSearchIndexConfig": "maintenance/updateSearchIndexConfig.php",
-		"CirrusSearch\\ForceSearchIndex": "maintenance/forceSearchIndex.php",
-		"CirrusSearch\\Saneitize": "maintenance/saneitize.php",
 		"CirrusSearch\\Query\\SimpleKeywordFeatureTestTrait": "tests/phpunit/unit/Query/SimpleKeywordFeatureTestTrait.php",
 		"CirrusSearch\\Query\\KeywordFeatureAssertions": "tests/phpunit/unit/Query/KeywordFeatureAssertions.php",
-		"CirrusSearch\\Fallbacks\\BaseFallbackMethodTest": "tests/phpunit/unit/Fallbacks/BaseFallbackMethodTest.php",
-		"CirrusSearch\\Search\\TermBoostScoreBuilder": "includes/Search/Rescore/TermBoostScoreBuilder.php",
-		"CirrusSearch\\Search\\FunctionScoreBuilder": "includes/Search/Rescore/FunctionScoreBuilder.php",
-		"CirrusSearch\\Search\\Rescore\\TermBoostScoreBuilder": "includes/Search/Rescore/TermBoostScoreBuilder.php",
-		"CirrusSearch\\Search\\Rescore\\FunctionScoreBuilder": "includes/Search/Rescore/FunctionScoreBuilder.php"
+		"CirrusSearch\\Fallbacks\\BaseFallbackMethodTest": "tests/phpunit/unit/Fallbacks/BaseFallbackMethodTest.php"
 	},
 	"AutoloadNamespaces": {
 		"CirrusSearch\\": "includes/",
+		"CirrusSearch\\Maintenance\\": "maintenance/"
+	},
+	"TestAutoloadNamespaces": {
 		"CirrusSearch\\Test\\": "tests/phpunit/unit/mocks/"
 	},
 	"ResourceModules": {
@@ -123,8 +111,6 @@
 		"remoteExtPath": "CirrusSearch"
 	},
 	"Hooks": {
-		"CirrusSearchBuildDocumentFinishBatch": "CirrusSearch\\BuildDocument\\RedirectsAndIncomingLinks::finishBatch",
-		"CirrusSearchBuildDocumentLinks": "CirrusSearch\\BuildDocument\\RedirectsAndIncomingLinks::buildDocument",
 		"APIAfterExecute": "CirrusSearch\\Hooks::onAPIAfterExecute",
 		"ApiBeforeMain": "CirrusSearch\\Hooks::onApiBeforeMain",
 		"ArticleDelete": "CirrusSearch\\Hooks::onArticleDelete",
@@ -132,19 +118,24 @@
 		"ArticleRevisionVisibilitySet": "CirrusSearch\\Hooks::onRevisionDelete",
 		"ArticleUndelete": "CirrusSearch\\Hooks::onArticleUndelete",
 		"BeforeInitialize": "CirrusSearch\\Hooks::onBeforeInitialize",
+		"CirrusSearchAddQueryFeatures": "CirrusSearch\\Wikimedia\\ORESArticleTopicsHooks::onCirrusSearchAddQueryFeatures",
+		"CirrusSearchAnalysisConfig": "CirrusSearch\\Wikimedia\\ORESArticleTopicsHooks::onCirrusSearchAnalysisConfig",
+		"CirrusSearchSimilarityConfig": "CirrusSearch\\Wikimedia\\ORESArticleTopicsHooks::onCirrusSearchSimilarityConfig",
 		"GetPreferences": "CirrusSearch\\Hooks::onGetPreferences",
 		"LinksUpdateComplete": "CirrusSearch\\Hooks::onLinksUpdateCompleted",
 		"MediaWikiServices": "CirrusSearch\\Hooks::onMediaWikiServices",
+		"PrefixSearchExtractNamespace": "CirrusSearch\\Hooks::onPrefixSearchExtractNamespace",
 		"ResourceLoaderGetConfigVars": "CirrusSearch\\Hooks::onResourceLoaderGetConfigVars",
+		"SearchIndexFields": "CirrusSearch\\Wikimedia\\ORESArticleTopicsHooks::onSearchIndexFields",
+		"SearchGetNearMatch": "CirrusSearch\\Hooks::onSearchGetNearMatch",
 		"ShowSearchHitTitle": "CirrusSearch\\Hooks::onShowSearchHitTitle",
 		"SoftwareInfo": "CirrusSearch\\Hooks::onSoftwareInfo",
 		"SpecialSearchResults": "CirrusSearch\\Hooks::onSpecialSearchResults",
 		"SpecialSearchResultsAppend": "CirrusSearch\\Hooks::onSpecialSearchResultsAppend",
 		"SpecialStatsAddExtra": "CirrusSearch\\Hooks::onSpecialStatsAddExtra",
 		"TitleMove": "CirrusSearch\\Hooks::onTitleMove",
-		"TitleMoveComplete": "CirrusSearch\\Hooks::onTitleMoveComplete",
-		"UserGetDefaultOptions": "CirrusSearch\\Hooks::onUserGetDefaultOptions",
-		"PageContentInsertComplete": "CirrusSearch\\Hooks::onPageContentInsertComplete"
+		"PageMoveComplete": "CirrusSearch\\Hooks::onPageMoveComplete",
+		"UserGetDefaultOptions": "CirrusSearch\\Hooks::onUserGetDefaultOptions"
 	},
 	"config": {
 		"CirrusSearchDefaultCluster": {
@@ -272,7 +263,7 @@
 			"value": true
 		},
 		"CirrusSearchFallbackProfile": {
-			"value": "phrase_suggest_and_language_detection"
+			"value": "phrase_suggest"
 		},
 		"CirrusSearchFallbackProfiles": {
 			"value": []
@@ -468,6 +459,9 @@
 		"CirrusSearchLogElasticRequestsSecret": {
 			"value": false
 		},
+		"CirrusSearchMaxFullTextQueryLength": {
+			"value": 300
+		},
 		"CirrusSearchMaxIncategoryOptions": {
 			"value": 100
 		},
@@ -641,11 +635,22 @@
 		"CirrusSearchCategoryMax": {
 			"value": 256
 		},
-		"CirrusSearchInstantIndexNew": {
-			"value": false
-		},
 		"CirrusSearchNamespaceResolutionMethod": {
 			"value": "elastic"
+		},
+		"CirrusSearchWMFExtraFeatures": {
+			"description": "Configuration for Wikimedia-spexific extra features.\n\n* ores_articletopics: search articles by topic.\n** build: include in the index definition",
+			"value": {
+				"ores_articletopics": {
+					"build": false,
+					"use": false
+				}
+			}
+		}
+	},
+	"SearchMappings": {
+		"CirrusSearch": {
+			"class": "CirrusSearch\\CirrusSearch"
 		}
 	},
 	"ServiceWiringFiles": [

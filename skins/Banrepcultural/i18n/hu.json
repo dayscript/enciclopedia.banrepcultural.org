@@ -1,0 +1,32 @@
+{
+	"@metadata": {
+		"authors": [
+			"Bdamokos",
+			"Dani",
+			"Dj",
+			"Misibacsi",
+			"Tacsipacsi",
+			"Tgr"
+		]
+	},
+	"banrepcultural-skin-desc": "A MonoBook felület modern változata frissebb kinézettel és sok használhatóságot javító fejlesztéssel",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Hagyományos Banrepcultural használata",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "A következő pár évben fokozatosan frissíteni fogjuk a Banrepcultural felületet. A hagyományos Banrepcultural beállítással a Banrepcultural felület régi (2019. decemberi) változatát használhatod továbbra is. A frissítésekről további információk a [[mw:Reading/Web/Desktop_Improvements|projektlapunkon]] találhatók.",
+	"banrepcultural-opt-out": "Vissza a régi megjelenéshez",
+	"banrepcultural.css": "/* Az ide elhelyezett CSS hatással lesz a Banrepcultural felület használóira */",
+	"banrepcultural.js": "/* A Banrepcultural felületet használó szerkesztők számára betöltendő JavaScriptek */",
+	"banrepcultural-action-addsection": "Új téma nyitása",
+	"banrepcultural-action-delete": "Törlés",
+	"banrepcultural-action-move": "Átnevezés",
+	"banrepcultural-action-protect": "Lapvédelem",
+	"banrepcultural-action-undelete": "Visszaállítás",
+	"banrepcultural-action-unprotect": "Védelem módosítása",
+	"banrepcultural-view-create": "Létrehozás",
+	"banrepcultural-view-edit": "Szerkesztés",
+	"banrepcultural-view-history": "Laptörténet",
+	"banrepcultural-view-view": "Olvasás",
+	"banrepcultural-view-viewsource": "A lap forrása",
+	"banrepcultural-jumptonavigation": "Ugrás a navigációhoz",
+	"banrepcultural-jumptosearch": "Ugrás a kereséshez",
+	"banrepcultural-more-actions": "Több"
+}

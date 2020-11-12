@@ -1,0 +1,21 @@
+{
+	"@metadata": {
+		"authors": [
+			"Bishnu Saikia",
+			"Chaipau",
+			"Gitartha.bordoloi"
+		]
+	},
+	"banrepcultural-action-addsection": "বিষয় যোগ",
+	"banrepcultural-action-delete": "বিলোপ কৰক",
+	"banrepcultural-action-move": "স্থানান্তৰ কৰক",
+	"banrepcultural-action-protect": "সুৰক্ষিত কৰক",
+	"banrepcultural-action-undelete": "পুনৰুদ্ধাৰ কৰক",
+	"banrepcultural-action-unprotect": "সুৰক্ষা সলনি কৰক",
+	"banrepcultural-view-create": "সৃষ্টি কৰক",
+	"banrepcultural-view-edit": "সম্পাদনা",
+	"banrepcultural-view-history": "ইতিহাস চাওক",
+	"banrepcultural-view-view": "পঢ়ক",
+	"banrepcultural-view-viewsource": "উৎস চাওক",
+	"banrepcultural-more-actions": "অধিক"
+}

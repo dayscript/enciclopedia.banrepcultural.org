@@ -1,0 +1,24 @@
+{
+	"@metadata": {
+		"authors": [
+			"Assele",
+			"Haqmar",
+			"Sagan",
+			"Рустам Нурыев"
+		]
+	},
+	"skinname-banrepcultural": "Векторлы",
+	"banrepcultural-skin-desc": "Хәҙерге заман  «Векторлы» күренеше, биҙәлеш яүыртылған һәм яңы мөмкинлектәр файҙаланылған",
+	"banrepcultural-action-addsection": "Тема өҫтәргә",
+	"banrepcultural-action-delete": "Юйырға",
+	"banrepcultural-action-move": "Исемен үҙгәртергә",
+	"banrepcultural-action-protect": "Һаҡларға",
+	"banrepcultural-action-undelete": "Тергеҙергә",
+	"banrepcultural-action-unprotect": "Һаҡлауҙы үҙгәртергә",
+	"banrepcultural-view-create": "Яһау",
+	"banrepcultural-view-edit": "Үҙгәртергә",
+	"banrepcultural-view-history": "Тарихты ҡарау",
+	"banrepcultural-view-view": "Уҡыу",
+	"banrepcultural-view-viewsource": "Сығанаҡты ҡарарға",
+	"banrepcultural-more-actions": "Тағы"
+}

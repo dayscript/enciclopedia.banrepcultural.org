@@ -1,0 +1,39 @@
+{
+	"@metadata": {
+		"authors": [
+			"AS",
+			"Ahonc",
+			"Base",
+			"Calak",
+			"Dim Grits",
+			"Movses",
+			"NickK",
+			"Piramidion",
+			"Prima klasy4na",
+			"Ата",
+			"Тест"
+		]
+	},
+	"skinname-banrepcultural": "Векторне",
+	"banrepcultural-skin-desc": "Сучасна версія MonoBook зі свіжим виглядом і багатьма зручними покращеннями",
+	"prefs-banrepcultural-enable-banrepcultural-1-label": "Використовувати стару версію",
+	"prefs-banrepcultural-enable-banrepcultural-1-help": "Протягом наступних декількох років ми поступово оновлюватимемо тему оформлення «Векторне». Стара версія цього оформлення дозволить вам бачити його таким, яким воно було станом на грудень 2019 року. Щоб дізнатись більше про ці оновлення, відвідайте нашу [[mw:Reading/Web/Desktop_Improvements|сторінку проекту]].",
+	"banrepcultural-opt-out": "Перемкнутися на старий вигляд",
+	"banrepcultural-opt-out-tooltip": "Змінити ваші налаштування щоб повернутись до оформлення  Вектор",
+	"banrepcultural.css": "/* Розміщений тут CSS-код буде використаний в темі оформлення Векторне */",
+	"banrepcultural.js": "/* Розміщений тут код JavaScript буде завантажений для всіх користувачів, що використовують векторну тему оформлення */",
+	"banrepcultural-action-addsection": "Додати тему",
+	"banrepcultural-action-delete": "Вилучити",
+	"banrepcultural-action-move": "Перейменувати",
+	"banrepcultural-action-protect": "Захистити",
+	"banrepcultural-action-undelete": "Відновити",
+	"banrepcultural-action-unprotect": "Зміна захисту",
+	"banrepcultural-view-create": "Створити",
+	"banrepcultural-view-edit": "Редагувати",
+	"banrepcultural-view-history": "Переглянути історію",
+	"banrepcultural-view-view": "Читати",
+	"banrepcultural-view-viewsource": "Переглянути код",
+	"banrepcultural-jumptonavigation": "Перейти до навігації",
+	"banrepcultural-jumptosearch": "Перейти до пошуку",
+	"banrepcultural-more-actions": "Ще"
+}
