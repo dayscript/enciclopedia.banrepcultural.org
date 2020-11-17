@@ -5,6 +5,7 @@
 	padding: 0.75em;
 	direction: ltr;
 	background: #4a4742;
+	height: 385px;
 	ul {
 		list-style: none none;
 		margin: 0;
@@ -14,8 +15,12 @@
 	li {
 		color: @color-base;
 		margin: 0;
-		padding: 0.5em 0;
+		//padding: 0.5em 0;
 		font-size: @font-size-footer;
+	}
+	.contant-footer {
+		max-width: 1280px;
+		margin: auto;
 	}
 	.footer-column {
 		box-sizing: border-box;
@@ -113,7 +118,9 @@
 
 #copyright {
 	font-size: 12px;
-    padding-top: 2em 0;
-    text-align: right;
-    color: #fff;
+	padding: 2em 0;
+	text-align: right;
+	color: #fff;
+	display: flex;
+	float: right;
 }

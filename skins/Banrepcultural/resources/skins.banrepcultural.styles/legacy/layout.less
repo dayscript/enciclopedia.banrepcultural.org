@@ -93,10 +93,11 @@ body {
 	}
 	#header-links {
 		margin: auto;
-		max-width: 1200px;
+		max-width: 1280px;
 		padding: 7px 1em;
 	}
 	#header-site-links {
+		padding: 0 0.5em;
 		a {
 			background-repeat: no-repeat;
 			color: white;
@@ -132,9 +133,11 @@ body {
 	}
 	#header-social-links {
 		display: flex;
-		position: absolute;
-		top: 5px;
-		right: 50px;
+		position: relative;
+		top: -25px;
+		right: 10px;
+		align-content: flex-end;
+		float: right;
 		.facebook-link {
 			background-image: url( images/icon-facebook.png );
 			width: 25px;
@@ -159,7 +162,7 @@ body {
 	#logo-header {
 		#header-logo{
 			margin: auto;
-			max-width: 1200px;
+			max-width: 1280px;
 			padding: 7px 1em;
 			#logo {
 				background-image: url( images/logo-banrepcultural.png );
@@ -201,9 +204,9 @@ body {
 
 #contant-header {
 	margin: auto;
-    width: 100%;
-    padding: 0 1em;
-    display: flex;
+    max-width: 1280px;
+    padding: 0 1.5em;
+   // display: flex;
     border-bottom: 1px solid #eee;
 }
 
@@ -289,7 +292,7 @@ body {
 
 #p-logo {
 	margin: auto;
-    max-width: 1200px;
+    max-width: 1280px;
     padding: 1em 0;
     width: unset!important;
     height: unset!important;
@@ -306,10 +309,11 @@ body {
 }
 
 #p-search {
-	position: absolute;
-	bottom: 20px;
-	right: 50px;
-    margin: 0!important;
+    display: flex;
+    position: relative;
+	bottom: 50px;
+    align-content: flex-end;
+    float: right;
 }
 .mw-footer {
 	margin-left: 10em;
@@ -328,16 +332,13 @@ body {
 	}
 
 	.mw-body {
+		max-width: 1280px;
 		padding: 1.25em 1.5em 1.5em 1.5em;
-		margin: 7.813em 1.5em auto 1.5em;
+    	margin: 7.813em auto auto auto;
 	}
 
 	.mw-footer {
 		padding: 1.25em;
-	}
-
-	#mw-panel {
-		padding-left: 2em;
 	}
 
 	#p-personal {
